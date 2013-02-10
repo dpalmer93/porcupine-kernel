@@ -104,12 +104,12 @@ matchmaker(void *p, unsigned long which)
 	V(print_lock);
 
 	// Implement this function
-	P(threesome.mmsem);
     if (threesome.male == 0 || threesome.female == 0)
     {
         P(threesome.msem);
         P(threesome.fsem);
     }
+    P(threesome.mmsem);
     threesome.generation++;
 	V(threesome.mmsem);
 	V(threesome.fsem);
