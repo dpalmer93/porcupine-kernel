@@ -34,6 +34,7 @@
 #include <lib.h>
 #include <thread.h>
 #include <test.h>
+#include <synch.h>
 
 #define NMATING 10
 
