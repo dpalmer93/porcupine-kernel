@@ -68,7 +68,7 @@ male(void *p, unsigned long which)
 	   P(threesome.msem);
 	
 	P(print_lock);
-	kprintf("female whale #%ld done", which);
+	kprintf("female whale #%ld done\n", which);
 	V(print_lock);
 }
 
@@ -90,7 +90,7 @@ female(void *p, unsigned long which)
        P(threesome.fsem);
     
     P(print_lock);
-    kprintf("female whale #%ld done", which);
+    kprintf("female whale #%ld done\n", which);
     V(print_lock);
 }
 
