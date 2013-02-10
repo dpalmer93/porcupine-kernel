@@ -66,6 +66,7 @@ male(void *p, unsigned long which)
 	V(threesome.msem);
 	while (threesome.generation == my_generation)
 	   P(threesome.msem);
+	V(threesome.msem);
 	
 	P(print_lock);
 	kprintf("female whale #%ld done\n", which);
@@ -88,6 +89,7 @@ female(void *p, unsigned long which)
 	V(threesome.fsem);
     while (threesome.generation == my_generation)
        P(threesome.fsem);
+    V(threesome.fsem);
     
     P(print_lock);
     kprintf("female whale #%ld done\n", which);
