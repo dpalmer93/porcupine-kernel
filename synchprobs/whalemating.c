@@ -37,6 +37,18 @@
 
 #define NMATING 10
 
+struct semaphore *print_lock;
+
+struct threesome
+{
+    struct semaphore *msem;
+    struct semaphore *fsem;
+    struct semaphore *mmsem;
+    int male;
+    int female;
+    int generation;
+} threesome;
+
 static
 void
 male(void *p, unsigned long which)
@@ -45,6 +57,14 @@ male(void *p, unsigned long which)
 	kprintf("male whale #%ld starting\n", which);
 
 	// Implement this function
+	P(threesome.msem);
+	threesome.male = 1;
+    int my_generation = threesome.generation;
+	V(threesome.msem);
+	while (threesome.generation == my_generation)
+	   P(threesome.mmsem);
+	
+	kprintf("female whale #%ld done", which);
 }
 
 static
@@ -55,6 +75,14 @@ female(void *p, unsigned long which)
 	kprintf("female whale #%ld starting\n", which);
 
 	// Implement this function
+	P(threesome.fsem);
+	threesome.female = 1;
+	int my_generation = threesome.generation;
+	V(threesome.fsem);
+    while (threesome.generation == my_generation)
+       P(threesome.mmsem);
+    
+    kprintf("female whale #%ld done", which);
 }
 
 static
@@ -65,6 +93,18 @@ matchmaker(void *p, unsigned long which)
 	kprintf("matchmaker whale #%ld starting\n", which);
 
 	// Implement this function
+	P(threesome.mmsem);
+    if (threesome.male == 0 || threesome.female == 0)
+    {
+        P(threesome.msem);
+        P(threesome.fsem);
+    }
+    threesome.generation++;
+	V(threesome.mmsem);
+	V(threesome.fsem);
+	V(threesome.msem);
+	
+	kprintf("matchmaker whale #%ld done\n", which);
 }
 
 
@@ -77,6 +117,12 @@ whalemating(int nargs, char **args)
 
 	(void)nargs;
 	(void)args;
+	
+	print_lock = sem_create("print", 1);
+	
+	threesome.msem = sem_create("male", 1);
+	threesome.fsem = sem_create("female", 1);
+	threesome.mmsem = sem_create("matchmaker", 1);
 
 	for (i = 0; i < 3; i++) {
 		for (j = 0; j < NMATING; j++) {
@@ -100,6 +146,8 @@ whalemating(int nargs, char **args)
 			}
 		}
 	}
+	
+	while (threesome.generation < NMATING);
 
 	return 0;
 }
