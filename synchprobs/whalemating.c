@@ -101,7 +101,7 @@ matchmaker(void *p, unsigned long which)
 	(void)p;
 	P(print_lock);
 	kprintf("matchmaker whale #%ld starting\n", which);
-	V(print_lock)
+	V(print_lock);
 
 	// Implement this function
 	P(threesome.mmsem);
