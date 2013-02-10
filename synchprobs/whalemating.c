@@ -55,7 +55,9 @@ void
 male(void *p, unsigned long which)
 {
 	(void)p;
+	P(print_lock);
 	kprintf("male whale #%ld starting\n", which);
+	V(print_lock);
 
 	// Implement this function
 	P(threesome.msem);
@@ -65,7 +67,9 @@ male(void *p, unsigned long which)
 	while (threesome.generation == my_generation)
 	   P(threesome.mmsem);
 	
+	P(print_lock);
 	kprintf("female whale #%ld done", which);
+	V(print_lock);
 }
 
 static
@@ -73,7 +77,9 @@ void
 female(void *p, unsigned long which)
 {
 	(void)p;
+	P(print_lock);
 	kprintf("female whale #%ld starting\n", which);
+	V(print_lock);
 
 	// Implement this function
 	P(threesome.fsem);
@@ -83,7 +89,9 @@ female(void *p, unsigned long which)
     while (threesome.generation == my_generation)
        P(threesome.mmsem);
     
+    P(print_lock);
     kprintf("female whale #%ld done", which);
+    V(print_lock);
 }
 
 static
@@ -91,7 +99,9 @@ void
 matchmaker(void *p, unsigned long which)
 {
 	(void)p;
+	P(print_lock);
 	kprintf("matchmaker whale #%ld starting\n", which);
+	V(print_lock)
 
 	// Implement this function
 	P(threesome.mmsem);
@@ -105,7 +115,9 @@ matchmaker(void *p, unsigned long which)
 	V(threesome.fsem);
 	V(threesome.msem);
 	
+	P(print_lock);
 	kprintf("matchmaker whale #%ld done\n", which);
+	V(print_lock);
 }
 
 
