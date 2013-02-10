@@ -64,8 +64,13 @@ male(void *p, unsigned long which)
 	threesome.male = 1;
     int my_generation = threesome.generation;
 	V(threesome.msem);
-	while (threesome.generation == my_generation)
-	   P(threesome.msem);
+    while (true)
+    {
+        P(threesome.msem);
+        if (threesome.generation > my_generation)
+            break;
+        V(threesome.msem);
+    }
 	V(threesome.msem);
 	
 	P(print_lock);
@@ -87,8 +92,13 @@ female(void *p, unsigned long which)
 	threesome.female = 1;
 	int my_generation = threesome.generation;
 	V(threesome.fsem);
-    while (threesome.generation == my_generation)
-       P(threesome.fsem);
+    while (true)
+    {
+        P(threesome.fsem);
+        if (threesome.generation > my_generation)
+            break;
+        V(threesome.fsem);
+    }
     V(threesome.fsem);
     
     P(print_lock);
