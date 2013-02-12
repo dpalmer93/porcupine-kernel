@@ -212,9 +212,12 @@ lock_acquire(struct lock *lock)
 void
 lock_release(struct lock *lock)
 {
+	// We cannot release someone else's lock!
+	KASSERT(lock_do_i_hold(lock));
+	
 	spinlock_acquire(&lock->lk_metalock);
 	lock->lk_holder = NULL;
-	wchan_wakeall(lock->lk_wchan);
+	wchan_wakeone(lock->lk_wchan);
 	spinlock_release(&lock->lk_metalock);
 }
 
