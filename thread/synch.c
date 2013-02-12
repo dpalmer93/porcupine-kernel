@@ -296,7 +296,6 @@ cv_signal(struct cv *cv, struct lock *lock)
 	KASSERT(lock_do_i_hold(lock));
 	
 	wchan_wakeone(cv->cv_wchan);
-	lock_release(lock);
 }
 
 void
@@ -306,5 +305,4 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 	KASSERT(lock_do_i_hold(lock));
 	
 	wchan_wakeall(cv->cv_wchan);
-	lock_release(lock);
 }

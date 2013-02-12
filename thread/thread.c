@@ -70,8 +70,8 @@ static struct cpuarray allcpus;
 static struct semaphore *cpu_startup_sem;
 
 /* Used to create unique identifiers for threads. */
-static struct spinlock *id_lock;
-static long id_counter = TID_NULL;
+static struct spinlock tid_lock;
+static long tid_counter = TID_NULL;
 
 ////////////////////////////////////////////////////////////
 
@@ -135,9 +135,10 @@ thread_create(const char *name)
 		return NULL;
 	}
 	
-	spinlock_acquire(id_lock);
-	thread->t_id = (id_counter++);
-	spinlock_release(id_lock);
+	spinlock_acquire(&tid_lock);
+	tid_counter++;
+	thread->t_id = tid_counter;
+	spinlock_release(&tid_lock);
 	
 	thread->t_wchan_name = "NEW";
 	thread->t_state = S_READY;
@@ -362,7 +363,13 @@ thread_bootstrap(void)
 	struct thread *bootthread;
 
 	cpuarray_init(&allcpus);
-
+    
+    /*
+     * Set up a spinlock to guarantee unique thread IDs.  This must
+     * be done before the first thread data structure is initialized.
+     */
+    spinlock_init(&tid_lock);
+    
 	/*
 	 * Create the cpu structure for the bootup CPU, the one we're
 	 * currently running on. Assume the hardware number is 0; that

@@ -119,8 +119,8 @@ void lock_destroy(struct lock *);
  * The name field is for easier debugging. A copy of the name is
  * (should be) made internally.
  *
- * A condition variable is implemented by a wait channel that is
- * logically linked to a condition whose value may change.
+ * A condition variable is implemented by a wait channel that
+ * logically corresponds to a condition whose value may change.
  * Signals and broadcasts correspond to wakeone and wakeall, respectively.
  */
 
