@@ -170,8 +170,6 @@ lock_create(const char *name)
 		return NULL;
 	}
 	
-	lock->lk_head = 0;
-	lock->lk_tail = 0;
 	lock->lk_holder = NULL;
 	
 	spinlock_init(&lock->lk_metalock);
@@ -199,9 +197,7 @@ void
 lock_acquire(struct lock *lock)
 {
 	spinlock_acquire(&lock->lk_metalock);
-	// position in lock queue: smaller is better
-	int q_position = (lock->lk_tail++);
-	while (lock->lk_head < q_position)
+	while (lock->lk_holder != NULL)
 	{
 		wchan_lock(lock->lk_wchan);
 		spinlock_release(&lock->lk_metalock);
@@ -217,12 +213,9 @@ void
 lock_release(struct lock *lock)
 {
 	spinlock_acquire(&lock->lk_metalock);
-	lock->lk_holder = curthread;
-	lock->lk_head++;
+	lock->lk_holder = NULL;
 	wchan_wakeall(lock->lk_wchan);
 	spinlock_release(&lock->lk_metalock);
-
-	(void)lock;	// suppress warning until code gets written
 }
 
 bool
