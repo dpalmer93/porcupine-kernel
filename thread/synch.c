@@ -201,16 +201,13 @@ lock_acquire(struct lock *lock)
 	int q_position; // position in lock queue: smaller is better
 	
 	spinlock_acquire(&lock->lk_metalock);
-	if (lock->lk_head < lock->lk_tail) // Locked!
+	int q_position = (lock->lk_tail++);
+	while (lock->lk_head < q_position)
 	{
-		q_position = (lock->lk_tail++);
-		while (lock->lk_head < q_position)
-		{
-			wchan_lock(lock->lk_wchan);
-			spinlock_release(&lock->lk_metalock);
-			wchan_sleep(lock->lk_wchan);
-			spinlock_acquire(&lock->lk_metalock);
-		}
+		wchan_lock(lock->lk_wchan);
+		spinlock_release(&lock->lk_metalock);
+		wchan_sleep(lock->lk_wchan);
+		spinlock_acquire(&lock->lk_metalock);
 	}
 	// Our turn! Actually acquire the lock.
 	lock->lk_holder = curthread;
