@@ -224,7 +224,7 @@ lock_release(struct lock *lock)
 bool
 lock_do_i_hold(struct lock *lock)
 {
-	int do_i_hold;
+	bool do_i_hold;
 	spinlock_acquire(&lock->lk_metalock);
 	do_i_hold = (lock->lk_holder == curthread);
 	spinlock_release(&lock->lk_metalock);
