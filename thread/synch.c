@@ -198,9 +198,8 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock)
 {
-	int q_position; // position in lock queue: smaller is better
-	
 	spinlock_acquire(&lock->lk_metalock);
+	// position in lock queue: smaller is better
 	int q_position = (lock->lk_tail++);
 	while (lock->lk_head < q_position)
 	{
