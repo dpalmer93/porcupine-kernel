@@ -227,7 +227,7 @@ lock_do_i_hold(struct lock *lock)
 	bool do_i_hold;
 	spinlock_acquire(&lock->lk_metalock);
 	// use stack to distinguish threads
-	do_i_hold = SAME_STACK(lock->lk_holder, curthread->t_stack);
+	do_i_hold = SAME_STACK((intptr_t)lock->lk_holder, (intptr_t)curthread->t_stack);
 	spinlock_release(&lock->lk_metalock);
 
 	return do_i_hold;
