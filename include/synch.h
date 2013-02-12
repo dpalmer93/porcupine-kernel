@@ -85,7 +85,7 @@ struct lock {
 	char *lk_name;
 	struct spinlock lk_metalock;
 	struct wchan *lk_wchan; // the core of the lock
-	struct void *lk_holder; // stack ref--current holder of the lock
+	void *lk_holder; // stack ref--current holder of the lock
 };
 
 struct lock *lock_create(const char *name);
