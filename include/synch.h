@@ -70,11 +70,24 @@ void V(struct semaphore *);
  *
  * The name field is for easier debugging. A copy of the name is
  * (should be) made internally.
+ * 
+ * A lock consists of a spinlock, a wait channel, and two integers, head and tail.
+ * The two integers represent a conceptual queue of threads waiting on the lock.
+ * When a thread tries to acquire the lock, it increments tail and saves
+ * the resulting value as its current position in the queue.  Then it waits on the
+ * wait channel.  When it is awoken, it checks whether its position is equal to
+ * head.  If so, it holds the lock.  Otherwise, it goes back to sleep so
+ * as to yield the lock to the first thread on the queue.
+ * Upon releasing the lock, a thread increments head to pass control to the
+ * next thread on the queue.
  */
 struct lock {
 	char *lk_name;
-	// add what you need here
-	// (don't forget to mark things volatile as needed)
+	struct spinlock lk_metalock;
+	struct wchan *lk_wchan; // the core of the lock
+	struct thread *lk_holder; // current holder of the lock
+    volatile int lk_head; // The queue of threads
+	volatile int lk_tail; // waiting on the lock
 };
 
 struct lock *lock_create(const char *name);
@@ -108,12 +121,15 @@ void lock_destroy(struct lock *);
  *
  * The name field is for easier debugging. A copy of the name is
  * (should be) made internally.
+ *
+ * A condition variable is implemented by a wait channel that is
+ * logically linked to a condition whose value may change.
+ * Signals and broadcasts correspond to wakeone and wakeall, respectively.
  */
 
 struct cv {
 	char *cv_name;
-	// add what you need here
-	// (don't forget to mark things volatile as needed)
+	struct wchan *cv_wchan;
 };
 
 struct cv *cv_create(const char *name);
