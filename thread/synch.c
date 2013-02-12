@@ -205,7 +205,7 @@ lock_acquire(struct lock *lock)
 		spinlock_acquire(&lock->lk_metalock);
 	}
 	// Our turn! Actually acquire the lock.
-	lock->lk_holder = curthread->t_stack;
+	lock->lk_holder = curthread->t_id;
 	spinlock_release(&lock->lk_metalock);
 }
 
@@ -227,7 +227,7 @@ lock_do_i_hold(struct lock *lock)
 	bool do_i_hold;
 	spinlock_acquire(&lock->lk_metalock);
 	// use stack to distinguish threads
-	do_i_hold = SAME_STACK((intptr_t)lock->lk_holder, (intptr_t)curthread->t_stack);
+	do_i_hold = (curthread->t_id == lock->lk_holder);
 	spinlock_release(&lock->lk_metalock);
 
 	return do_i_hold;

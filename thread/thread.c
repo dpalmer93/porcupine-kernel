@@ -69,6 +69,10 @@ static struct cpuarray allcpus;
 /* Used to wait for secondary CPUs to come online. */
 static struct semaphore *cpu_startup_sem;
 
+/* Used to create unique identifiers for threads. */
+static struct spinlock *id_lock;
+static long id_counter = 0;
+
 ////////////////////////////////////////////////////////////
 
 /*
@@ -130,6 +134,11 @@ thread_create(const char *name)
 		kfree(thread);
 		return NULL;
 	}
+	
+	spinlock_acquire(id_lock);
+	thread->t_id = (id_counter++);
+	spinlock_release(id_lock);
+	
 	thread->t_wchan_name = "NEW";
 	thread->t_state = S_READY;
 

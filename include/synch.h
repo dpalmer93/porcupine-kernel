@@ -71,9 +71,8 @@ void V(struct semaphore *);
  * The name field is for easier debugging. A copy of the name is
  * (should be) made internally.
  * 
- * A lock consists of a spinlock, a wait channel, and a reference to a thread, lk_holder.
- * This refers to the STACK of the current holder of the lock.  We cannot use a reference
- * to the thread data structure because it moves around.
+ * A lock consists of a spinlock, a wait channel, and a thread id, lk_holder.
+ * This refers to the current holder of the lock.
  * When a thread tries to acquire the lock, it checks whether lk_holder == NULL.  If
  * so, it immediately acquires the lock.  Otherwise, it waits on the
  * wait channel.  When it is awoken, it checks whether the lock is now available.
@@ -85,7 +84,7 @@ struct lock {
 	char *lk_name;
 	struct spinlock lk_metalock;
 	struct wchan *lk_wchan; // the core of the lock
-	void *lk_holder; // stack ref--current holder of the lock
+	long lk_holder; // id of current holder of the lock
 };
 
 struct lock *lock_create(const char *name);
