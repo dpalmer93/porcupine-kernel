@@ -73,7 +73,7 @@ void V(struct semaphore *);
  * 
  * A lock consists of a spinlock, a wait channel, and a thread id, lk_holder.
  * This refers to the current holder of the lock.
- * When a thread tries to acquire the lock, it checks whether lk_holder == NULL.  If
+ * When a thread tries to acquire the lock, it checks whether lk_holder == TID_NULL.  If
  * so, it immediately acquires the lock.  Otherwise, it waits on the
  * wait channel.  When it is awoken, it checks whether the lock is now available.
  * If so, it takes the lock.  Otherwise, it goes back to sleep.

@@ -71,7 +71,7 @@ static struct semaphore *cpu_startup_sem;
 
 /* Used to create unique identifiers for threads. */
 static struct spinlock *id_lock;
-static long id_counter = 0;
+static long id_counter = TID_NULL;
 
 ////////////////////////////////////////////////////////////
 
