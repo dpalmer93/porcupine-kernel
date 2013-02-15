@@ -115,6 +115,7 @@ init_members(member *mems, int length, const char *name)
   struct cv *common_cv = cv_create(name);
   for (int i = 0; i < length; i++)
   {
+    mems[i].m_name = NULL;
     mems[i].m_cv = common_cv;
     mems[i].m_lock = common_lock;
   }
@@ -156,7 +157,7 @@ struct fotr_t
 // Join an array of fellowship members.
 // The second argument is the length of
 // the array.  The third argument is the
-// thread number.  The return
+// member name.  The return
 // value is the current generation of
 // the fellowship.
 static int
@@ -175,12 +176,12 @@ mem_join(member *mems, int length, const char *name)
     }
     cv_wait(mems[0].m_cv, mems[0].m_lock);
   }
-do_join:
-  mems[i].m_name = name;
-  int mygen = fotr.generation;
-  cv_broadcast(mems[i].m_cv, mems[i].m_lock);
-  lock_release(mems[i].m_lock);
-  return mygen;
+  do_join:
+    mems[i].m_name = name;
+    int mygen = fotr.generation;
+    cv_broadcast(mems[i].m_cv, mems[i].m_lock);
+    lock_release(mems[i].m_lock);
+    return mygen;
 }
 
 static void
@@ -225,7 +226,7 @@ wizard(void *p, unsigned long which)
   int name_idx = 1;
   
   lock_acquire(fotr.warlock);
-  for (member *m = &fotr.men[0]; m < &fotr.hobbits[3]; m++)
+  for (member *m = &fotr.men[0]; m <= &fotr.hobbits[3]; m++)
   {
     lock_acquire(m->m_lock);
     while (m->m_name == NULL)
@@ -237,12 +238,12 @@ wizard(void *p, unsigned long which)
   fotr.generation++;
   
   lock_acquire(print_lock);
-  kprintf("FELLOWSHIP:\t%s, %s, %s, %s, %s, %s, %s, %s, %s",
+  kprintf("FELLOWSHIP:\t%s, %s, %s, %s, %s, %s, %s, %s, %s\n",
           names[0], names[1], names[2], names[3], names[4],
           names[5], names[6], names[7], names[8]);
   lock_release(print_lock);
   
-  for (member *m = &fotr.men[0]; m < &fotr.hobbits[3]; m++)
+  for (member *m = &fotr.men[0]; m <= &fotr.hobbits[3]; m++)
     mem_clear(m);
   lock_release(fotr.warlock);
   
@@ -321,7 +322,8 @@ fellowship(int nargs, char **args)
   init_members(fotr.men, 2, "men");
   init_members(&fotr.elf, 1, "elf");
   init_members(&fotr.dwarf, 1, "dwarf");
-  init_members(fotr.hobbits, 1, "hobbits");
+  init_members(fotr.hobbits, 4, "hobbits");
+  fotr.generation = 0;
 
   for (i = 0; i < NFOTRS; ++i) {
     thread_fork_or_panic("wizard", wizard, NULL, i, NULL);
