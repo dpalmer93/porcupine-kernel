@@ -59,6 +59,9 @@ struct piazza_question {
 struct piazza_question *questions[NANSWERS] = { 0 };
 
 
+// synchronization of creation
+struct lock *creator_locks[NANSWERS];
+
 // global synchronization of exiting
 // and printing
 struct lock *print_lock;
@@ -83,6 +86,17 @@ create_question()
   q->pq_answer[ANSWER_LENGTH] = '\0';
   
   return q;
+}
+
+static void
+edit_question(struct piazza_question *q)
+{
+  for (char *c = q->pq_answer; *c != '\0'; c++)
+  {
+    (*c)++;
+    if (*c > 'z')
+      *c = 'a';
+  }
 }
 
 static void
@@ -194,10 +208,15 @@ instructor(void *p, unsigned long which)
     // Choose a random Piazza question.
     int n = random() % NANSWERS;
     
+    lock_acquire(creator_locks[n]);
     if (questions[n] == NULL)
+    {
       questions[n] = create_question();
+      lock_release(creator_locks[n]);
+    }
     else
     {
+      lock_release(creator_locks[n]);
       lock_acquire(questions[n]->pq_lock);
       while (questions[n]->pq_nstudents > 0 || questions[n]->pq_instructor > 0)
         cv_wait(questions[n]->pq_instructor_cv, questions[n]->pq_lock);
@@ -205,12 +224,7 @@ instructor(void *p, unsigned long which)
       lock_release(questions[n]->pq_lock);
 
       // Now we have exclusive access to this question...
-      for (char *c = questions[n]->pq_answer; *c != '\0'; c++)
-      {
-        (*c)++;
-        if (*c > 'z')
-          *c = 'a';
-      }
+      edit_question(questions[n]);
     }
     
     piazza_print(n);
@@ -247,6 +261,11 @@ piazza(int nargs, char **args)
   
   print_lock = lock_create("print");
   done_sem = sem_create("done", 0);
+  
+  for (i = 0; i < NANSWERS; i++)
+  {
+    creator_locks[i] = lock_create("creator");
+  }
 
   for (i = 0; i < NSTUDENTS; ++i) {
     thread_fork_or_panic("student", student, NULL, i, NULL);
@@ -262,6 +281,7 @@ piazza(int nargs, char **args)
   {
     if (questions[i] != NULL)
       destroy_question(questions[i]);
+    lock_destroy(creator_locks[i]);
   }
 
   lock_destroy(print_lock);
