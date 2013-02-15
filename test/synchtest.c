@@ -302,3 +302,61 @@ cvtest(int nargs, char **args)
 
 	return 0;
 }
+
+static
+void
+fairlocktestthread(void *junk, unsigned long num)
+{
+	int count;
+	time_t secs0, secs1;
+	uint32_t nsecs0, nsecs1;
+
+	(void)junk;
+	
+	gettime(&secs0, &nsecs0);
+	
+	do
+	{
+		// count how often this thread gets the lock in 5 secs
+		lock_acquire(testlock);
+		count++;
+		lock_release(testlock);
+		gettime(&secs1, &nsecs1);
+  } while (secs1 - secs0 < 5);
+	
+	kprintf("[Thread %d]: %d\n", num, count);
+	
+	V(donesem);
+}
+
+
+// This test should demonstrate fairness of mutex locks.
+// Threads should acquire the lock approximately equally often.
+int
+fairlocktest(int nargs, char **args)
+{
+
+	int i, result;
+
+	(void)nargs;
+	(void)args;
+
+	kprintf("Starting fair lock test...\n");
+	kprintf("Threads should print the number of times they acquire the lock.\n");
+
+	for (i=0; i<NTHREADS; i++) {
+		result = thread_fork("fairlocktest", fairlocktestthread, NULL, i,
+							NULL);
+		if (result) {
+			panic("fairlocktest: thread_fork failed: %s\n",
+						strerror(result));
+		}
+	}
+	for (i=0; i<NTHREADS; i++) {
+		P(donesem);
+	}
+
+	kprintf("Fair lock test done\n");
+
+	return 0;
+}
