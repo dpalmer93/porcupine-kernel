@@ -73,10 +73,49 @@ NAMEOF_FUNC(hobbitses);
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-//  Driver code.
+//  DESIGN PRINCIPLES
+//  =================
+//  Correctness conditions:
+//  - Each thread must join exactly one fellowship
+//  - Each fellowship must comprise exactly one wizard, two men,
+//    one elf, one dwarf, and four hobbits
+//  - The composition of each fellowship must be printed exactly once
+//  - No thread may exit until its fellowship has been printed
+//  - The driver thread may not return until all other threads have exited 
 //
-//  TODO: Implement all the thread entrypoints!
+//  This is a barrier problem.  As such, it can be implemented most easily
+//  using condition variables.  As Doeppner describes (pg. 70), a simple barrier
+//  can be implemented with a condition variable, a lock, and a "generation"
+//  counter that lets threads know when to exit the barrier.  This "compound"
+//  barrier will require more-finely-grained synchronization, but the idea is
+//  the same.
 //
+
+typedef struct fellowship
+{
+    // data structures to hold members
+    int wizard;
+    int men[2];
+    int elf;
+    int dwarf;
+    int hobbits[4];
+    
+    // associated synchronization primatives
+    struct cv   *man_cv;
+    struct lock *man_lock
+    struct cv   *elf_cv;
+    struct lock *elf_lock;
+    struct cv   *dwarf_cv;
+    struct lock *dwarf_lock;
+    struct cv   *hobbit_cv;
+    struct lock *hobbit_lock;
+    
+    // linked list
+    struct lock *link_lock;
+    struct fellowship *next;
+} fellowship;
+
+fellowship *fotrs;
 
 static void
 wizard(void *p, unsigned long which)
