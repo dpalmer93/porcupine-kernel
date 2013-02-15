@@ -82,18 +82,18 @@ create_question()
     q->pq_answer[i] = 'a';
   q->pq_answer[ANSWER_LENGTH] = '\0';
   
-  return q
+  return q;
 }
 
 static void
-destroy_question(piazza_question *q)
+destroy_question(struct piazza_question *q)
 {
   KASSERT(q != NULL);
   cv_destroy(q->pq_instructor_cv);
   cv_destroy(q->pq_student_cv);
   lock_destroy(q->pq_lock);
-  free(pq_answer);
-  free(q);
+  kfree(q->pq_answer);
+  kfree(q);
 }
 
 static void
@@ -137,7 +137,7 @@ student(void *p, unsigned long which)
     
     
     lock_acquire(questions[n]->pq_lock);
-    while (questions[n]->instructor)
+    while (questions[n]->pq_instructor)
       cv_wait(questions[n]->pq_student_cv, questions[n]->pq_lock);
     questions[n]->pq_nstudents++;
     lock_release(questions[n]->pq_lock);
@@ -158,7 +158,8 @@ student(void *p, unsigned long which)
     
     lock_acquire(questions[n]->pq_lock);
     questions[n]->pq_nstudents--;
-    cv_signal(questions[n]->pq_instructor_cv);
+    if (questions[n]->pq_nstudents == 0)
+      cv_signal(questions[n]->pq_instructor_cv, questions[n]->pq_lock);
     lock_release(questions[n]->pq_lock);
   }
   
@@ -189,24 +190,24 @@ instructor(void *p, unsigned long which)
   (void)p;
   (void)which;
   
-  for (i = 0; i < NCYCLES; ++i) {
+  for (int i = 0; i < NCYCLES; ++i) {
     // Choose a random Piazza question.
-    n = random() % NANSWERS;
+    int n = random() % NANSWERS;
     
     if (questions[n] == NULL)
       questions[n] = create_question();
     else
     {
-      lock_acquire(questions[n]->pq_lock)
-      while (questions[n]->students > 0 || questions[n]->instructor > 0)
+      lock_acquire(questions[n]->pq_lock);
+      while (questions[n]->pq_nstudents > 0 || questions[n]->pq_instructor > 0)
         cv_wait(questions[n]->pq_instructor_cv, questions[n]->pq_lock);
-      questions[n]->instructor = true;
+      questions[n]->pq_instructor = true;
       lock_release(questions[n]->pq_lock);
 
       // Now we have exclusive access to this question...
       for (char *c = questions[n]->pq_answer; *c != '\0'; c++)
       {
-        *c++;
+        (*c)++;
         if (*c > 'z')
           *c = 'a';
       }
@@ -216,7 +217,7 @@ instructor(void *p, unsigned long which)
     
     // Finished editing; now time to tell the world!
     lock_acquire(questions[n]->pq_lock);
-    questions[n]->instructor = false;
+    questions[n]->pq_instructor = false;
     cv_broadcast(questions[n]->pq_student_cv, questions[n]->pq_lock);
     cv_signal(questions[n]->pq_instructor_cv, questions[n]->pq_lock);
     lock_release(questions[n]->pq_lock);
@@ -239,13 +240,13 @@ instructor(void *p, unsigned long which)
 int
 piazza(int nargs, char **args)
 {
-  int i;
+  int i, n;
 
   (void)nargs;
   (void)args;
   
   print_lock = lock_create("print");
-  done_sem = sem_create("done", NINSTRUCTORS + NSTUDENTS);
+  done_sem = sem_create("done", 0);
 
   for (i = 0; i < NSTUDENTS; ++i) {
     thread_fork_or_panic("student", student, NULL, i, NULL);
@@ -256,6 +257,12 @@ piazza(int nargs, char **args)
   
   for (i = 0, n = NSTUDENTS + NINSTRUCTORS; i < n; i++)
     P(done_sem);
+    
+  for (i = 0; i < NANSWERS; i++)
+  {
+    if (questions[i] != NULL)
+      destroy_question(questions[i]);
+  }
 
   lock_destroy(print_lock);
   sem_destroy(done_sem);
