@@ -34,27 +34,76 @@
 #include <types.h>
 #include <lib.h>
 #include <thread.h>
+#include <synch.h>
 #include <test.h>
 #include <generic/random.h>
 
 #include "common.h"
 
+// A Piazza 'answer' consists of ten identical lowercase characters
+#define ANSWER_LENGTH 10
+
+
 /**
  * struct piazza_question - Object representing a question on Piazza.
  */
 struct piazza_question {
-  char *pq_answer;
-  // Extend the struct as necessary to solve the problem!
+  char        *pq_answer;
+  struct lock *pq_lock;
+  struct cv   *pq_student_cv;
+  struct cv   *pq_instructor_cv;
+  int          pq_nstudents;  // Number of students reading
+  int          pq_instructor; // Boolean representing instructor present
 };
 
 struct piazza_question *questions[NANSWERS] = { 0 };
+
+
+// global synchronization of exiting
+// and printing
+struct lock *print_lock;
+struct semaphore *done_sem;
+
+static struct piazza_question *
+create_question()
+{
+  struct piazza_question *q = kmalloc(sizeof(struct piazza_question));
+  
+  // question creator gets 'first dibs' on edititng
+  q->pq_instructor = true;
+  q->pq_nstudents = 0;
+  
+  q->pq_lock = lock_create("question");
+  q->pq_student_cv = cv_create("student");
+  q->pq_instructor_cv = cv_create("instructor");
+  
+  q->pq_answer = kmalloc((ANSWER_LENGTH + 1) * sizeof(char));
+  for (int i = 0; i < ANSWER_LENGTH; i++)
+    q->pq_answer[i] = 'a';
+  q->pq_answer[ANSWER_LENGTH] = '\0';
+  
+  return q
+}
+
+static void
+destroy_question(piazza_question *q)
+{
+  KASSERT(q != NULL);
+  cv_destroy(q->pq_instructor_cv);
+  cv_destroy(q->pq_student_cv);
+  lock_destroy(q->pq_lock);
+  free(pq_answer);
+  free(q);
+}
 
 static void
 piazza_print(int id)
 {
   KASSERT(id < NANSWERS);
-
+  
+  lock_acquire(print_lock);
   kprintf("[%2d] %s\n", id, questions[id]->pq_answer);
+  lock_release(print_lock);
 }
 
 /**
@@ -85,6 +134,13 @@ student(void *p, unsigned long which)
       --i;
       continue;
     }
+    
+    
+    lock_acquire(questions[n]->pq_lock);
+    while (questions[n]->instructor)
+      cv_wait(questions[n]->pq_student_cv, questions[n]->pq_lock);
+    questions[n]->pq_nstudents++;
+    lock_release(questions[n]->pq_lock);
 
     pos = questions[n]->pq_answer;
     letter = *pos;
@@ -99,7 +155,14 @@ student(void *p, unsigned long which)
     if (*pos != '\0') {
       panic("[%d:%d] Inconsistent answer!\n", (int)which, n);
     }
+    
+    lock_acquire(questions[n]->pq_lock);
+    questions[n]->pq_nstudents--;
+    cv_signal(questions[n]->pq_instructor_cv);
+    lock_release(questions[n]->pq_lock);
   }
+  
+  V(done_sem);
 }
 
 /**
@@ -125,8 +188,41 @@ instructor(void *p, unsigned long which)
 {
   (void)p;
   (void)which;
+  
+  for (i = 0; i < NCYCLES; ++i) {
+    // Choose a random Piazza question.
+    n = random() % NANSWERS;
+    
+    if (questions[n] == NULL)
+      questions[n] = create_question();
+    else
+    {
+      lock_acquire(questions[n]->pq_lock)
+      while (questions[n]->students > 0 || questions[n]->instructor > 0)
+        cv_wait(questions[n]->pq_instructor_cv, questions[n]->pq_lock);
+      questions[n]->instructor = true;
+      lock_release(questions[n]->pq_lock);
 
-  (void)piazza_print; // suppress warning until code gets written
+      // Now we have exclusive access to this question...
+      for (char *c = questions[n]->pq_answer; *c != '\0'; c++)
+      {
+        *c++;
+        if (*c > 'z')
+          *c = 'a';
+      }
+    }
+    
+    piazza_print(n);
+    
+    // Finished editing; now time to tell the world!
+    lock_acquire(questions[n]->pq_lock);
+    questions[n]->instructor = false;
+    cv_broadcast(questions[n]->pq_student_cv, questions[n]->pq_lock);
+    cv_signal(questions[n]->pq_instructor_cv, questions[n]->pq_lock);
+    lock_release(questions[n]->pq_lock);
+  }
+
+  V(done_sem);
 }
 
 /**
@@ -147,6 +243,9 @@ piazza(int nargs, char **args)
 
   (void)nargs;
   (void)args;
+  
+  print_lock = lock_create("print");
+  done_sem = sem_create("done", NINSTRUCTORS + NSTUDENTS);
 
   for (i = 0; i < NSTUDENTS; ++i) {
     thread_fork_or_panic("student", student, NULL, i, NULL);
@@ -154,6 +253,12 @@ piazza(int nargs, char **args)
   for (i = 0; i < NINSTRUCTORS; ++i) {
     thread_fork_or_panic("instructor", instructor, NULL, i, NULL);
   }
+  
+  for (i = 0, n = NSTUDENTS + NINSTRUCTORS; i < n; i++)
+    P(done_sem);
+
+  lock_destroy(print_lock);
+  sem_destroy(done_sem);
 
   return 0;
 }
