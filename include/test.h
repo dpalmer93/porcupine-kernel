@@ -58,6 +58,9 @@ int semtest(int, char **);
 int locktest(int, char **);
 int cvtest(int, char **);
 
+/* Assignment 1 unit tests */
+int fairlocktest(int, char **);
+
 /* filesystem tests */
 int fstest(int, char **);
 int readstress(int, char **);

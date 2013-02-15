@@ -307,7 +307,7 @@ static
 void
 fairlocktestthread(void *junk, unsigned long num)
 {
-	int count;
+	unsigned long count = 0;
 	time_t secs0, secs1;
 	uint32_t nsecs0, nsecs1;
 
@@ -324,7 +324,7 @@ fairlocktestthread(void *junk, unsigned long num)
 		gettime(&secs1, &nsecs1);
   } while (secs1 - secs0 < 5);
 	
-	kprintf("[Thread %d]: %d\n", num, count);
+	kprintf("[Thread %ld]: %ld\n", num, count);
 	
 	V(donesem);
 }
@@ -340,7 +340,8 @@ fairlocktest(int nargs, char **args)
 
 	(void)nargs;
 	(void)args;
-
+    
+    inititems(); 
 	kprintf("Starting fair lock test...\n");
 	kprintf("Threads should print the number of times they acquire the lock.\n");
 
