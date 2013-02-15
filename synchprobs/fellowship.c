@@ -34,6 +34,7 @@
 #include <types.h>
 #include <lib.h>
 #include <thread.h>
+#include <synch.h>
 #include <test.h>
 
 #include "common.h"
@@ -91,70 +92,193 @@ NAMEOF_FUNC(hobbitses);
 //  the same.
 //
 
+/*
+#define WIZARD  (0x1 << 8)
+#define MAN     (0x1 << 6)
+#define ELF     (0x1 << 5)
+#define DWARF   (0x1 << 4)
+#define HOBBIT  (0x1 << 0)
+#define ALL     (0x1FF   )*/
+#define FOTR_SIZE 9
+
 typedef struct
 {
-    int          m_id;
-    struct cv   *m_cv;
-    struct lock *m_lock;
+  char        *m_id;
+  struct cv   *m_cv;
+  struct lock *m_lock;
 } member;
 
+static void
+init_members(member *mems, int length, char *name)
+{
+  struct lock *common_lock = lock_create(name);
+  struct cv *common_cv = cv_create(name);
+  for (int i = 0; i < length; i++)
+  {
+    mems[i]->m_cv = common_cv;
+    mems[i]->m_lock = common_lock;
+  }
+}
+
+// Below, we assume that the array of members
+// has been properly initialized, i.e.,
+// that
+//    mems[i]->m_cv == mems[j]->m_cv
+// and
+//    mems[i]->m_lock == mems[j]->m_lock
+// for all i,j.
+
+static void
+destroy_members(member *mems)
+{
+  lock_destroy(mems[0]->m_lock);
+  cv_destroy(mems[0]->m_cv);
+}
+
+// Join an array of fellowship members.
+// The second argument is the length of
+// the array.  The third argument is the
+// thread number.  The return
+// value is the current generation of
+// the fellowship.
+static int
+mem_join(member *mems, int length, char *name)
+{
+  int i;
+  lock_acquire(mems[0]->m_lock);
+  while (true)
+  {
+    for (i = 0; i < length; i++)
+    {
+      if (mems[i]->m_id == NULL)
+        break;
+    }
+    cv_wait(mems[0]->m_cv, mems[0]->m_lock);
+  }
+  mems[i]->m_name = name;
+  int mygen = fellowship.generation;
+  cv_signal(mems[i]->m_cv);
+  lock_release(mems[i]->m_lock);
+  return mygen;
+}
+
+static void
+mem_wait(member *mem, int mygen)
+{
+  lock_acquire(mem->m_lock);
+  while (fellowship.generation == mygen)
+    cv_wait(mem->m_cv, mem->m_lock);
+  lock_release(mem->m_lock);
+}
+
+static void
+mem_leave(member *mem)
+{
+  lock_acquire(mem->m_lock);
+  mem->m_name = NULL;
+  cv_broadcast(mem->m_cv);
+  lock_release(mem->m_lock)
+}
+
+//////////////////////////////////////////////
+// CENTRAL DATA STRUCTURE
 struct
 {
-    // data structures to hold members
-    member wizard;
-    member men[2];
-    member elf;
-    member dwarf;
-    member hobbits[4];
-    
-    // linked list
-    struct lock *link_lock;
-    struct fellowship *next;
+  // wizard mutex
+  struct lock *warlock;
+
+  // data structures to hold members
+  member men[2];
+  member elf;
+  member dwarf;
+  member hobbits[4];
+  
+  // generation count for implementing barrier
+  int generation;
 } fellowship;
+//////////////////////////////////////////////
+
+// global synchronization of exiting
+// and printing
+struct lock *print_lock;
+struct semaphore *done_sem;
+
+// Print name and leave
+static void
+leave(char *name)
+{
+  lock_acquire(print_lock);
+  kprintf("LEAVING:\t%s\n", name);
+  lock_release(print_lock);
+}
 
 static void
 wizard(void *p, unsigned long which)
 {
-  (void)p;
-
-  // TODO: Join a fellowship.
-  nameof_istari(which);
+  char *names[FOTR_SIZE];
+  names[0] = nameof_istari(which);
+  int name_idx = 1;
+  
+  lock_acquire(fellowship->warlock);
+  for (member *m = &fellowship.men[0]; m < &fellowship.hobbits[3]; m++)
+  {
+    lock_acquire(m->m_lock);
+    while (m->m_name == NULL)
+      cv_wait(m->m_cv, m->m_lock);
+    names[name_idx] = m->m_name;
+    name_idx++;
+    lock_release(m->m_lock);
+  }
+  fellowship->generation++;
+  
+  lock_acquire(print_lock);
+  kprintf("FELLOWSHIP:\t%s, %s, %s, %s, %s, %s, %s, %s, %s",
+          names[0], names[1], names[2], names[3], names[4],
+          names[5], names[6], names[7], names[8]);
+  lock_release(print_lock);
+  
+  for (member *m = &fellowship.men[0]; m < &fellowship.hobbits[3]; m++)
+    mem_leave(m);
+  lock_release(fellowship->warlock);
+  
+  leave(nameof_istari(which));
+  V(done_sem);
 }
 
 static void
 man(void *p, unsigned long which)
 {
-  (void)p;
-
-  // TODO: Join a fellowship.
-  nameof_menfolk(which);
+  int mygen = mem_join(fellowship->man, 2, nameof_menfolk(which));
+  mem_wait(fellowship->man[0], mygen);
+  leave(nameof_menfolk(which));
+  V(done_sem);
 }
 
 static void
 elf(void *p, unsigned long which)
 {
-  (void)p;
-
-  // TODO: Join a fellowship.
-  nameof_eldar(which);
+  int mygen = mem_join(fellowship->elf, 1, nameof_eldar(which));
+  mem_wait(fellowship->elf, mygen);
+  leave(nameof_eldar(which));
+  V(done_sem);
 }
 
 static void
 dwarf(void *p, unsigned long which)
 {
-  (void)p;
-
-  // TODO: Join a fellowship.
-  nameof_khazad(which);
+  int mygen = mem_join(fellowship->dwarf, 1, nameof_khazad(which));
+  mem_wait(fellowship->dwarf, mygen);
+  leave(nameof_khazad(which));
+  V(done_sem);
 }
 
 static void
 hobbit(void *p, unsigned long which)
 {
-  (void)p;
-
-  // TODO: Join a fellowship.
-  nameof_hobbitses(which);
+  int mygen = mem_join(fellowship->hobbit, 4, nameof_hobbitses(which));
+  mem_wait(fellowship->hobbit[0], mygen);
+  leave(nameof_hobbitses(which));
+  V(done_sem);
 }
 
 /**
@@ -176,6 +300,15 @@ fellowship(int nargs, char **args)
 
   (void)nargs;
   (void)args;
+  
+  print_lock = lock_create("print");
+  done_sem = sem_create("done");
+  
+  fellowship->warlock = lock_create("wizard");
+  init_members(fellowship->men, 2, "men");
+  init_members(fellowship->elf, 1, "elf");
+  init_members(fellowship->dwarf, 1, "dwarf");
+  init_members(fellowship->hobbits, 1, "hobbits");
 
   for (i = 0; i < NFOTRS; ++i) {
     thread_fork_or_panic("wizard", wizard, NULL, i, NULL);
@@ -192,6 +325,20 @@ fellowship(int nargs, char **args)
   for (i = 0, n = NFOTRS * HOBBITS_PER_FOTR; i < n; ++i) {
     thread_fork_or_panic("hobbit", hobbit, NULL, i, NULL);
   }
+  
+  for (i = 0, n = NFOTRS * FOTR_SIZE; i < n; i++)
+  {
+    P(done_sem);
+  }
+  
+  lock_destroy(fellowship->warlock);
+  destroy_members(fellowship->men);
+  destroy_members(fellowship->elf);
+  destroy_members(fellowship->dwarf);
+  destroy_members(fellowship->hobbits);
+  
+  lock_destroy(print_lock);
+  sem_destroy(done_sem);
 
   return 0;
 }
