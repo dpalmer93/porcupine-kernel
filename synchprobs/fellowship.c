@@ -216,6 +216,15 @@ leave(const char *name)
   lock_release(print_lock);
 }
 
+
+/*
+ * The wizard completes the fellowship by waiting
+ * for the other members to join, then releasing
+ * them from the barrier.  The assymetry between
+ * the wizard and the other threads prevents a deadlock
+ * that could otherwise occur from all of the fellowship members
+ * waiting on each other's CVs.
+ */
 static void
 wizard(void *p, unsigned long which)
 {
@@ -225,6 +234,8 @@ wizard(void *p, unsigned long which)
   names[0] = nameof_istari(which);
   int name_idx = 1;
   
+  // only one Wizard is allowed to be in this 'warlock'
+  // critical section at a time
   lock_acquire(fotr.warlock);
   for (member *m = &fotr.men[0]; m <= &fotr.hobbits[3]; m++)
   {
@@ -243,6 +254,7 @@ wizard(void *p, unsigned long which)
           names[5], names[6], names[7], names[8]);
   lock_release(print_lock);
   
+  // The wizard now clears the way for the next fellowship
   for (member *m = &fotr.men[0]; m <= &fotr.hobbits[3]; m++)
     mem_clear(m);
   lock_release(fotr.warlock);
@@ -250,6 +262,9 @@ wizard(void *p, unsigned long which)
   leave(nameof_istari(which));
   V(done_sem);
 }
+
+// Each non-Istari member waits to join the fellowship, then
+// waits to be allowed to leave the fellowship.
 
 static void
 man(void *p, unsigned long which)

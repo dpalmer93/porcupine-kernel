@@ -40,6 +40,34 @@
 
 #include "common.h"
 
+
+/*
+ * The Piazza problem is essentially the Readers/Writers problem:
+ * many students (readers) may be allowed access to each question
+ * at any time, but only one instructor (writer) may create or edit
+ * a question at any time.
+ *
+ * CORRECTNESS CONDITIONS
+ * ========================================================================
+ * - If any student is reading a question, no instructor may concurrently
+ *   answer it.
+ * - If any instructor is answering a question, no one else may have access
+ *   to it.
+ * - An arbitrarily large number of students may read a single question
+ *   concurrently.
+ * - A question may only be created once.
+ * ========================================================================
+ *
+ * The solution uses locks and CVs.  Each question has a single lock and
+ * two CVs.  The CVs enable an instructor who has finished editing a
+ * question to alert all the students and one instructor waiting on that
+ * question that they may now try to gain access.  To gain access, a thread
+ * increments either pq_nstudents (the number of readers) or pq_instructor
+ * (a flag indicating an instructor is editing).
+ *
+ */
+
+
 // A Piazza 'answer' consists of ten identical lowercase characters
 #define ANSWER_LENGTH 10
 
@@ -72,7 +100,7 @@ create_question()
 {
   struct piazza_question *q = kmalloc(sizeof(struct piazza_question));
   
-  // question creator gets 'first dibs' on editing
+  // question creator gets 'first dibs' on printing the question
   q->pq_instructor = true;
   q->pq_nstudents = 0;
   
@@ -195,8 +223,6 @@ student(void *p, unsigned long which)
  * After each update, (including the first update, in which you should create
  * the question and initialize the answer to all a's), the instructor should
  * print the answer string using piazza_print().
- *
- * TODO: Implement this.
  */
 static void
 instructor(void *p, unsigned long which)
@@ -208,6 +234,7 @@ instructor(void *p, unsigned long which)
     // Choose a random Piazza question.
     int n = random() % NANSWERS;
     
+    // see whether we need to create the question
     lock_acquire(creator_locks[n]);
     if (questions[n] == NULL)
     {
