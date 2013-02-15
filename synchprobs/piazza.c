@@ -72,7 +72,7 @@ create_question()
 {
   struct piazza_question *q = kmalloc(sizeof(struct piazza_question));
   
-  // question creator gets 'first dibs' on edititng
+  // question creator gets 'first dibs' on editing
   q->pq_instructor = true;
   q->pq_nstudents = 0;
   
