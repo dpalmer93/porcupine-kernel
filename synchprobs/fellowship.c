@@ -91,31 +91,26 @@ NAMEOF_FUNC(hobbitses);
 //  the same.
 //
 
-typedef struct fellowship
+typedef struct
+{
+    int          m_id;
+    struct cv   *m_cv;
+    struct lock *m_lock;
+} member;
+
+struct
 {
     // data structures to hold members
-    int wizard;
-    int men[2];
-    int elf;
-    int dwarf;
-    int hobbits[4];
-    
-    // associated synchronization primatives
-    struct cv   *man_cv;
-    struct lock *man_lock
-    struct cv   *elf_cv;
-    struct lock *elf_lock;
-    struct cv   *dwarf_cv;
-    struct lock *dwarf_lock;
-    struct cv   *hobbit_cv;
-    struct lock *hobbit_lock;
+    member wizard;
+    member men[2];
+    member elf;
+    member dwarf;
+    member hobbits[4];
     
     // linked list
     struct lock *link_lock;
     struct fellowship *next;
 } fellowship;
-
-fellowship *fotrs;
 
 static void
 wizard(void *p, unsigned long which)
