@@ -196,6 +196,11 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock)
 {
+	KASSERT(lock != NULL);
+	
+	// DO NOT BLOCK IN AN INTERRUPT!
+	KASSERT(!curthread->t_in_interrupt);
+	
 	spinlock_acquire(&lock->lk_metalock);
 	while (lock->lk_holder != TID_NULL)
 	{
@@ -212,6 +217,8 @@ lock_acquire(struct lock *lock)
 void
 lock_release(struct lock *lock)
 {
+	KASSERT(lock != NULL);
+	
 	// We cannot release someone else's lock!
 	KASSERT(lock_do_i_hold(lock));
 	
@@ -224,6 +231,11 @@ lock_release(struct lock *lock)
 bool
 lock_do_i_hold(struct lock *lock)
 {
+	KASSERT(lock != NULL);
+	
+	// DO NOT BLOCK IN AN INTERRUPT!
+	KASSERT(!curthread->t_in_interrupt);
+	
 	bool do_i_hold;
 	spinlock_acquire(&lock->lk_metalock);
 	// use stack to distinguish threads
@@ -280,6 +292,9 @@ cv_destroy(struct cv *cv)
 void
 cv_wait(struct cv *cv, struct lock *lock)
 {
+	KASSERT(cv != NULL);
+	KASSERT(lock != NULL);
+	
 	// We must hold the lock
 	KASSERT(lock_do_i_hold(lock));
 	
@@ -292,6 +307,9 @@ cv_wait(struct cv *cv, struct lock *lock)
 void
 cv_signal(struct cv *cv, struct lock *lock)
 {
+	KASSERT(cv != NULL);
+	KASSERT(lock != NULL);
+	
 	// We must hold the lock
 	KASSERT(lock_do_i_hold(lock));
 	
@@ -301,6 +319,9 @@ cv_signal(struct cv *cv, struct lock *lock)
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
+	KASSERT(cv != NULL);
+	KASSERT(lock != NULL);
+	
 	// We must hold the lock
 	KASSERT(lock_do_i_hold(lock));
 	
