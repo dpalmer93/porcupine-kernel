@@ -69,7 +69,9 @@ static struct cpuarray allcpus;
 /* Used to wait for secondary CPUs to come online. */
 static struct semaphore *cpu_startup_sem;
 
-/* Used to create unique identifiers for threads. */
+/* Used to create unique identifiers for threads.
+ * UNSAFE: DELETEME -- integer overflow
+ */
 static struct spinlock tid_lock;
 static long tid_counter = TID_NULL;
 

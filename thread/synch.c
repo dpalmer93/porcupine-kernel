@@ -170,7 +170,7 @@ lock_create(const char *name)
 		return NULL;
 	}
 	
-	lock->lk_holder = TID_NULL;
+	lock->lk_holder = NULL;
 	
 	spinlock_init(&lock->lk_metalock);
 
@@ -183,7 +183,7 @@ lock_destroy(struct lock *lock)
 	KASSERT(lock != NULL);
 	
 	// Cannot destroy a locked lock
-	KASSERT(lock->lk_holder == TID_NULL);
+	KASSERT(lock->lk_holder == NULL);
 	
 	/* will assert if anyone's waiting on it */
 	spinlock_cleanup(&lock->lk_metalock);
@@ -202,7 +202,7 @@ lock_acquire(struct lock *lock)
 	KASSERT(!curthread->t_in_interrupt);
 	
 	spinlock_acquire(&lock->lk_metalock);
-	while (lock->lk_holder != TID_NULL)
+	while (lock->lk_holder != NULL)
 	{
 		wchan_lock(lock->lk_wchan);
 		spinlock_release(&lock->lk_metalock);
@@ -210,7 +210,7 @@ lock_acquire(struct lock *lock)
 		spinlock_acquire(&lock->lk_metalock);
 	}
 	// Our turn! Actually acquire the lock.
-	lock->lk_holder = curthread->t_id;
+	lock->lk_holder = curthread;
 	spinlock_release(&lock->lk_metalock);
 }
 
@@ -223,7 +223,7 @@ lock_release(struct lock *lock)
 	KASSERT(lock_do_i_hold(lock));
 	
 	spinlock_acquire(&lock->lk_metalock);
-	lock->lk_holder = TID_NULL;
+	lock->lk_holder = NULL;
 	wchan_wakeone(lock->lk_wchan);
 	spinlock_release(&lock->lk_metalock);
 }
@@ -239,7 +239,7 @@ lock_do_i_hold(struct lock *lock)
 	bool do_i_hold;
 	spinlock_acquire(&lock->lk_metalock);
 	// use stack to distinguish threads
-	do_i_hold = (curthread->t_id == lock->lk_holder);
+	do_i_hold = (curthread == lock->lk_holder);
 	spinlock_release(&lock->lk_metalock);
 
 	return do_i_hold;
