@@ -328,7 +328,7 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 
 ////////////////////////////////////////////////////////////
 //
-// CV
+// Reader-Writer Mutex
 
 struct rw_mutex *
 rw_create(const char *name)
