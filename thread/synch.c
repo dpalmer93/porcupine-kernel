@@ -414,7 +414,7 @@ rw_rdone(struct rw_mutex *rw)
     KASSERT(rw->rw_nreaders > 0);
     rw->rw_nreaders--;
     if (rw->rw_nreaders == 0)
-        cv_signal(rw->rw_writer_cv);
+        cv_signal(rw->rw_writer_cv, rw->rw_lock);
     lock_release(rw->rw_lock);
 }
 
@@ -438,7 +438,7 @@ rw_wdone(struct rw_mutex *rw)
     lock_acquire(rw->rw_lock);
     KASSERT(rw->rw_nwriters == 1);
     rw->rw_nwriters = 0;
-    cv_signal(rw->rw_writer_cv);
-    cv_broadcast(rw->rw_reader_cv);
+    cv_signal(rw->rw_writer_cv, rw->rw_lock);
+    cv_broadcast(rw->rw_reader_cv, rw->rw_lock);
     lock_release(rw->rw_lock);
 }
