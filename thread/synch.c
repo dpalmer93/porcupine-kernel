@@ -423,7 +423,7 @@ rw_wlock(struct rw_mutex *rw)
 {
     KASSERT(rw != NULL);
     
-    lock_acquire(rw->rw_lock)
+    lock_acquire(rw->rw_lock);
     while (rw->rw_nreaders > 0 || rw->rw_nwriters > 0)
         cv_wait(rw->rw_writer_cv, rw->rw_lock);
     rw->rw_nwriters = 1;
