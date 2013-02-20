@@ -150,4 +150,43 @@ void cv_signal(struct cv *cv, struct lock *lock);
 void cv_broadcast(struct cv *cv, struct lock *lock);
 
 
+/*
+ * Primitive for mutual exclusion of readers and writers.
+ *
+ * The name field is for easier debugging. A copy of the name is
+ * (should be) made internally.
+ *
+ * An rw_mutex consists of a lock, two CVs, and two integers representing
+ * numbers of readers and writers.  (As there should never be more than
+ * one writer, the latter is binary).  Readers wait on the reader CV
+ * and writers wait on the writer CV.  A reader can acquire the mutex
+ * if there are no writers present.  A writer can only acquire the mutex if
+ * there are neither readers nor writers.
+ */
+struct rw_mutex {
+    char            *rw_name;
+    struct lock     *rw_lock;
+    struct cv       *rw_reader_cv;
+    struct cv       *rw_writer_cv;
+    volatile int     rw_nreaders;
+    volatile int     rw_nwriters;
+};
+
+struct rw_mutex *rw_create(const char *name);
+void rw_destroy(struct rw_mutex *rw);
+
+/*
+ * Operations:
+ *    rw_rlock() - Wait for opportunity to read
+ *    rw_rdone() - Finish reading
+ *
+ *    rw_wlock() - Wait for opportunity to write
+ *    rw_wdone() - Finish writing
+ */
+void rw_rlock(struct rw_mutex *rw);
+void rw_rdone(struct rw_mutex *rw);
+void rw_wlock(struct rw_mutex *rw);
+void rw_wdone(struct rw_mutex *rw);
+
+
 #endif /* _SYNCH_H_ */

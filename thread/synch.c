@@ -273,8 +273,6 @@ cv_create(const char *name)
 		return NULL;
 	}
 
-	// add stuff here as needed
-
 	return cv;
 }
 
@@ -326,4 +324,121 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 	KASSERT(lock_do_i_hold(lock));
 	
 	wchan_wakeall(cv->cv_wchan);
+}
+
+////////////////////////////////////////////////////////////
+//
+// CV
+
+struct rw_mutex *
+rw_create(const char *name)
+{
+    struct rw_mutex *rw;
+    
+	rw = kmalloc(sizeof(struct rw_mutex));
+	if (rw == NULL) {
+		return NULL;
+	}
+    
+	rw->rw_name = kstrdup(name);
+	if (rw->rw_name==NULL) {
+		kfree(rw);
+		return NULL;
+	}
+	
+    // initialize lock
+	rw->rw_lock = lock_create(rw->rw_name);
+	if (rw->rw_lock == NULL) {
+		kfree(rw->rw_name);
+		kfree(rw);
+		return NULL;
+	}
+    
+    // initialize CVs
+    rw->rw_reader_cv = cv_create(rw->rw_name);
+	if (rw->rw_reader_cv == NULL) {
+        lock_destroy(rw->rw_lock);
+		kfree(rw->rw_name);
+		kfree(rw);
+		return NULL;
+	}
+    
+    rw->rw_writer_cv = cv_create(rw->rw_name);
+	if (rw->rw_writer_cv == NULL) {
+        cv_destroy(rw->rw_reader_cv);
+        lock_destroy(rw->rw_lock);
+		kfree(rw->rw_name);
+		kfree(rw);
+		return NULL;
+	}
+    
+    // initialize counters
+    rw->rw_nreaders = 0;
+    rw->rw_nwriters = 0;
+    
+	return rw;
+}
+
+void
+rw_destroy(struct rw_mutex *rw)
+{
+    KASSERT(rw != NULL);
+    
+    KASSERT(rw->rw_nreaders ==0 && rw->rw_nwriters == 0);
+    
+    cv_destroy(rw->rw_writer_cv);
+    cv_destroy(rw->rw_reader_cv);
+    lock_destroy(rw->rw_lock);
+    kfree(rw->rw_name);
+    kfree(rw);
+}
+
+void
+rw_rlock(struct rw_mutex *rw)
+{
+    KASSERT(rw != NULL);
+    
+    lock_acquire(rw->rw_lock);
+    while (rw->rw_nwriters > 0)
+        cv_wait(rw->rw_reader_cv, rw->rw_lock);
+    rw->rw_nreaders++;
+    lock_release(rw->rw_lock);
+}
+
+void
+rw_rdone(struct rw_mutex *rw)
+{
+    KASSERT(rw != NULL);
+    
+    lock_acquire(rw->rw_lock);
+    KASSERT(rw->rw_nreaders > 0);
+    rw->rw_nreaders--;
+    if (rw->rw_nreaders == 0)
+        cv_signal(rw->rw_writer_cv);
+    lock_release(rw->rw_lock);
+}
+
+void
+rw_wlock(struct rw_mutex *rw)
+{
+    KASSERT(rw != NULL);
+    
+    lock_acquire(rw->rw_lock)
+    while (rw->rw_nreaders > 0 || rw->rw_nwriters > 0)
+        cv_wait(rw->rw_writer_cv, rw->rw_lock);
+    rw->rw_nwriters = 1;
+    lock_release(rw->rw_lock);
+}
+
+void
+rw_wdone(struct rw_mutex *rw)
+{
+    KASSERT(rw != NULL);
+    
+    lock_acquire(rw->rw_lock);
+    KASSERT(rw->rw_nwriters == 1);
+    rw->rw_nwriters = 0;
+    cv_signal(rw->rw_writer_cv);
+    cv_broadcast(rw->rw_reader_cv);
+    lock_release(rw->rw_lock);
 }
