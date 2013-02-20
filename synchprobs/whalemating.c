@@ -55,6 +55,9 @@ void
 male(void *p, unsigned long which)
 {
 	(void)p;
+	
+	int my_generation;
+	
 	P(print_lock);
 	kprintf("male whale #%ld starting\n", which);
 	V(print_lock);
@@ -65,7 +68,7 @@ male(void *p, unsigned long which)
         if (threesome.male == 0)
         {
             threesome.male = 1;
-            int my_generation = threesome.generation;
+            my_generation = threesome.generation;
             V(threesome.msem);
             break;
         }
@@ -90,6 +93,9 @@ void
 female(void *p, unsigned long which)
 {
 	(void)p;
+	
+	int my_generation;
+	
 	P(print_lock);
 	kprintf("female whale #%ld starting\n", which);
 	V(print_lock);
@@ -100,7 +106,7 @@ female(void *p, unsigned long which)
         if (threesome.female == 0)
         {
             threesome.female = 1;
-            int my_generation = threesome.generation;
+            my_generation = threesome.generation;
             V(threesome.fsem);
             break;
         }
