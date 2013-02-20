@@ -59,11 +59,18 @@ male(void *p, unsigned long which)
 	kprintf("male whale #%ld starting\n", which);
 	V(print_lock);
 
-	// Implement this function
-	P(threesome.msem);
-	threesome.male = 1;
-    int my_generation = threesome.generation;
-	V(threesome.msem);
+    while (true)
+    {
+        P(threesome.msem);
+        if (threesome.male == 0)
+        {
+            threesome.male = 1;
+            int my_generation = threesome.generation;
+            V(threesome.msem);
+            break;
+        }
+        V(threesome.msem);
+    }
     while (true)
     {
         P(threesome.msem);
@@ -87,11 +94,18 @@ female(void *p, unsigned long which)
 	kprintf("female whale #%ld starting\n", which);
 	V(print_lock);
 
-	// Implement this function
-	P(threesome.fsem);
-	threesome.female = 1;
-	int my_generation = threesome.generation;
-	V(threesome.fsem);
+    while (true)
+    {
+        P(threesome.fsem);
+        if (threesome.female == 0)
+        {
+            threesome.female = 1;
+            int my_generation = threesome.generation;
+            V(threesome.fsem);
+            break;
+        }
+        V(threesome.fsem);
+    }
     while (true)
     {
         P(threesome.fsem);
@@ -115,7 +129,6 @@ matchmaker(void *p, unsigned long which)
 	kprintf("matchmaker whale #%ld starting\n", which);
 	V(print_lock);
 
-	// Implement this function
     if (threesome.male == 0 || threesome.female == 0)
     {
         P(threesome.msem);
