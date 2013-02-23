@@ -38,11 +38,17 @@
 struct fd_table *
 fd_table_create(){
 
-    struct fd_table fdt;
+    struct fd_table *fdt;
 
+    fdt = kmalloc(sizeof(struct fd_table));
+    if(fdt == NULL) {
+        return NULL;
+    }
+    
     fdt->fd_rw = rw_create("fdt rw lock");
     if(fdt->fd_rw == NULL) {
-        panic("fd_table_create: rw_create failed\n");
+        kfree(fdt);
+        return NULL;
     }
 
     for(int i = 0; i < MAX_FD; i++) {
@@ -65,6 +71,8 @@ fd_table_destroy(struct fd_table * fdt)
     for(int i = 0; i < MAX_FD; i++) {
         fc_close(fdt->fds[i]
     }
+    
+    kfree(fdt);
 
     return;
 }
@@ -88,7 +96,7 @@ fd_table_copy(struct fd_table *fdt)
 file_ctxt *
 fdt_get(struct fd_table *fdt, int fd)
 {
-    struct file_ctxt fc;
+    struct file_ctxt *fc;
     
     rw_rlock(fdt->fd_rw);
     fc = fdt->fds[fd];
@@ -97,13 +105,67 @@ fdt_get(struct fd_table *fdt, int fd)
     return fc;
 }
 
+/* Returns -1 on failure */
 int fdt_insert(struct fd_table *fdt, struct file_ctxt *ctxt)
 {
+    int fd;
+    
     rw_wlock(fdt->fd_rw);
-    
-    for(int i = 0; i < MAX_FD; i++) {
-    
+    for(int fd = 0; fd < MAX_FD; fd++) {
+        if (fdt->fds[fd] == NULL)
+            fdt->fds[fd] = ctxt;
+            return fd;
     }
     
+    // no FDs were available;
     rw_wdone(fdt->fd_rw);
+    return -1;
+}
+
+
+struct file_ctxt *
+fc_create(struct vnode *node) 
+{
+    struct file_ctxt *fc;
+    
+    fc = kmalloc(sizeof(fc));
+    if (fc == NULL) {
+        return NULL;
+    }
+    fc->fc_lock = lock_create("fc lock");
+    if (fc->fc_lock == NULL) {
+        kfree(fc);
+        return NULL;
+    }
+    
+    fc->fc_vnode = file;
+    fc->fc_refcount = 1;
+    fc->fc_offset = 0;
+
+    return fc;
+}
+
+
+/* Frees a file context if there is no more references to it */
+void 
+fc_close(struct file_ctxt *fc)
+{
+    KASSERT(fc != NULL);
+    
+    lock_acquire(fc->fc_lock);
+    
+    // Still has references
+    if (fc->fc_refcount > 1) {
+        fc->fc_refcount--;
+        fc->fc_vnode;
+        lock_release(fc->fc_lock);
+        return;
+    }
+
+    vnode_cleanup(fc->fc_vnode);
+    lock_release(fc->fc_lock);
+    lock_destroy(fc->fc_lock);
+    kfree(fc);
+    
+    return;
 }
