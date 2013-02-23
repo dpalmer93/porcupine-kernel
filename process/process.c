@@ -28,8 +28,6 @@
  */
 
 #include <limits.h>
-#include <kern/errno.h>
-#include <synch.h>
 #include <process.h>
 
 struct process *pid_table[PID_MAX];
@@ -41,6 +39,11 @@ process_bootstrap(void)
     pidt_rw = rw_create("Process Table");
 }
 
+
+/*
+ * Set up everything that must be created anew upon fork().
+ * fork() will copy everything else (address space, thread, FD table)
+ */
 struct process *
 process_create(void)
 {
@@ -74,38 +77,70 @@ process_create(void)
         return NULL;
     }
     
+    // process starts out active
+    p->ps_status = PS_ACTIVE;
+    
+    // process exits normally by default.
+    p->ps_ret_val = 0;
+    
     return p;
 }
 
+/*
+ * Assign a PID to a process.
+ * Implementation can change, as long as it chooses
+ * an unused PID between PID_MIN and PID_MAX (inclusive)
+ */
 pid_t
 process_identify(struct process *p)
 {
     rw_wlock(pidt_rw);
     
-    for (int i = PID_MIN; i < PID_MAX; i++)
+    // get lowest unused PID
+    for (int i = PID_MIN; i <= PID_MAX; i++)
     {
         if (pid_table[i] == NULL)
         {
             pid_table[i] = p;
             rw_wdone(pidt_rw);
+            p->ps_pid = i;
             return i;
         }
     }
 
     rw_wdone(pidt_rw);
-    return (pid_t)-1;
+    return 0;
 }
 
-
+/*
+ * Tears down the process, removing it from the pid table.
+ * Frees ALL associated memory and structures.
+ */
 void
 process_destroy(pid_t pid)
 {
     rw_wlock(pidt_rw);
+    struct process *p = pid_table[pid];
+    pid_table[pid] = NULL;
     rw_wdone(pidt_rw);
+    
+    KASSERT(p->ps_status == PS_ZOMBIE);
+    KASSERT(p->ps_thread == NULL);
+    
+    // children should already have been orphaned
+    KASSERT(pid_set_empty(p->ps_children));
+    
+    as_destroy(p->ps_addrspace);
+    fdt_destroy(p->ps_fdt);
+    pid_set_destroy(p->ps_children);
+    lock_destroy(ps_waitpid_lock);
+    cv_destroy(ps_waitpid_cv);
 }
 
-struct process *get_process_from_pid(pid_t pid)
+struct process *get_process(pid_t pid)
 {
     rw_rlock(pidt_rw);
+    struct process *p = pid_table[pid];
     rw_rlock(pidt_rw);
+    return p;
 }

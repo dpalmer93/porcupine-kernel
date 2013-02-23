@@ -35,6 +35,7 @@
 #include <types.h>
 #include <thread.h>
 #include <synch.h>
+#include <addrspace.h>
 #include <vnode.h>
 
 struct pid_set;
@@ -61,12 +62,13 @@ void process_bootstrap(void);
 // set up a process struct
 struct process *process_create(void);
 
-// get a PID...returns -1 on error
+// assign a PID between PID_MIN and PID_MAX (inclusive).
+// returns 0 on error
 pid_t process_identify(struct process *p);
 
 void process_destroy(pid_t pid);
 
-struct process *get_process_from_pid(pid_t pid);
+struct process *get_process(pid_t pid);
 
 
 struct file_ctxt {
@@ -86,12 +88,12 @@ struct fd_table {
     struct rw_mutex     fd_rw;
 }
 
-struct fd_table *fd_table_create(void);
-void             fd_table_destroy(struct fd_table *fdt);
+struct fd_table *fdt_create(void);
+void             fdt_destroy(struct fd_table *fdt);
 
 // create a new, separately synchronized fdt referencing the
 // same file contexts
-struct fd_table *fd_table_copy(struct fd_table *fdt);
+struct fd_table *fdt_copy(struct fd_table *fdt);
 
 // access the FC associated to an FD (synchronized)
 struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
