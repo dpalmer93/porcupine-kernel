@@ -79,6 +79,8 @@ fdt_destroy(struct fd_table * fdt)
 struct fd_table *
 fdt_copy(struct fd_table *fdt)
 {
+    KASSERT(fdt != NULL);
+    
     struct fd_table *new_fdt;
     
     new_fdt = fd_table_create();
@@ -98,6 +100,8 @@ fdt_copy(struct fd_table *fdt)
 file_ctxt *
 fdt_get(struct fd_table *fdt, int fd)
 {
+    KASSERT(fdt != NULL);
+    
     struct file_ctxt *fc;
     
     rw_rlock(fdt->fd_rw);
@@ -110,6 +114,9 @@ fdt_get(struct fd_table *fdt, int fd)
 /* Returns -1 on failure */
 int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc)
 {
+    KASSERT(fc != NULL);
+    KASSERT(fdt != NULL);
+    
     rw_wlock(fdt->fd_rw);
     for(int fd = 0; fd < MAX_FD; fd++) {
         if (fdt->fds[fd] == NULL) {
@@ -152,6 +159,8 @@ fc_create(struct vnode *file)
 void
 fc_incref(struct file_ctxt *fc)
 {
+    KASSERT(fc != NULL);
+    
     lock_acquire(fc->fc_lock);
     fc->refcount++;
     lock_release(fc->fc_lock);
@@ -169,7 +178,6 @@ fc_close(struct file_ctxt *fc)
     // Still has references
     if (fc->fc_refcount > 1) {
         fc->fc_refcount--;
-        fc->fc_vnode;
         lock_release(fc->fc_lock);
         return;
     }

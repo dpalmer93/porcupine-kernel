@@ -103,6 +103,8 @@ process_create(void)
 pid_t
 process_identify(struct process *p)
 {
+    KASSERT(p != NULL);
+    
     rw_wlock(pidt_rw);
     
     // get lowest unused PID
@@ -128,13 +130,13 @@ process_identify(struct process *p)
 void
 process_destroy(pid_t pid)
 {
-    KASSERT(p->ps_thread == NULL);
+    rw_wlock(pidt_rw);
+    struct process *p = pid_table[pid];
     
+    KASSERT(p->ps_thread == NULL);
     // children should already have been orphaned
     KASSERT(pid_set_empty(p->ps_children));
     
-    rw_wlock(pidt_rw);
-    struct process *p = pid_table[pid];
     pid_table[pid] = NULL;
     rw_wdone(pidt_rw);
     
