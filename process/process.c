@@ -28,46 +28,145 @@
  */
 
 #include <limits.h>
-#include <synch.h>
 #include <process.h>
 
 struct process *pid_table[PID_MAX];
 struct rw_mutex *pidt_rw;
 
 void
-process_bootstrap()
+process_bootstrap(void)
 {
     pidt_rw = rw_create("Process Table");
 }
 
-pid_t
-process_create()
+
+/*
+ * Set up everything that must be created anew upon fork().
+ * fork() will copy everything else (address space, thread, FD table)
+ */
+struct process *
+process_create(void)
 {
-    rw_rlock(pidt_rw);
+    struct process *p;
     
-    for (int i = PID_MIN; i < PID_MAX; i++)
+    p = kmalloc(sizeof(struct process))
+    if (p == NULL)
+        return NULL;
+    
+    // zero pointers so that fork() can properly
+    // unwind if some structures have been set up
+    p->ps_thread = NULL;
+    p->ps_fdt = NULL;
+    p->ps_addrspace = NULL;
+    p->ps_children = NULL;
+    p->ps_waitpid_cv = NULL;
+    p->ps_waitpid_lock = NULL;
+    
+    p->ps_children = pid_set_create()
+    if (p->ps_children == NULL)
+    {
+        kfree(p);
+        return NULL;
+    }
+    
+    p->ps_waitpid_lock = lock_create("waitpid");
+    if (p->ps_waitpid_lock == NULL)
+    {
+        pid_set_destroy(p->ps_children);
+        kfree(p);
+        return NULL;
+    }
+    
+    p->ps_waitpid_cv = cv_create("waitpid");
+    if (p->ps_waitpid_cv == NULL)
+    {
+        lock_destroy(p->ps_waitpid_lock);
+        pid_set_destroy(p->ps_children);
+        kfree(p);
+        return NULL;
+    }
+    
+    // process starts out active
+    p->ps_status = PS_ACTIVE;
+    
+    // process exits normally by default.
+    p->ps_ret_val = 0;
+    
+    return p;
+}
+
+/*
+ * Assign a PID to a process.
+ * Implementation can change, as long as it chooses
+ * an unused PID between PID_MIN and PID_MAX (inclusive)
+ */
+pid_t
+process_identify(struct process *p)
+{
+    rw_wlock(pidt_rw);
+    
+    // get lowest unused PID
+    for (int i = PID_MIN; i <= PID_MAX; i++)
     {
         if (pid_table[i] == NULL)
         {
-            pid_table[i] = kmalloc(sizeof(struct process));
+            pid_table[i] = p;
+            rw_wdone(pidt_rw);
+            p->ps_pid = i;
             return i;
         }
     }
-    
-    rw_rdone(pidt_rw);
+
+    rw_wdone(pidt_rw);
+    return 0;
 }
 
-pid_t
-process_create()
-
-
+/*
+ * Tears down the process, removing it from the pid table.
+ * Frees ALL associated memory and structures.
+ */
 void
 process_destroy(pid_t pid)
 {
+    KASSERT(p->ps_thread == NULL);
     
+    // children should already have been orphaned
+    KASSERT(pid_set_empty(p->ps_children));
+    
+    rw_wlock(pidt_rw);
+    struct process *p = pid_table[pid];
+    pid_table[pid] = NULL;
+    rw_wdone(pidt_rw);
+    
+    process_cleanup(p);
 }
 
-struct process *get_process_from_pid(pid_t pid)
+// Only for use here and in fork()
+void
+process_cleanup(struct process *p)
 {
+    if (p->ps_addrspace)
+        as_destroy(p->ps_addrspace);
     
+    if (p->ps_fdt)
+        fdt_destroy(p->ps_fdt);
+    
+    if (p->ps_children)
+        pid_set_destroy(p->ps_children);
+    
+    if (p->ps_waitpid_lock)
+        lock_destroy(p->ps_waitpid_lock);
+    
+    if (p->ps_waitpid_cv)
+        cv_destroy(p->ps_waitpid_cv);
+    
+    kfree(p);
+}
+
+struct process *get_process(pid_t pid)
+{
+    rw_rlock(pidt_rw);
+    struct process *p = pid_table[pid];
+    rw_rlock(pidt_rw);
+    return p;
 }
