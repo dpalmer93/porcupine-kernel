@@ -106,18 +106,22 @@ syscall(struct trapframe *tf)
 
 	    case SYS___time:
             err = sys___time((userptr_t)tf->tf_a0,
-				 (userptr_t)tf->tf_a1);
+                             (userptr_t)tf->tf_a1);
             break;
+            
         case SYS_fork:
             retval = sys_fork(tf, &err);
             break;
-
-	    /* Add stuff here */
-
+            
+        case SYS_execv:
+            retval = sys_execv((const_userptr_t)tf->tf_a0,
+                               (const_userptr_t)tf->tf_a1);
+            break;
+            
 	    default:
-		kprintf("Unknown syscall %d\n", callno);
-		err = ENOSYS;
-		break;
+            kprintf("Unknown syscall %d\n", callno);
+            err = ENOSYS;
+            break;
 	}
 
 

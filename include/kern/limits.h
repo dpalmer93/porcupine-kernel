@@ -71,8 +71,6 @@
 /* Max bytes for atomic pipe I/O -- see description in the pipe() man page */
 #define __PIPE_BUF      512
 
-/* Max number of file descriptors per process */
-#define __FD_MAX        256
 /*
  * Not so important parts of the API.
  */

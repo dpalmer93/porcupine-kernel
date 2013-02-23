@@ -51,7 +51,7 @@ fdt_create()
         return NULL;
     }
 
-    for(int i = 0; i < MAX_FD; i++) {
+    for(int i = 0; i < OPEN_MAX; i++) {
         fdt->fds[i] = NULL;
     }
 
@@ -67,7 +67,7 @@ fdt_destroy(struct fd_table * fdt)
 
     /* Call fc_close() which may or may not free the file_ctxt
        depending on the number of references */
-    for(int i = 0; i < MAX_FD; i++) {
+    for(int i = 0; i < OPEN_MAX; i++) {
         fc_close(fdt->fds[i]);
     }
     
@@ -88,7 +88,7 @@ fdt_copy(struct fd_table *fdt)
     rw_rlock(fdt->fd_rw);
     // increment the reference count of every
     // FDT entry we copy
-    for(int i = 0; i < MAX_FD; i++) {
+    for(int i = 0; i < OPEN_MAX; i++) {
         fc_incref(fdt->fds[i]);
         new_fdt->fds[i] = fdt->fds[i];
     }
@@ -118,7 +118,7 @@ int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc)
     KASSERT(fdt != NULL);
     
     rw_wlock(fdt->fd_rw);
-    for(int fd = 0; fd < MAX_FD; fd++) {
+    for(int fd = 0; fd < OPEN_MAX; fd++) {
         if (fdt->fds[fd] == NULL) {
             fdt->fds[fd] = fc;
             rw_wdone(fdt->fd_rw);

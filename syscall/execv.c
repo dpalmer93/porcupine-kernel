@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008
+ * Copyright (c) 2013
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,27 +27,26 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _LIMITS_H_
-#define _LIMITS_H_
+#include <syscall.h>
 
-/*
- * System limits.
- */
+// helper functions for argument handling
+char **copyinargs(const_userptr_t argv, int *argc, int *arg_len);
+userptr_t copyoutargs(const char **argv, int argc, int arg_len);
 
-/* Get the limit values, which are exported to userland with private names. */
-#include <kern/limits.h>
+int
+sys_execv(const_userptr_t path, const_userptr_t argv)
+{
+    
+}
 
-/* Provide the real names */
-#define NAME_MAX        __NAME_MAX
-#define PATH_MAX        __PATH_MAX
-#define ARG_MAX         __ARG_MAX
-#define PID_MIN         __PID_MIN
-#define PID_MAX         __PID_MAX
-#define PIPE_BUF        __PIPE_BUF
-#define NGROUPS_MAX     __NGROUPS_MAX
-#define LOGIN_NAME_MAX  __LOGIN_NAME_MAX
-#define OPEN_MAX        __OPEN_MAX
-#define IOV_MAX         __IOV_MAX
+char **
+copyinargs(const_userptr_t argv, int *argc, int *arg_len)
+{
+    
+}
 
-
-#endif /* _LIMITS_H_ */
+userptr_t
+copyoutargs(const char **argv, int argc, int arg_len)
+{
+    
+}

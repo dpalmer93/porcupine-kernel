@@ -58,8 +58,11 @@ void enter_new_process(int argc, userptr_t argv, vaddr_t stackptr,
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
-// uses trapframe to set up the child
+// Added in Assignment 2:
+
+// sys_fork() uses trapframe to set up the child
 // on error, returns error code in errno
 int sys_fork(const struct trapframe *tf, int *errno);
+int sys_execv(const_userptr_t path, const_userptr_t argv);
 
 #endif /* _SYSCALL_H_ */

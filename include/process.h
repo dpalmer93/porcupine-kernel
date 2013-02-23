@@ -84,7 +84,7 @@ void fc_incref(struct file_ctxt *fc); // increment the refcount
 void fc_close(struct file_ctxt *ctxt);
 
 struct fd_table {
-    file_ctxt          *fds[MAX_FD];
+    file_ctxt          *fds[OPEN_MAX];
     struct rw_mutex     fd_rw;
 }
 
