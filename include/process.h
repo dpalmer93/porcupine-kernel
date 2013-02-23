@@ -72,15 +72,16 @@ struct process *get_process(pid_t pid);
 
 
 struct file_ctxt {
-    struct vnode       *fh_vnode;
-    unsigned int        fh_refcount;
-    off_t               fh_offset;
-    size_t              fh_filesize;
-    int                 fh_flags;
-    struct lock        *fh_lock;
+    struct vnode       *fc_vnode;
+    unsigned int        fc_refcount;
+    off_t               fc_offset;
+    size_t              fc_filesize;
+    int                 fc_flags;
+    struct lock        *fc_lock;
 };
 
 struct file_ctxt *fc_create(struct vnode *file);
+void fc_incref(struct file_ctxt *fc); // increment the refcount
 void fc_close(struct file_ctxt *ctxt);
 
 struct fd_table {
@@ -91,7 +92,7 @@ struct fd_table {
 struct fd_table *fdt_create(void);
 void             fdt_destroy(struct fd_table *fdt);
 
-// create a new, separately synchronized fdt referencing the
+// create a new, separately synchronized FDT referencing the
 // same file contexts
 struct fd_table *fdt_copy(struct fd_table *fdt);
 
@@ -100,7 +101,7 @@ struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
 
 // find an FD and associate it with the FC (synchronized)
 // returns -1 on failure
-int fdt_insert(struct fd_table *fdt, struct file_ctxt *ctxt);
+int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc);
 
 
 

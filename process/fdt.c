@@ -36,8 +36,8 @@
  */
  
 struct fd_table *
-fdt_create(){
-
+fdt_create()
+{
     struct fd_table *fdt;
 
     fdt = kmalloc(sizeof(struct fd_table));
@@ -45,7 +45,7 @@ fdt_create(){
         return NULL;
     }
     
-    fdt->fd_rw = rw_create("fdt rw lock");
+    fdt->fd_rw = rw_create("fdt rw mutex");
     if(fdt->fd_rw == NULL) {
         kfree(fdt);
         return NULL;
@@ -65,10 +65,10 @@ fdt_destroy(struct fd_table * fdt)
 
     rw_destroy(fdt->fd_rw);
 
-    /* Call fc_close() which may or may not free the file_ctx
+    /* Call fc_close() which may or may not free the file_ctxt
        depending on the number of references */
     for(int i = 0; i < MAX_FD; i++) {
-        fc_close(fdt->fds[i]
+        fc_close(fdt->fds[i]);
     }
     
     kfree(fdt);
@@ -84,7 +84,10 @@ fdt_copy(struct fd_table *fdt)
     new_fdt = fd_table_create();
     
     rw_rlock(fdt->fd_rw);
+    // increment the reference count of every
+    // FDT entry we copy
     for(int i = 0; i < MAX_FD; i++) {
+        fc_incref(fdt->fds[i]);
         new_fdt->fds[i] = fdt->fds[i];
     }
     rw_rdone(fdt->fd_rw);
@@ -105,15 +108,15 @@ fdt_get(struct fd_table *fdt, int fd)
 }
 
 /* Returns -1 on failure */
-int fdt_insert(struct fd_table *fdt, struct file_ctxt *ctxt)
+int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc)
 {
-    int fd;
-    
     rw_wlock(fdt->fd_rw);
     for(int fd = 0; fd < MAX_FD; fd++) {
-        if (fdt->fds[fd] == NULL)
-            fdt->fds[fd] = ctxt;
+        if (fdt->fds[fd] == NULL) {
+            fdt->fds[fd] = fc;
+            rw_wdone(fdt->fd_rw);
             return fd;
+        }
     }
     
     // no FDs were available;
@@ -123,7 +126,7 @@ int fdt_insert(struct fd_table *fdt, struct file_ctxt *ctxt)
 
 
 struct file_ctxt *
-fc_create(struct vnode *node) 
+fc_create(struct vnode *file)
 {
     struct file_ctxt *fc;
     
@@ -142,6 +145,16 @@ fc_create(struct vnode *node)
     fc->fc_offset = 0;
 
     return fc;
+}
+
+// Atomically increment the reference count
+// of a file context.
+void
+fc_incref(struct file_ctxt *fc)
+{
+    lock_acquire(fc->fc_lock);
+    fc->refcount++;
+    lock_release(fc->fc_lock);
 }
 
 
