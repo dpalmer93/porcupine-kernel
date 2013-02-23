@@ -58,7 +58,6 @@ fd_table_create(){
     return fdt;
 }
 
-
 void 
 fd_table_destroy(struct fd_table * fdt)
 {
@@ -162,7 +161,8 @@ fc_close(struct file_ctxt *fc)
         return;
     }
 
-    vnode_cleanup(fc->fc_vnode);
+    // Last reference
+    vfs_close(fc->fc_vnode);
     lock_release(fc->fc_lock);
     lock_destroy(fc->fc_lock);
     kfree(fc);
