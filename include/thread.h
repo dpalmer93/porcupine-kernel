@@ -78,6 +78,7 @@ struct thread {
 	long t_id;				/* Unique identifier */
 	const char *t_wchan_name;	/* Name of wait channel, if sleeping */
 	threadstate_t t_state;		/* State this thread is in */
+    struct process *t_proc; /* Process associated to this thread */
 
 	/*
 	 * Thread subsystem internal fields.
