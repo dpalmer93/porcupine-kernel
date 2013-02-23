@@ -27,4 +27,48 @@
  * SUCH DAMAGE.
  */
  
+
+ 
  #include <process.h>
+
+ /*
+  * Implements functions that operate on file descriptor tables and file contexts.
+  * These functions are synchronized.
+ */
+ 
+ struct fd_table *
+ fd_table_create(){
+ 
+    struct fd_table fdt;
+    
+    fdt->fd_rw = rw_create("fdt rw lock");
+    if(fdt->fd_rw == NULL) {
+        panic("fd_table_create: rw_create failed\n");
+    }
+    
+    for(int i = 0; i < MAX_FD; i++) {
+        fdt->fds[i] = NULL;
+    }
+    
+    return fdt;
+ }
+ 
+ 
+ void 
+ fd_table_destroy(struct fd_table * fdt)
+ {
+    KASSERT(fdt != NULL);
+    
+    rw_destroy(fdt->fd_rw);
+    
+    /* Call fc_close() which may or may not free the file_ctx
+       depending on the number of references */
+    for(int i = 0; i < MAX_FD; i++) {
+        fc_close(fdt->fds[i]
+    }
+    
+    return;
+ 
+ }
+ 
+ 
