@@ -101,13 +101,16 @@ syscall(struct trapframe *tf)
 
 	switch (callno) {
 	    case SYS_reboot:
-		err = sys_reboot(tf->tf_a0);
-		break;
+            err = sys_reboot(tf->tf_a0);
+            break;
 
 	    case SYS___time:
-		err = sys___time((userptr_t)tf->tf_a0,
+            err = sys___time((userptr_t)tf->tf_a0,
 				 (userptr_t)tf->tf_a1);
-		break;
+            break;
+        case SYS_fork:
+            retval = sys_fork(tf, &err);
+            break;
 
 	    /* Add stuff here */
 
@@ -147,15 +150,42 @@ syscall(struct trapframe *tf)
 }
 
 /*
- * Enter user mode for a newly forked process.
+ * Enter user mode for a newly forked child process.
  *
- * This function is provided as a reminder. You need to write
- * both it and the code that calls it.
+ * Receives a trapframe from fork() identical to that
+ * of the parent process.  This trapframe contains, in
+ * its tf_v0 (TF_RET) field, a pointer to the child's
+ * process struct.  This function is responsible for
+ * setting curthread->t_proc and curthread->t_proc->ps_thread
+ * properly.
  *
- * Thus, you can trash it and do things another way if you prefer.
+ * The trapframe argument is kernel-heap-allocated.  So
+ * before entering user mode, we have to copy it onto
+ * the stack and then free it.
+ *
+ * Finally, we set tf_a3 and tf_v0 to 0,
+ * so that the child knows that there is no error and that
+ * it is the child.  We also advance the program counter
+ * so that the child does not syscall again (note that
+ * this is done for the parent in syscall() above).
  */
 void
-enter_forked_process(struct trapframe *tf)
+enter_forked_process(void *child_tf, unsigned long trash)
 {
-	(void)tf;
+	struct trapframe *my_tf = (struct trapframe *)child_tf;
+    
+    struct trapframe stack_tf;
+    memcpy(&stack_tf, my_tf, sizeof(struct trapframe));
+    kfree(my_tf);
+    
+    struct process *me = (struct process *)stack_tf.tf_v0;
+    curthread->t_proc = me;
+    me->ps_thread = curthread;
+    
+    // set the return value to 0, advance the pc,
+    // and switch to user mode
+    stack_tf.tf_a3 = 0;
+    stack_ft.tf_v0 = 0;
+    stack_tf.tf_epc += 4;
+    mips_usermode(&stack_tf);
 }

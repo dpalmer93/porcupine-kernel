@@ -30,6 +30,11 @@
 #ifndef _MIPS_TRAPFRAME_H_
 #define _MIPS_TRAPFRAME_H_
 
+// so that machine-independent code (e.g., fork)
+// does not need to know which register stores
+// the return value
+#define TF_RET tf_v0
+
 /*
  * Structure describing what is saved on the stack during entry to
  * the exception handler.

@@ -53,6 +53,15 @@ process_create(void)
     if (p == NULL)
         return NULL;
     
+    // zero pointers so that fork() can properly
+    // unwind if some structures have been set up
+    p->ps_thread = NULL;
+    p->ps_fdt = NULL;
+    p->ps_addrspace = NULL;
+    p->ps_children = NULL;
+    p->ps_waitpid_cv = NULL;
+    p->ps_waitpid_lock = NULL;
+    
     p->ps_children = pid_set_create()
     if (p->ps_children == NULL)
     {
@@ -119,22 +128,39 @@ process_identify(struct process *p)
 void
 process_destroy(pid_t pid)
 {
-    rw_wlock(pidt_rw);
-    struct process *p = pid_table[pid];
-    pid_table[pid] = NULL;
-    rw_wdone(pidt_rw);
-    
-    KASSERT(p->ps_status == PS_ZOMBIE);
     KASSERT(p->ps_thread == NULL);
     
     // children should already have been orphaned
     KASSERT(pid_set_empty(p->ps_children));
     
-    as_destroy(p->ps_addrspace);
-    fdt_destroy(p->ps_fdt);
-    pid_set_destroy(p->ps_children);
-    lock_destroy(ps_waitpid_lock);
-    cv_destroy(ps_waitpid_cv);
+    rw_wlock(pidt_rw);
+    struct process *p = pid_table[pid];
+    pid_table[pid] = NULL;
+    rw_wdone(pidt_rw);
+    
+    process_cleanup(p);
+}
+
+// Only for use here and in fork()
+void
+process_cleanup(struct process *p)
+{
+    if (p->ps_addrspace)
+        as_destroy(p->ps_addrspace);
+    
+    if (p->ps_fdt)
+        fdt_destroy(p->ps_fdt);
+    
+    if (p->ps_children)
+        pid_set_destroy(p->ps_children);
+    
+    if (p->ps_waitpid_lock)
+        lock_destroy(p->ps_waitpid_lock);
+    
+    if (p->ps_waitpid_cv)
+        cv_destroy(p->ps_waitpid_cv);
+    
+    kfree(p);
 }
 
 struct process *get_process(pid_t pid)
