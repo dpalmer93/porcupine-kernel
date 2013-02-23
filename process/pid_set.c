@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001
+ * Copyright (c) 2013
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,30 +28,92 @@
  */
 
 #include <types.h>
+#include <limits.h>
 #include <pid_set.h>
 
-#define SEGBITS 4
-#define SEGNUM ((sizeof(pid_t) * 8 - 8) / SEGBITS)
-#define SUBSNUM 16
+#define SEGBITS 5
+#define SEGMASK 0x1F
+#define SEGSIZE 32
 
 struct pid_set {
-    union {
-        struct pid_set *subsets[SUBSNUM]
-        uint32_t bits[SUBSNUM];
-    };
+    uint32_t *bits[SEGSIZE];
+}
+
+struct pid_set *
+pid_set_create()
+{
+    struct pid_set *set = kmalloc(sizeof(struct pid_set));
+    if (set == NULL)
+        return NULL;
+    for (int i = 0; i < SEGSIZE; i++)
+        set->bits[i] = NULL;
+    return set;
 }
 
 bool
 pid_set_includes(struct pid_set *set, pid_t pid)
 {
-    pid_t index;
-    for (int i = 0; i < SEGNUM; i++)
+    int index1 = (pid >> (2 * SEGBITS)) & SEGMASK;
+    int index2 = (pid >> SEGBITS) & SEGMASK;
+    int index3 = pid & SEGMASK;
+    
+    if (set->bits[index1] == NULL)
+        return false;
+    else
+        return set->bits[index1][index2] & (1 << index3);
+}
+
+bool
+pid_set_empty(struct pid_set *set)
+{
+    for (int i = 0; i < SEGSIZE; i++)
     {
-        index = (SUBSNUM - 1) & pid;
-        pid >>= SEGBITS;
-        set = set->subsets[index];
-        if (set == NULL)
+        if (set->bits[i] != NULL)
+        {
+            for (int j = 0; j < SEGSIZE; j++)
+            {
+                if (set->bits[i][j] != 0)
+                    return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool
+pid_set_add(struct pid_set *set, pid_t pid)
+{
+    int index1 = (pid >> (2 * SEGBITS)) & SEGMASK;
+    int index2 = (pid >> SEGBITS) & SEGMASK;
+    int index3 = pid & SEGMASK;
+    
+    if (set->bits[index1] == NULL)
+    {
+        if ((set->bits[index1] = allocate_subset()) == NULL)
             return false;
     }
-    index = (SUBSNUM - 1) & pid;
+    set->bits[index1][index2] |= (1 << index3);
+    return true;
+}
+
+void pid_set_remove(struct pid_set *set, pid_t pid)
+{
+    int index1 = (pid >> (2 * SEGBITS)) & SEGMASK;
+    int index2 = (pid >> SEGBITS) & SEGMASK;
+    int index3 = pid & SEGMASK;
+    
+    if (set->bits[index1] == NULL)
+        return;
+    set->bits[index1][index2] &= ~(1 << index3);
+}
+
+uint32_t *
+allocate_subset()
+{
+    uint32_t *subset = kmalloc(SEGSIZE * sizeof(uint32_t));
+    if (subset == NULL)
+        return NULL;
+    for (int i = 0; i < SEGSIZE; i++)
+        subset[i] = 0;
+    return subset;
 }

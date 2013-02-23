@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2013
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@ struct pid_set;
 struct pid_set *pid_set_create();
 void pid_set_destroy(struct pid_set *set);
 bool pid_set_empty(struct pid_set *set);
-void pid_set_add(struct pid_set *set, pid_t pid);
+bool pid_set_add(struct pid_set *set, pid_t pid);
 bool pid_set_includes(struct pid_set *set, pid_t pid);
 void pid_set_remove(struct pid_set *set, pid_t pid);
 
