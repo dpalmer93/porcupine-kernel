@@ -53,7 +53,7 @@ process_create(void)
     if (p == NULL)
         return NULL;
     
-    // zero pointers so that fork() can properly
+    // zero all pointers so that fork() can properly
     // unwind if some structures have been set up
     p->ps_thread = NULL;
     p->ps_fdt = NULL;

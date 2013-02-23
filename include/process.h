@@ -37,8 +37,7 @@
 #include <synch.h>
 #include <addrspace.h>
 #include <vnode.h>
-
-struct pid_set;
+#include <pid_set.h>
 
 typedef enum _pstat_t {
     PS_ACTIVE;
