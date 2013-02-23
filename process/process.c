@@ -31,13 +31,30 @@
 #include <synch.h>
 #include <process.h>
 
-struct process pid_table[PID_MAX];
+struct process *pid_table[PID_MAX];
 struct rw_mutex *pidt_rw;
 
-pid_t
-unique_pid()
+void
+process_bootstrap()
 {
+    pidt_rw = rw_create("Process Table");
+}
+
+pid_t
+process_create()
+{
+    rw_rlock(pidt_rw);
     
+    for (int i = PID_MIN; i < PID_MAX; i++)
+    {
+        if (pid_table[i] == NULL)
+        {
+            pid_table[i] = kmalloc(sizeof(struct process));
+            return i;
+        }
+    }
+    
+    rw_rdone(pidt_rw);
 }
 
 pid_t
