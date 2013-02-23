@@ -56,9 +56,16 @@ struct process {
     struct lock         *ps_waitpid_lock;
 };
 
-void            process_bootstrap(void);
-pid_t           process_create(void);
-void            process_destroy(pid_t pid);
+void process_bootstrap(void);
+
+// set up a process struct
+struct process *process_create(void);
+
+// get a PID...returns -1 on error
+pid_t process_identify(struct process *p);
+
+void process_destroy(pid_t pid);
+
 struct process *get_process_from_pid(pid_t pid);
 
 
