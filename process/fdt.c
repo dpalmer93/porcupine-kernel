@@ -36,7 +36,7 @@
  */
  
 struct fd_table *
-fd_table_create(){
+fdt_create(){
 
     struct fd_table *fdt;
 
@@ -59,7 +59,7 @@ fd_table_create(){
 }
 
 void 
-fd_table_destroy(struct fd_table * fdt)
+fdt_destroy(struct fd_table * fdt)
 {
     KASSERT(fdt != NULL);
 
@@ -77,7 +77,7 @@ fd_table_destroy(struct fd_table * fdt)
 }
 
 struct fd_table *
-fd_table_copy(struct fd_table *fdt)
+fdt_copy(struct fd_table *fdt)
 {
     struct fd_table *new_fdt;
     
