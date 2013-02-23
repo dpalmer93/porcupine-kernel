@@ -76,8 +76,26 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
         return -1;
     }
     
-    // copy trapframe
+    // add PID to children now.  That way, if we fail to
+    // allocate memory, we have not yet forked a thread
+    if (!pid_set_add(parent->ps_children, child_pid))
+    {
+        process_destroy(child_pid);
+        *errno = ENOMEM;
+        return -1
+    }
+    
+    // allocate space for child trapframe in the kernel heap
     struct trapframe *child_tf = kmalloc(sizeof(struct trapframe));
+    if (child_tf == NULL)
+    {
+        process_destroy(child_pid);
+        pid_set_remove(parent->ps_children, child_pid);
+        *errno = ENOMEM;
+        return -1
+    }
+    
+    // copy trapframe
     memcpy(child_tf, parent_tf, sizeof(struct trapframe));
     
     // abuse child_tf->TF_RET (which will be set to 0)
@@ -95,9 +113,9 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
     if (errno)
     {
         process_destroy(child_pid);
+        pid_set_remove(parent->ps_children, child_pid);
+        return -1
     }
     
-    
-    pid_set_add(parent->ps_children, child_pid);
     return child_pid;
 }
