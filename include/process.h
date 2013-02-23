@@ -86,9 +86,10 @@ void             fd_table_destroy(struct fd_table *fdt);
 struct fd_table *fd_table_copy(struct fd_table *fdt);
 
 // access the FC associated to an FD (synchronized)
-file_ctxt *fdt_get(struct fd_table *fdt, int fd);
+struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
 
 // find an FD and associate it with the FC (synchronized)
+// returns -1 on failure
 int fdt_insert(struct fd_table *fdt, struct file_ctxt *ctxt);
 
 
