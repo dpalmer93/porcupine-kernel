@@ -29,6 +29,7 @@
 
 #include <types.h>
 #include <errno.h>
+#include <process.h>
 #include <machine/trapframe.h>
 #include <syscall.h>
 
