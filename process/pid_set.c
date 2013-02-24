@@ -39,8 +39,10 @@ struct pid_set {
     uint32_t *bits[SEGSIZE];
 }
 
+uint32_t *allocate_subset(void);
+
 struct pid_set *
-pid_set_create()
+pid_set_create(void)
 {
     struct pid_set *set = kmalloc(sizeof(struct pid_set));
     if (set == NULL)
@@ -108,7 +110,7 @@ void pid_set_remove(struct pid_set *set, pid_t pid)
 }
 
 uint32_t *
-allocate_subset()
+allocate_subset(void)
 {
     uint32_t *subset = kmalloc(SEGSIZE * sizeof(uint32_t));
     if (subset == NULL)

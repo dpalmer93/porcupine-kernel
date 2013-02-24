@@ -37,7 +37,7 @@
 struct pid_set;
 
 // returns null if out of memory
-struct pid_set *pid_set_create();
+struct pid_set *pid_set_create(void);
 
 void pid_set_destroy(struct pid_set *set);
 
