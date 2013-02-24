@@ -26,45 +26,48 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * process.h: process system declarations.
+ * fdt.h: file descriptors, file contexts, and file descriptor tables.
  */
 
-#ifndef _PROCESS_H_
-#define _PROCESS_H_
+#ifndef _FDT_H_
+#define _FDT_H_
 
-#include <types.h>
-#include <thread.h>
-#include <synch.h>
-#include <addrspace.h>
-#include <vnode.h>
-#include <pid_set.h>
-#include <fdt.h>
-#include <limits.h>
-
-typedef enum _pstat_t {
-    PS_ACTIVE, 
-    PS_ZOMBIE
-} pstat_t;
-
-struct process {
-    pid_t                ps_pid;
-    pstat_t              ps_status;
-    int                  ps_ret_val;
-    struct thread       *ps_thread;
-    struct fd_table     *ps_fdt;
-    struct addrspace    *ps_addrspace;
-    struct pid_set      *ps_children;
-    struct cv           *ps_waitpid_cv;
-    struct lock         *ps_waitpid_lock;
+struct file_ctxt {
+    struct vnode       *fc_vnode;
+    unsigned int        fc_refcount;
+    off_t               fc_offset;
+    size_t              fc_filesize;
+    int                 fc_flags;
+    struct lock        *fc_lock;
 };
 
-void process_bootstrap(void);
-void process_shutdown(void);
+struct file_ctxt *fc_create(struct vnode *file);
+void fc_incref(struct file_ctxt *fc); // increment the refcount
+void fc_close(struct file_ctxt *ctxt);
 
-struct process *process_create(void); // set up process struct
-void process_destroy(pid_t pid); // remove and free process struct
+struct fd_table {
+    struct file_ctxt          *fds[OPEN_MAX];
+    struct rw_mutex     fd_rw;
+};
 
-pid_t process_identify(struct process *p); // assign PID--returns 0 on error
-struct process *process_get(pid_t pid); // get process for PID
+struct fd_table *fdt_create(void);
+void             fdt_destroy(struct fd_table *fdt);
 
-#endif /* _PROCESS_H_ */
+// create a new, separately synchronized FDT referencing the
+// same file contexts
+struct fd_table *fdt_copy(struct fd_table *fdt);
+
+// find an FD and associate it with the FC (atomic)
+// returns -1 on failure
+int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc);
+
+// access the FC associated to an FD (atomic)
+struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
+
+// remove and return the FC associated to an FD (atomic)
+struct file_ctxt *fdt_remove(struct fd_table *fdt, int fd)
+
+// replace entry at FD with FC (atomic)
+void fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc);
+
+#endif /* _FDT_H_ */

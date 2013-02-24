@@ -29,10 +29,9 @@
 
 #include <types.h>
 #include <errno.h>
-#include <process.h>
-#include <machine/trapframe.h>
-#include <syscall.h>
 #include <uio.h>
+#include <process.h>
+#include <syscall.h>
 
 
 // Error stored in err

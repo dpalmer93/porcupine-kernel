@@ -39,6 +39,12 @@ process_bootstrap(void)
     pidt_rw = rw_create("Process Table");
 }
 
+void
+process_shutdown(void)
+{
+    rw_destroy(pidt_rw);
+}
+
 
 /*
  * Set up everything that must be created anew upon fork().
@@ -165,7 +171,8 @@ process_cleanup(struct process *p)
     kfree(p);
 }
 
-struct process *get_process(pid_t pid)
+struct process *
+process_get(pid_t pid)
 {
     rw_rlock(pidt_rw);
     struct process *p = pid_table[pid];

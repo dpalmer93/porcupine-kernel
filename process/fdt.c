@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
  
-#include <process.h>
+#include <fdt.h>
 #include <limits.h>
 
  /*
