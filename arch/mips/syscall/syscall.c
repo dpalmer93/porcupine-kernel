@@ -223,9 +223,11 @@ enter_forked_process(void *child_tf, unsigned long trash)
     memcpy(&stack_tf, my_tf, sizeof(struct trapframe));
     kfree(my_tf);
     
+    // associate process and thread
     struct process *me = (struct process *)stack_tf.tf_v0;
     curthread->t_proc = me;
     me->ps_thread = curthread;
+    curthread->t_addrspace = me->ps_addrspace;
     
     // set the return value to 0, advance the pc,
     // and switch to user mode

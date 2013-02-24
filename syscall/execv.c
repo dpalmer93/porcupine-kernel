@@ -127,6 +127,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     
     // destroy old address space
     curthread->t_proc->ps_addrspace = as;
+    curthread->t_addrspace = as;
     as_destroy(old_as);
     
     // Warp to user mode
