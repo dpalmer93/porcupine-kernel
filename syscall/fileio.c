@@ -121,7 +121,8 @@ read(int fd, void *buf, size_t buflen, int *err)
     
     fc = fdt_get(fdt, fd);
     if (fc == NULL) {
-        return EBADF;
+        *err = EBADF;
+        return -1;
     }
     
     rw_wlock(fc->fc_rw);
@@ -161,7 +162,8 @@ write(int fd, const void *buf, size_t count, int *err)
     
     fc = fdt_get(fdt, fd);
     if (fc == NULL) {
-        return EBADF;
+        *err = EBADF;
+        return -1;
     }
     
     rw_wlock(fc->fc_rw);
@@ -201,7 +203,8 @@ lseek(int fd, off_t offset, int whence, int *err)
     
     fc = fdt_get(fdt, fd);
     if (fc == NULL) {
-        return EBADF;
+        *err = EBADF;
+        return (off_t) -1;
     }
     
     rw_wlock(fc->fc_rw);
@@ -236,5 +239,37 @@ lseek(int fd, off_t offset, int whence, int *err)
     rw_wdone(fc->fc_rw);
     
     return new_offset;
+    
+}
+
+int
+dup2(int old_fd, int new_fd, int *err)
+{
+    struct file_table *fdt;
+    struct file_ctxt *fc;   
+    
+    fdt = curthread->t_proc->ps_fdt;  
+    
+    fc = fdt_get(fdt, fd);
+    if (old_fc == NULL) {
+        *err = EBADF;
+        return -1;
+    }
+    if (new_fd >= MAX_FD) {
+        *err = EBADF;
+        return -1
+    }
+    if (old_fd == new_fd) {
+        return newfd;
+    }
+    
+    rw_wlock(fc->fc_rw);
+    if (fdt->fds[new_fd] != NULL) {
+        fc_close(fdt->fds[new_fd]);
+    }
+    fdt->fds[new_fd] = fc;
+    rw_wdone(fc->fc_rw);
+    
+    return new_fd;
     
 }
