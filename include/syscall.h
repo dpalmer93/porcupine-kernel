@@ -66,5 +66,12 @@ int sys_fork(const struct trapframe *tf, int *errno);
 int sys_execv(const_userptr_t path, const_userptr_t argv);
 
 int sys_open(const_userptr_t filename, int flags);
+int sys_close(int fd);
+int read(int fd, void *buf, size_t buflen, int *err);
+int write(int fd, const void *buf, size_t count, int *err);
+off_t lseek(int fd, off_t offset, int whence, int *err);
+int dup2(int old_fd, int new_fd, int *err);
+
+int __getcwd(char *buf, size_t buflen);
 
 #endif /* _SYSCALL_H_ */
