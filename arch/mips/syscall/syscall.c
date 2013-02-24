@@ -121,6 +121,8 @@ syscall(struct trapframe *tf)
         case SYS_open:
             retval = sys_open((const_userptr_t) tf->tf_a0,
                               (int) tf->tf_a1, &err);
+        case SYS_close:
+            err = 
             
             
 	    default:
