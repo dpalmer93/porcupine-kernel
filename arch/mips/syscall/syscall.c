@@ -32,6 +32,7 @@
 #include <kern/syscall.h>
 #include <lib.h>
 #include <mips/trapframe.h>
+#include <copyinout.h>
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
@@ -81,6 +82,7 @@ syscall(struct trapframe *tf)
 {
 	int callno;
 	int32_t retval;
+    int64_t retval64;
 	int err;
 
 	KASSERT(curthread != NULL);
@@ -96,9 +98,13 @@ syscall(struct trapframe *tf)
 	 * initialize it to 0 by default; thus it's not necessary to
 	 * deal with it except for calls that return other values,
 	 * like write.
+     *
+     * Initialize retval64 to 0 as well.  If retval64 is nonzero,
+     * use it.  Otherwise, use retval.
 	 */
 
 	retval = 0;
+    retval64 = 0;
 
 	switch (callno) {
 	    case SYS_reboot:
@@ -133,9 +139,17 @@ syscall(struct trapframe *tf)
                                (size_t) tf->tf_a2, &err);   
             break;
         case SYS_lseek:
-            retval = sys_lseek((int) tf->tf_a0,
-                               (off_t) tf->tf_a1, 
-                               (int) tf->tf_a2, &err);
+            // extract the offset from regs a2-a3
+            int64_t offset64 = tf->tf_a2 | ((int64_t)tf->tf_a3 << 32);
+            
+            // copy the whence from the stack
+            int32_t whence;
+            err = copyin(tf->tf_sp, &whence, 4);
+            if (err) break;
+            
+            retval64 = sys_lseek((int) tf->tf_a0,
+                                 (off_t) offset,
+                                 (int) whence, &err);
             break;
         case SYS_dup2:
             retval = sys_dup2((int) tf->tf_a0,
@@ -164,6 +178,12 @@ syscall(struct trapframe *tf)
 		tf->tf_v0 = err;
 		tf->tf_a3 = 1;      /* signal an error */
 	}
+    else if (retval64) {
+        // Use the 64-bit return value if one exists (e.g., lseek)
+        tf->tf_v0 = retval64 & 0xFFFFFFFF;
+        tf->tf_v1 = retval64 >> 32;
+        tf->tf_a3 = 0;
+    }
 	else {
 		/* Success. */
 		tf->tf_v0 = retval;
