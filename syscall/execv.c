@@ -31,7 +31,7 @@
 
 // helper functions for argument handling
 char **copyinargs(const_userptr_t argv, int *argc, int *arg_len);
-userptr_t copyoutargs(const char **argv, int argc, int arg_len);
+void copyoutargs(userptr_t stack, const char **argv, int argc, int arg_len);
 
 int
 sys_execv(const_userptr_t path, const_userptr_t argv)
@@ -45,8 +45,8 @@ copyinargs(const_userptr_t argv, int *argc, int *arg_len)
     
 }
 
-userptr_t
-copyoutargs(const char **argv, int argc, int arg_len)
+void
+copyoutargs(userptr_t stack, const char **argv, int argc, int arg_len)
 {
     
 }
