@@ -118,44 +118,39 @@ syscall(struct trapframe *tf)
             retval = sys_execv((const_userptr_t)tf->tf_a0,
                                (const_userptr_t)tf->tf_a1);
             break;
-            
         case SYS_open:
             retval = sys_open((const_userptr_t) tf->tf_a0,
                               (int) tf->tf_a1, &err);
             break;
-            
         case SYS_close:
             err = sys_close((int) tf->tf_a0);
             break;
-            
         case SYS_read:
             retval = sys_read((int) tf->tf_a0, 
-                              (const_userptr_t) tf->tf_a1,
-                              (size_t) tf->tf_a2, &err);
+                            (const_userptr_t) tf->tf_a1, 
+                            (size_t) tf->tf_a2, &err);
             break;
         case SYS_write:
             retval = sys_write((int) tf->tf_a0,
                                (const_userptr_t) tf->tf_a1,
                                (size_t) tf->tf_a2, &err);   
             break;
-            
-        case SYS_lseek: // FIXME: off_t is 64-bit -- see above.
+        case SYS_lseek:
             retval = sys_lseek((int) tf->tf_a0,
                                (off_t) tf->tf_a1, 
                                (int) tf->tf_a2, &err);
             break;
-            
         case SYS_dup2:
             retval = sys_dup2((int) tf->tf_a0,
                               (int) tf->tf_a1, &err);
             break;
-            
         case SYS_chdir:
+            retval = sys_chdir((const_userptr_t) tf->tf_a0, &err);
             break;
-        
         case SYS___getcwd:
+            retval = __getcwd((const_userptr_t buf) tf->tf_a0
+                              (size_t) tf->tf_a1, &err);
             break;
-            
 	    default:
             kprintf("Unknown syscall %d\n", callno);
             err = ENOSYS;
