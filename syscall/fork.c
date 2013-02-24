@@ -37,7 +37,7 @@
 void process_cleanup(struct process *p);
 
 int
-sys_fork(const struct trapframe *parent_tf, int *errno)
+sys_fork(const struct trapframe *parent_tf, int *err)
 {
     struct process *parent = curthread->t_proc;
     
@@ -45,7 +45,7 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
     struct process *child = process_create();
     if (child == NULL)
     {
-        *errno = ENOMEM;
+        *err = ENOMEM;
         return -1;
     }
     
@@ -55,7 +55,7 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
     pid_t child_pid = process_identify(child);
     if (child_pid == 0)
     {
-        *errno = ENPROC;
+        *err = ENPROC;
         process_cleanup(child);
         return -1;
     }
@@ -64,14 +64,14 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
     child->ps_fdt = fdt_copy(parent->ps_fdt);
     if (child->ps_fdt == NULL)
     {
-        *errno = ENOMEM;
+        *err = ENOMEM;
         process_destroy(child_pid);
     }
     
     // copy the address space of the parent
-    *errno = as_copy(parent->ps_addrspace,
-                     &child->ps_addrspace)
-    if (errno)
+    *err = as_copy(parent->ps_addrspace,
+                   &child->ps_addrspace)
+    if (err)
     {
         process_destroy(child_pid);
         return -1;
@@ -82,7 +82,7 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
     if (!pid_set_add(parent->ps_children, child_pid))
     {
         process_destroy(child_pid);
-        *errno = ENOMEM;
+        *err = ENOMEM;
         return -1
     }
     
@@ -92,7 +92,7 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
     {
         process_destroy(child_pid);
         pid_set_remove(parent->ps_children, child_pid);
-        *errno = ENOMEM;
+        *err = ENOMEM;
         return -1
     }
     
@@ -107,11 +107,11 @@ sys_fork(const struct trapframe *parent_tf, int *errno)
     
     // child thread sets up child return value
     // and ps_thread/t_proc
-    *errno = thread_fork("user process",
-                         enter_forked_process,
-                         child_tf, 0,
-                         NULL);
-    if (errno)
+    *err = thread_fork("user process",
+                       enter_forked_process,
+                       child_tf, 0,
+                       NULL);
+    if (err)
     {
         process_destroy(child_pid);
         pid_set_remove(parent->ps_children, child_pid);
