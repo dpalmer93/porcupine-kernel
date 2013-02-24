@@ -27,16 +27,114 @@
  * SUCH DAMAGE.
  */
 
+#include <errno.h>
 #include <syscall.h>
 
 // helper functions for argument handling
 char **copyinargs(const_userptr_t argv, int *argc, int *total_len);
-int copyoutargs(userptr_t argv, const char *kargv, int argc, int total_len);
+int copyoutargs(userptr_t argv, const char **kargv, int argc, int total_len);
+void free_kargv(char **kargv);
 
 int
 sys_execv(const_userptr_t path, const_userptr_t argv)
 {
+    int err;
     
+    char *kpath = kmalloc(PATH_MAX);
+    if (kpath == NULL)
+        return ENOMEM;
+    
+    // copy in path
+    int path_len;
+    if (err = copyinstr(path, kpath, PATH_MAX, &path_len))
+        return err;
+    
+    // copy in args
+    int argc;
+    int total_len;
+    char **kargv = copyinargs(argv, &argc, &total_len);
+    if (kargv == NULL)
+    {
+        kfree(kpath);
+        return E2BIG;
+    }
+    
+    // Open the file.
+    struct vnode *v;
+	err = vfs_open(kpath, O_RDONLY, 0, &v);
+	if (err)
+    {
+        free_kargv(kargv);
+        kfree(kpath);
+		return err;
+    }
+    
+    // set up new address space
+    struct addrspace *old_as = curthread->t_proc->ps_addrspace;
+    struct addrspace *as = as_create();
+    if (as == NULL)
+    {
+        vfs_close(v);
+        free_kargv(kargv);
+        kfree(kpath);
+        return ENOMEM;
+    }
+    
+    // Activate the new address space
+    as_activate(as);
+    
+    vaddr_t entrypoint;
+    err = load_elf(v, &entrypoint);
+    if (err)
+    {
+        as_activate(old_as);
+        as_destroy(as);
+        vfs_close(v);
+        free_kargv(kargv);
+        kfree(kpath);
+        return err;
+    }
+    
+    // close the file now, since we will not be returning
+    // here from user mode
+    vfs_close(v);
+    
+    // set up user stack
+    vaddr_t stackptr;
+    err = as_define_stack(as, &stackptr);
+    if (err)
+    {
+        as_activate(old_as);
+        as_destroy(as);
+        vfs_close(v);
+        free_kargv(kargv);
+        kfree(kpath);
+        return err;
+    }
+    
+    // copy arguments just above stack
+    vaddr_t user_argv = stackptr + 4;
+    err = copyoutargs((userptr_t)user_argv, kargv, argc, total_len)
+    if (err)
+    {
+        as_activate(old_as);
+        as_destroy(as);
+        vfs_close(v);
+        free_kargv(kargv);
+        kfree(kpath);
+        return err;
+    }
+    
+    // destroy old address space
+    curthread->t_proc->ps_addrspace = as;
+    as_destroy(old_as);
+    
+    // Warp to user mode
+    enter_new_process(argc, user_argv, stackptr, entrypoint);
+    
+    // enter_new_process() does not return
+	panic("enter_new_process returned\n");
+	return EINVAL;
 }
 
 // returns null on failure
@@ -70,7 +168,7 @@ copyinargs(const_userptr_t argv, int *argc, int *total_len)
     }
     
     // allocate space for the arguments themselves
-    char *kargs = (char *)kmalloc(ARG_MAX);
+    char *kargs = (char *)kmalloc(ARG_MAX * sizeof(char));
     
     // keep track of our position in kargs
     char *kargs_cur = kargs;
@@ -124,8 +222,7 @@ copyoutargs(userptr_t argv, const char **kargv, int argc, int total_len)
     // copy strings "in bulk"
     if(err = copyout(kargv[0], start_of_args, total_len))
     {
-        kfree(kargv[0]);
-        kfree(kargv);
+        free_kargv(kargv);
         return err;
     }
     
@@ -139,14 +236,19 @@ copyoutargs(userptr_t argv, const char **kargv, int argc, int total_len)
     // copy argv itself
     if (err = copyout(uargv, argv, argc + 1))
     {
-        kfree(kargv[0]);
-        kfree(kargv);
+        free_kargv(kargv);
         return err;
     }
     
     // free temporary buffers
-    kfree(kargv[0]);
-    kfree(kargv);
+    free_kargv(kargv);
     
     return 0;
+}
+
+void
+free_kargv(char **kargv)
+{
+    kfree(kargv[0]);
+    kfree(kargv);
 }
