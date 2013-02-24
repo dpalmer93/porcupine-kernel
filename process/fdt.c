@@ -141,6 +141,7 @@ fc_create(struct vnode *file)
     if (fc == NULL) {
         return NULL;
     }
+    
     fc->fc_lock = lock_create("fc lock");
     if (fc->fc_lock == NULL) {
         kfree(fc);
@@ -183,7 +184,9 @@ fc_close(struct file_ctxt *fc)
     }
 
     // Last reference
-    vfs_close(fc->fc_vnode);
+    if (fc->fc_vnode)
+        vfs_close(fc->fc_vnode);
+    
     lock_release(fc->fc_lock);
     lock_destroy(fc->fc_lock);
     kfree(fc);
