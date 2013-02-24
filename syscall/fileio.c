@@ -110,7 +110,7 @@ sys_close(int fd)
 
 // Error stored in err
 int
-read(int fd, void *buf, size_t buflen, int *err)
+sys_read(int fd, userptr_t buf, size_t buflen, int *err)
 {
     struct file_table *fdt;
     struct file_ctxt *fc;
@@ -151,7 +151,7 @@ read(int fd, void *buf, size_t buflen, int *err)
 
 // Error stored in err
 int
-write(int fd, const void *buf, size_t count, int *err)
+sys_write(int fd, const_userptr_t buf, size_t count, int *err)
 {
     struct file_table *fdt;
     struct file_ctxt *fc;
@@ -192,7 +192,7 @@ write(int fd, const void *buf, size_t count, int *err)
 
 // Error stored in err
 off_t 
-lseek(int fd, off_t offset, int whence, int *err)
+sys_lseek(int fd, off_t offset, int whence, int *err)
 {
     struct file_table *fdt;
     struct file_ctxt *fc;
@@ -243,7 +243,7 @@ lseek(int fd, off_t offset, int whence, int *err)
 }
 
 int
-dup2(int old_fd, int new_fd, int *err)
+sys_dup2(int old_fd, int new_fd, int *err)
 {
     struct file_table *fdt;
     struct file_ctxt *fc;   
