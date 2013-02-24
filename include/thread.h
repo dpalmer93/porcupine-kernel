@@ -114,7 +114,7 @@ struct thread {
 	struct addrspace *t_addrspace;	/* virtual address space */
 
 	/* VFS */
-	//struct vnode *t_cwd;		/* current working directory */
+	struct vnode *t_cwd;		/* current working directory */
 
 	/* add more here as needed */
 };

@@ -44,7 +44,7 @@ void syscall(struct trapframe *tf);
  */
 
 /* Helper for fork(). You write this. */
-void enter_forked_process(struct trapframe *tf);
+void enter_forked_process(void *child_tf, unsigned long trash);
 
 /* Enter user mode. Does not return. */
 void enter_new_process(int argc, userptr_t argv, vaddr_t stackptr,
@@ -64,5 +64,7 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 // on error, returns error code in errno
 int sys_fork(const struct trapframe *tf, int *errno);
 int sys_execv(const_userptr_t path, const_userptr_t argv);
+
+int sys_open(const_userptr_t filename, int flags);
 
 #endif /* _SYSCALL_H_ */

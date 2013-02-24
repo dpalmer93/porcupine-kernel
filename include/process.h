@@ -38,10 +38,11 @@
 #include <addrspace.h>
 #include <vnode.h>
 #include <pid_set.h>
+#include <limits.h>
 
 typedef enum _pstat_t {
-    PS_ACTIVE;
-    PS_ZOMBIE;
+    PS_ACTIVE, 
+    PS_ZOMBIE
 } pstat_t;
 
 struct process {
@@ -84,9 +85,9 @@ void fc_incref(struct file_ctxt *fc); // increment the refcount
 void fc_close(struct file_ctxt *ctxt);
 
 struct fd_table {
-    file_ctxt          *fds[OPEN_MAX];
+    struct file_ctxt          *fds[OPEN_MAX];
     struct rw_mutex     fd_rw;
-}
+};
 
 struct fd_table *fdt_create(void);
 void             fdt_destroy(struct fd_table *fdt);

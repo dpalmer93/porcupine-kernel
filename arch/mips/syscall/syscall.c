@@ -35,6 +35,7 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
+#include <process.h>
 
 
 /*
@@ -117,6 +118,10 @@ syscall(struct trapframe *tf)
             retval = sys_execv((const_userptr_t)tf->tf_a0,
                                (const_userptr_t)tf->tf_a1);
             break;
+        case SYS_open:
+            retval = sys_open((const_userptr_t) tf->tf_a0,
+                              (int) tf->tf_a1);
+            
             
 	    default:
             kprintf("Unknown syscall %d\n", callno);
@@ -176,6 +181,9 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(void *child_tf, unsigned long trash)
 {
+
+    (void) trash; 
+    
 	struct trapframe *my_tf = (struct trapframe *)child_tf;
     
     struct trapframe stack_tf;
@@ -189,7 +197,7 @@ enter_forked_process(void *child_tf, unsigned long trash)
     // set the return value to 0, advance the pc,
     // and switch to user mode
     stack_tf.tf_a3 = 0;
-    stack_ft.tf_v0 = 0;
+    stack_tf.tf_v0 = 0;
     stack_tf.tf_epc += 4;
     mips_usermode(&stack_tf);
 }
