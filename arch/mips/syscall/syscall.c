@@ -104,16 +104,13 @@ syscall(struct trapframe *tf)
 	    case SYS_reboot:
             err = sys_reboot(tf->tf_a0);
             break;
-
 	    case SYS___time:
             err = sys___time((userptr_t)tf->tf_a0,
                              (userptr_t)tf->tf_a1);
             break;
-            
         case SYS_fork:
             retval = sys_fork(tf, &err);
             break;
-            
         case SYS_execv:
             retval = sys_execv((const_userptr_t)tf->tf_a0,
                                (const_userptr_t)tf->tf_a1);
@@ -127,8 +124,8 @@ syscall(struct trapframe *tf)
             break;
         case SYS_read:
             retval = sys_read((int) tf->tf_a0, 
-                            (const_userptr_t) tf->tf_a1, 
-                            (size_t) tf->tf_a2, &err);
+                              (const_userptr_t) tf->tf_a1,
+                              (size_t) tf->tf_a2, &err);
             break;
         case SYS_write:
             retval = sys_write((int) tf->tf_a0,
@@ -148,8 +145,8 @@ syscall(struct trapframe *tf)
             retval = sys_chdir((const_userptr_t) tf->tf_a0, &err);
             break;
         case SYS___getcwd:
-            retval = __getcwd((const_userptr_t buf) tf->tf_a0
-                              (size_t) tf->tf_a1, &err);
+            retval = sys___getcwd((const_userptr_t buf) tf->tf_a0
+                                  (size_t) tf->tf_a1, &err);
             break;
 	    default:
             kprintf("Unknown syscall %d\n", callno);
