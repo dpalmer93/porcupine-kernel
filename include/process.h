@@ -96,12 +96,18 @@ void             fdt_destroy(struct fd_table *fdt);
 // same file contexts
 struct fd_table *fdt_copy(struct fd_table *fdt);
 
-// access the FC associated to an FD (synchronized)
-struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
-
-// find an FD and associate it with the FC (synchronized)
+// find an FD and associate it with the FC (atomic)
 // returns -1 on failure
 int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc);
+
+// access the FC associated to an FD (atomic)
+struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
+
+// remove and return the FC associated to an FD (atomic)
+struct file_ctxt *fdt_remove(struct fd_table *fdt, int fd)
+
+// replace entry at FD with FC (atomic)
+void fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc);
 
 
 

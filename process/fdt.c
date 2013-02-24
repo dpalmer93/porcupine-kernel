@@ -97,10 +97,13 @@ fdt_copy(struct fd_table *fdt)
     return new_fdt;
 }
 
-file_ctxt *
+struct file_ctxt *
 fdt_get(struct fd_table *fdt, int fd)
 {
     KASSERT(fdt != NULL);
+    
+    if (fd < 0 || fd >= OPEN_MAX)
+        return NULL;
     
     struct file_ctxt *fc;
     
@@ -112,7 +115,8 @@ fdt_get(struct fd_table *fdt, int fd)
 }
 
 /* Returns -1 on failure */
-int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc)
+int
+fdt_insert(struct fd_table *fdt, struct file_ctxt *fc)
 {
     KASSERT(fc != NULL);
     KASSERT(fdt != NULL);
@@ -129,6 +133,43 @@ int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc)
     // no FDs were available;
     rw_wdone(fdt->fd_rw);
     return -1;
+}
+
+// Returns NULL on failure
+struct file_ctxt *
+fdt_remove(struct fd_table *fdt, int fd)
+{
+    KASSERT(fdt != NULL);
+    
+    struct file_ctxt *fc;
+    
+    rw_wlock(fdt->fd_rw);
+    
+    if (fdt->fds[fd] == NULL)
+    {
+        rw_wdone(fdt->fd_rw);
+        return NULL;
+    }
+    
+    fc = fdt->fds[fd];
+    fdt->fds[fd] = NULL;
+    
+    rw_wdone(fdt->fd_rw);
+    return fc;
+}
+
+void
+fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc)
+{
+    KASSERT(fdt != NULL);
+    KASSERT(fc != NULL);
+    
+    rw_wlock(fdt->fdt_rw);
+    if (fdt->fds[fd] != NULL) {
+        fc_close(fdt->fds[new_fd]);
+    }
+    fdt->fds[fd] = fc;
+    rw_wdone(fdt->fdt_rw);
 }
 
 

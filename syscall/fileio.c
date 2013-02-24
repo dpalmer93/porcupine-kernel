@@ -53,15 +53,8 @@ sys_open(const_userptr_t filename, int flags, int* err)
         return -1;
     }
         
-    file = kmalloc(sizeof(struct vnode));
-    if (file == NULL) {
-        *err = ENOMEM;
-        return -1;
-    }    
-        
-    result = vfs_open(kfilename, int flags, 0, &file);
-    if (result) {       
-        kfree(file);
+    result = vfs_open(kfilename, flags, 0, &file);
+    if (result) {
         *err = result;
         return -1;
     }
@@ -94,17 +87,12 @@ sys_close(int fd)
 
     fdt = curthread->t_proc->ps_fdt;
     
-    fc = fdt_get(fdt, fd);
+    fc = fdt_remove(fdt, fd);
     if (fc == NULL) {
         return EBADF;
     }
     
     fc_close(fc);
-    
-    rw_wlock(fdt->fd_rw);
-    fdt->fds[fd] = NULL;
-    rw_wdone(fdt->fd_rw);
-    
     return 0;
 }
 
@@ -125,15 +113,18 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
         return -1;
     }
     
-    rw_wlock(fc->fc_rw);
+    lock_acquire(fc->fc_lock);
     
-    myuio.uio_iov = (struct iovec *)buf;
+    myuio.uio_iov = {
+        iov_ubase = buf;
+        iov_len = buflen;
+    };
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
     myuio.uio_resid = buflen;
     myuio.uio_segflg = UIO_USERSPACE;
 	myuio.uio_rw = UIO_READ;
-	myuio.uio_uio_space = curthread->t_proc->ps_addrspace;
+	myuio.uio_space = curthread->t_proc->ps_addrspace;
     
     result = VOP_READ(fc->fc_vnode, &myuio);
     if (result) {
@@ -144,7 +135,7 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
     amount_read = myuio.uio_offset - fc->fc_offset;
     fc->offset = myuio.uio_offset;
     
-    rw_wdone(fc->fc_rw);
+    lock_release(fc->fc_lock);
     
     return amount_read;
 }
@@ -166,15 +157,18 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
         return -1;
     }
     
-    rw_wlock(fc->fc_rw);
+    lock_acquire(fc->fc_lock);
     
-    myuio.uio_iov = (struct iovec *)buf;
+    myuio.uio_iov = {
+        iov_ubase = buf;
+        iov_len = buflen;
+    };
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
     myuio.uio_resid = count;
     myuio.uio_segflg = UIO_USERSPACE;
 	myuio.uio_rw = UIO_WRITE;
-	myuio.uio_uio_space = curthread->t_proc->ps_addrspace;
+	myuio.uio_space = curthread->t_proc->ps_addrspace;
     
     result = VOP_WRITE(fc->fc_vnode, &myuio);
     if (result) {
@@ -185,7 +179,7 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
     amount_written = myuio.uio_offset - fc->fc_offset;
     fc->offset = myuio.uio_offset;
     
-    rw_wdone(fc->fc_rw);
+    lock_release(fc->fc_lock);
     
     return amount_written;
 }
@@ -196,7 +190,7 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
 {
     struct file_table *fdt;
     struct file_ctxt *fc;
-    struct stat *statbuf;
+    struct stat statbuf;
     off_t new_offset;
     
     fdt = curthread->t_proc->ps_fdt; 
@@ -204,39 +198,39 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
     fc = fdt_get(fdt, fd);
     if (fc == NULL) {
         *err = EBADF;
-        return (off_t) -1;
+        return (off_t)-1;
     }
     
-    rw_wlock(fc->fc_rw);
+    lock_acquire(fc->fc_lock);
     
-    VOP_STAT(fc->vnode, statbuf);
+    VOP_STAT(fc->vnode, &statbuf);
     
-    switch(whence){
+    switch(whence) {
         case SEEK_SET:
             new_offset = offset;
+            break;
         case SEEK_CUR:
             new_offset = offset + fc_offset;
+            break;
         case SEEK_END
-            new_offset = statbuf.st_size - offset;
+            new_offset = statbuf.st_size + offset;
+            break;
         default:
             *err = EINVAL;
-            return (off_t) -1;
+            lock_release(fc->fc_lock);
+            return (off_t)-1;
     }
     
-    if (new_offset > statbuf.st_size)
+    if (new_offset < 0)
     {
         *err = EINVAL;
-        return (off_t) -1;
+        lock_release(fc->fc_lock);
+        return (off_t)-1;
     }
-    else if (new_offset < 0)
-    {
-        *err = EINVAL;
-        return (off_t) -1;
-    }
-    else
+    
     fc->fc_offset = new_offset;
     
-    rw_wdone(fc->fc_rw);
+    lock_release(fc->fc_lock);
     
     return new_offset;
     
@@ -246,29 +240,26 @@ int
 sys_dup2(int old_fd, int new_fd, int *err)
 {
     struct file_table *fdt;
-    struct file_ctxt *fc;   
+    struct file_ctxt *fc;
     
     fdt = curthread->t_proc->ps_fdt;  
     
-    fc = fdt_get(fdt, fd);
-    if (old_fc == NULL) {
+    fc = fdt_get(fdt, old_fd);
+    if (fc == NULL) {
         *err = EBADF;
         return -1;
     }
-    if (new_fd >= MAX_FD) {
+    if (new_fd < 0 || new_fd >= OPEN_MAX)
+    {
         *err = EBADF;
-        return -1
-    }
-    if (old_fd == new_fd) {
-        return newfd;
+        return -1;
     }
     
-    rw_wlock(fc->fc_rw);
-    if (fdt->fds[new_fd] != NULL) {
-        fc_close(fdt->fds[new_fd]);
-    }
-    fdt->fds[new_fd] = fc;
-    rw_wdone(fc->fc_rw);
+    if (new_fd == old_fd)
+        return new_fd;
+    
+    fc_incref(fc);
+    fdt_replace(fdt, new_fd, fc);
     
     return new_fd;
     
