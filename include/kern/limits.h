@@ -57,6 +57,9 @@
 /* Max bytes for an exec function */
 #define __ARG_MAX       (64 * 1024)
 
+/* Max number of arguments for an exec function */
+#define __ARGNUM_MAX    64
+
 
 /*
  * Important for system behavior, but not a big part of the API.
