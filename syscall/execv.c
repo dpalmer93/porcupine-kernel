@@ -32,13 +32,14 @@
 #include <lib.h>
 #include <limits.h>
 #include <copyinout.h>
+#include <kern/fcntl.h>
 #include <vfs.h>
 #include <addrspace.h>
 #include <current.h>
 #include <process.h>
 
 // helper functions for argument handling
-char **copyinargs(const_userptr_t argv, int *argc, int *total_len);
+int copyinargs(const_userptr_t argv, char **kargv, int *argc, int *total_len);
 int copyoutargs(userptr_t argv, char **kargv, int argc, int total_len);
 void free_kargv(char **kargv);
 
@@ -59,11 +60,12 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     // copy in args
     int argc;
     int total_len;
-    char **kargv = copyinargs(argv, &argc, &total_len);
-    if (kargv == NULL)
+    char *kargv[ARGNUM_MAX];
+    err = copyinargs(argv, &kargv, &argc, &total_len);
+    if (err)
     {
         kfree(kpath);
-        return E2BIG;
+        return err;
     }
     
     // Open the file.
@@ -145,35 +147,30 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
 	return EINVAL;
 }
 
-// returns null on failure
-char **
-copyinargs(const_userptr_t argv, int *argc, int *total_len)
+// returns error code on failure
+int
+copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, int *total_len)
 {
-    *argc = 0;
+    int err;
+    int argc;
     
-    // allocate space in kernel heap for copying arg pointers
-    userptr_t *kargv = (userptr_t *)kmalloc((ARGNUM_MAX + 1) * sizeof(userptr_t));
-    if (kargv == NULL)
-        return NULL;
+    userptr_t uargv[ARGNUM_MAX + 1];
     
     // try to copy the argv array
-    if (copyin(argv, (void *)kargv, (ARGNUM_MAX + 1) * sizeof(userptr_t)))
+    err = copyin(argv, (void *)uargv, (ARGNUM_MAX + 1) * sizeof(userptr_t))
+    if (err)
     {
-        kfree(kargv);
-        return NULL;
+        return err;
     }
     
     // count arguments
-    for (int *argc = 0; *argc < ARGNUM_MAX + 1; *argc++)
+    for (argc = 0; argc < ARGNUM_MAX + 1; argc++)
     {
-        if (kargv[*argc] == NULL)
+        if (uargv[argc] == NULL)
             break;
     }
-    if (*argc == ARGNUM_MAX + 1)
-    {
-        kfree(kargv);
-        return NULL;
-    }
+    if (argc == ARGNUM_MAX + 1)
+        return E2BIG;
     
     // allocate space for the arguments themselves
     char *kargs = (char *)kmalloc(ARG_MAX * sizeof(char));
@@ -182,26 +179,28 @@ copyinargs(const_userptr_t argv, int *argc, int *total_len)
     char *kargs_cur = kargs;
     
     // copy in each argument string
-    for (int i = 0; i < *argc; i++)
+    for (int i = 0; i < argc; i++)
     {
         // check bounds
         if (kargs_cur - kargs >= ARG_MAX)
         {
             kfree(kargs);
-            kfree(kargv);
             return NULL;
         }
         
         // actually perform the copy and record the length
         int arg_len;
-        if (copyinstr(kargv[i], kargs_cur, ARG_MAX, &arg_len))
+        err = copyinstr(uargv[i], kargs_cur, ARG_MAX, &arg_len)
+        if (err)
         {
             kfree(kargs);
-            kfree(kargv);
-            return NULL;
+            if (err == ENAMETOOLONG)
+                return E2BIG;
+            else
+                return err;
         }
         
-        // modify the entry in kargv to point to the
+        // set the entry in kargv to point to the
         // copied string
         kargv[i] = kargs_cur;
         
@@ -215,40 +214,44 @@ copyinargs(const_userptr_t argv, int *argc, int *total_len)
         }
     }
     
+    *argc_ret = argc;
     *total_len = kargs_cur - kargs;
-    return (char **)kargv;
+    return 0;
 }
 
 // returns 0 on success, error code on failure
 int
 copyoutargs(userptr_t argv, char **kargv, int argc, int total_len)
 {
+    int err;
+    userptr_t *uargv[ARGNUM_MAX];
+    
     // allocate space for argv array and null terminator
     userptr_t start_of_args = argv + argc + 1;
-    int err;
     
     // copy strings "in bulk"
-    if(err = copyout(kargv[0], start_of_args, total_len))
+    err = copyout(kargv[0], start_of_args, total_len)
+    if(err)
     {
         free_kargv(kargv);
         return err;
     }
     
-    // update pointers
-    userptr_t *uargv = (userptr_t)kargv;
+    // get arg user pointers
     for (int i = 0; i < argc; i++)
     {
-        uargv[i] = uargv[i] - uargv[0] + start_of_args;
+        uargv[i] = (kargv[i] - kargv[0]) + start_of_args;
     }
     
     // copy argv itself
-    if (err = copyout(uargv, argv, argc + 1))
+    err = copyout(uargv, argv, argc + 1)
+    if (err)
     {
         free_kargv(kargv);
         return err;
     }
     
-    // free temporary buffers
+    // free temporary buffer
     free_kargv(kargv);
     
     return 0;
@@ -258,5 +261,4 @@ void
 free_kargv(char **kargv)
 {
     kfree(kargv[0]);
-    kfree(kargv);
 }
