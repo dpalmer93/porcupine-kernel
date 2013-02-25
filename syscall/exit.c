@@ -28,34 +28,47 @@
  */
 
 #include <types.h>
+#include <kern/wait.h>
 #include <pid_set.h>
 #include <process.h>
 #include <syscall.h>
 
 int
-sys__exit(void)
+sys__exit(int code)
 {
-    
+    struct process *proc = curthread->t_proc;
+    process_finish(proc);
+    thread_exit();
 }
 
-int sys_waitpid(pid_t pid, userptr_t stat_loc, int options)
+int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err)
 {
     int exit_code;
     
     struct process *proc = curthread->t_proc;
     struct pid_set *children = proc->ps_children;
     if (!pid_set_includes(children, pid))
-        return ECHILD;
+    {
+        *err = ECHILD;
+        return -1;
+    }
     
     struct process *child = process_get(pid);
     // The child is in our PID set, so it must exist
     KASSERT(child != NULL);
     
-    exit_code = process_waiton(child);
+    if (options & WNOHANG)
+    {
+        exit_code = process_checkon(child);
+        if (exit_code == -1)
+            return 0;
+    }
+    else exit_code = process_waiton(child);
     
-    int err;
-    if ((err = copyout(&exit_code, stat_loc, sizeof(int))))
-        return err;
+    process_destroy(child->ps_pid);
     
-    return 0;
+    if ((*err = copyout(&exit_code, stat_loc, sizeof(int))))
+        return -1;
+    
+    return pid;
 }

@@ -50,5 +50,7 @@ bool pid_set_includes(struct pid_set *set, pid_t pid);
 
 void pid_set_remove(struct pid_set *set, pid_t pid);
 
+void pid_set_map(struct pid_set *set, void (*func)(pid_t));
+
 
 #endif /* _PID_SET_H_ */

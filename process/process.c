@@ -103,15 +103,38 @@ process_create(void)
     return p;
 }
 
+
+void
+process_finish(struct process *p)
+{
+    lock_acquire(p->ps_waitpid_lock);
+    p->ps_status = PS_ZOMBIE;
+    p->ps_exit_code = code;
+    cv_signal(p->ps_waitpid_cv, p->ps_waitpid_lock);
+    lock_release(p->ps_waitpid_lock);
+}
+
 // Wait on a process.  For use in runprogram() and waitpid()
 int
 process_waiton(struct process *p)
 {
-    int exit_code
+    int exit_code;
     lock_acquire(p->ps_waitpid_lock);
     while (p->ps_status == PS_ACTIVE)
         cv_wait(p->ps_waitpid_cv, p->ps_waitpid_cv);
     exit_code = p->ps_exit_code;
+    lock_release(p->ps_waitpid_lock);
+    return exit_code;
+}
+
+// returns -1 if the process has not exited
+int
+process_checkon(struct process *p)
+{
+    int exit_code = -1;
+    lock_acquire(p->ps_waitpid_lock);
+    if (p->ps_status == PS_ZOMBIE)
+        exit_code = p->ps_exit_code;
     lock_release(p->ps_waitpid_lock);
     return exit_code;
 }

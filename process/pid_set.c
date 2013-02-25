@@ -106,7 +106,8 @@ pid_set_add(struct pid_set *set, pid_t pid)
     return true;
 }
 
-void pid_set_remove(struct pid_set *set, pid_t pid)
+void
+pid_set_remove(struct pid_set *set, pid_t pid)
 {
     int index1 = (pid >> (2 * SEGBITS)) & SEGMASK;
     int index2 = (pid >> SEGBITS) & SEGMASK;
@@ -115,6 +116,22 @@ void pid_set_remove(struct pid_set *set, pid_t pid)
     if (set->bits[index1] == NULL)
         return;
     set->bits[index1][index2] &= ~(1 << index3);
+}
+
+void
+pid_set_map(struct pid_set *set, void (*func)(pid_t))
+{
+    for (int i = 0; i < SEGSIZE && set->bits[i]; i++)
+    {
+        for (int j = 0; j < SEGSIZE && set->bits[i][j]; j++)
+        {
+            for (int k = 0; k < 32 && (set->bits[i][j] & (1 << k)); k++)
+            {
+                pid_t pid = (i << (2 * SEGBITS)) + (j << SEGBITS) + k;
+                func(pid);
+            }
+        }
+    }
 }
 
 uint32_t *
