@@ -30,6 +30,7 @@
 #include <limits.h>
 #include <process.h>
 #include <lib.h>
+#include <pid_set.h>
 
 struct process *pid_table[PID_MAX];
 struct rw_mutex *pidt_rw;

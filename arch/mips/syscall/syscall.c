@@ -130,27 +130,30 @@ syscall(struct trapframe *tf)
             break;
         case SYS_read:
             retval = sys_read((int) tf->tf_a0, 
-                              (const_userptr_t) tf->tf_a1,
+                              (userptr_t) tf->tf_a1,
                               (size_t) tf->tf_a2, &err);
             break;
         case SYS_write:
             retval = sys_write((int) tf->tf_a0,
                                (const_userptr_t) tf->tf_a1,
-                               (size_t) tf->tf_a2, &err);   
+                               (size_t) tf->tf_a2, &err);
             break;
+        /*    
         case SYS_lseek:
             // extract the offset from regs a2-a3
-            int64_t offset64 = tf->tf_a2 | ((int64_t)tf->tf_a3 << 32);
+            int64_t offset64;
+            offset64 = tf->tf_a2 | ((int64_t)tf->tf_a3 << 32);
             
             // copy the whence from the stack
             int32_t whence;
-            err = copyin(tf->tf_sp, &whence, 4);
+            err = copyin((const_userptr_t) tf->tf_sp, &whence, 4);
             if (err) break;
             
             retval64 = sys_lseek((int) tf->tf_a0,
-                                 (off_t) offset,
+                                 (off_t) offset64,
                                  (int) whence, &err);
-            break;
+            break; */            
+            
         case SYS_dup2:
             retval = sys_dup2((int) tf->tf_a0,
                               (int) tf->tf_a1, &err);
@@ -159,7 +162,7 @@ syscall(struct trapframe *tf)
             retval = sys_chdir((const_userptr_t) tf->tf_a0, &err);
             break;
         case SYS___getcwd:
-            retval = sys___getcwd((const_userptr_t buf) tf->tf_a0
+            retval = sys___getcwd((userptr_t) tf->tf_a0,
                                   (size_t) tf->tf_a1, &err);
             break;
 	    default:

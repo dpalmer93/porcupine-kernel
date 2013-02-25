@@ -28,30 +28,34 @@
  */
 
 #include <types.h>
-#include <errno.h>
+#include <kern/errno.h>
 #include <process.h>
 #include <machine/trapframe.h>
 #include <syscall.h>
 #include <uio.h>
+#include <current.h>
+#include <vfs.h>
+#include <copyinout.h>
 
 int
-sys__getcwd(const_userptr_t buf, size_t buflen, int *err)
+sys___getcwd(userptr_t buf, size_t buflen, int *err)
 {
     struct uio myuio;
     int result;
     
-    myuio.uio_iov = (struct iovec *)buf;
+    myuio.uio_iov->iov_ubase = buf;
+    myuio.uio_iov->iov_len = buflen;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = 0;
     myuio.uio_resid = buflen;
     myuio.uio_segflg = UIO_USERSPACE;
 	myuio.uio_rw = UIO_WRITE;
-	myuio.uio_uio_space = curthread->t_proc->ps_addrspace;
+	myuio.uio_space = curthread->t_proc->ps_addrspace;
     
-    result = vfs_getcwd(struct uio *buf);
+    result = vfs_getcwd(&myuio);
     if (result)
     {
-        err = result;
+        *err = result;
         return -1;
     }
         
@@ -63,7 +67,8 @@ int
 sys_chdir(const_userptr_t pathname, int *err)
 {
     char kpathname[PATH_MAX];
-    int result, got;
+    int result;
+    size_t got;
     
     result = copyinstr(pathname, kpathname, PATH_MAX, &got);
     if (result){

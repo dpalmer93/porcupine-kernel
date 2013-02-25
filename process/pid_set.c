@@ -53,6 +53,13 @@ pid_set_create(void)
     return set;
 }
 
+void
+pid_set_destroy(struct pid_set *set)
+{
+    kfree(set);
+    return;
+}
+
 bool
 pid_set_includes(struct pid_set *set, pid_t pid)
 {

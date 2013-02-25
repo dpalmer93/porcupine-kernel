@@ -26,7 +26,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+ 
 #ifndef _ARRAY_H_
 #define _ARRAY_H_
 
@@ -37,6 +37,8 @@
 #else
 #define ARRAYASSERT(x) ((void)(x))
 #endif
+
+#include <lib.h>
 
 /*
  * Base array type (resizeable array of void pointers) and operations.

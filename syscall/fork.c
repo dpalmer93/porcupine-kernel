@@ -32,6 +32,8 @@
 #include <process.h>
 #include <machine/trapframe.h>
 #include <syscall.h>
+#include <current.h>
+#include <lib.h>
 
 // defined in process.c
 void process_cleanup(struct process *p);
@@ -70,7 +72,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     
     // copy the address space of the parent
     *err = as_copy(parent->ps_addrspace,
-                   &child->ps_addrspace)
+                   &child->ps_addrspace);
     if (err)
     {
         process_destroy(child_pid);
@@ -83,7 +85,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     {
         process_destroy(child_pid);
         *err = ENOMEM;
-        return -1
+        return -1;
     }
     
     // allocate space for child trapframe in the kernel heap
@@ -93,7 +95,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
         process_destroy(child_pid);
         pid_set_remove(parent->ps_children, child_pid);
         *err = ENOMEM;
-        return -1
+        return -1;
     }
     
     // copy trapframe
@@ -103,7 +105,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     // to pass the process struct to the child thread
     // this cast and assignment will always work,
     // as pointers always fit in machine registers
-    child_tf->TF_RET = (uintptr_t)p;
+    child_tf->TF_RET = (uintptr_t) child;
     
     // child thread sets up child return value
     // and ps_thread/t_proc
@@ -115,7 +117,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     {
         process_destroy(child_pid);
         pid_set_remove(parent->ps_children, child_pid);
-        return -1
+        return -1;
     }
     
     return child_pid;
