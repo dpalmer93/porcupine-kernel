@@ -29,6 +29,8 @@
  
 #include <fdt.h>
 #include <limits.h>
+#include <lib.h>
+#include <vfs.h>
 
  /*
   * Implements functions that operate on file descriptor tables and file contexts.
@@ -36,7 +38,7 @@
  */
  
 struct fd_table *
-fdt_create()
+fdt_create() 
 {
     struct fd_table *fdt;
 
@@ -83,7 +85,7 @@ fdt_copy(struct fd_table *fdt)
     
     struct fd_table *new_fdt;
     
-    new_fdt = fd_table_create();
+    new_fdt = fdt_create();
     
     rw_rlock(fdt->fd_rw);
     // increment the reference count of every
@@ -164,12 +166,12 @@ fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc)
     KASSERT(fdt != NULL);
     KASSERT(fc != NULL);
     
-    rw_wlock(fdt->fdt_rw);
+    rw_wlock(fdt->fd_rw);
     if (fdt->fds[fd] != NULL) {
-        fc_close(fdt->fds[new_fd]);
+        fc_close(fdt->fds[fd]);
     }
     fdt->fds[fd] = fc;
-    rw_wdone(fdt->fdt_rw);
+    rw_wdone(fdt->fd_rw);
 }
 
 
@@ -204,7 +206,7 @@ fc_incref(struct file_ctxt *fc)
     KASSERT(fc != NULL);
     
     lock_acquire(fc->fc_lock);
-    fc->refcount++;
+    fc->fc_refcount++;
     lock_release(fc->fc_lock);
 }
 

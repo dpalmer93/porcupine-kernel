@@ -34,7 +34,7 @@
 
 #include <types.h>
 #include <limits.h>
-#include <synch.h>
+#include <synch.h> 
 #include <vnode.h>
 
 struct file_ctxt {
@@ -52,7 +52,7 @@ void fc_close(struct file_ctxt *ctxt);
 
 struct fd_table {
     struct file_ctxt          *fds[OPEN_MAX];
-    struct rw_mutex     fd_rw;
+    struct rw_mutex           *fd_rw;
 };
 
 struct fd_table *fdt_create(void);
