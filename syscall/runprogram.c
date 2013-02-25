@@ -39,6 +39,7 @@
 #include <kern/unistd.h>
 #include <lib.h>
 #include <process.h>
+#include <copyinout.h>
 #include <current.h>
 #include <vm.h>
 #include <vfs.h>
@@ -59,6 +60,7 @@ runprogram(char *progname)
 {
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
+	userptr_t argv[2];
 	int result;
     struct process *proc;
 
@@ -141,10 +143,27 @@ runprogram(char *progname)
 		process_destroy(pid);
 		return result;
 	}
+	
+	// Set up argv
+	stackptr -= strlen(progname) + 1;
+	argv[0] = (userptr_t)stackptr;
+	argv[1] = NULL;
+	size_t arg_len;
+	result = copyoutstr(progname, argv[0], strlen(progname) + 1, &arg_len);
+	if (result) {
+	    process_destroy(pid);
+	    return result;
+	}
+	stackptr -= 2 * sizeof(userptr_t);
+	result = copyout(argv, (userptr_t)stackptr, 2 * sizeof(userptr_t));
+	if (result) {
+	    process_destroy(pid);
+	    return result;
+	}
+	
 
 	// Warp to user mode
-	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
-			  stackptr, entrypoint);
+	enter_new_process(1, (userptr_t)stackptr, stackptr, entrypoint);
 
 	// enter_new_process() does not return.
 	panic("enter_new_process returned\n");
