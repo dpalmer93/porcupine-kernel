@@ -35,7 +35,7 @@
 #include <uio.h>
 
 int
-__getcwd(const_userptr_t buf, size_t buflen, int *err)
+sys__getcwd(const_userptr_t buf, size_t buflen, int *err)
 {
     struct uio myuio;
     int result;
