@@ -64,5 +64,7 @@ void process_destroy(pid_t pid); // remove and free process struct
 
 pid_t process_identify(struct process *p); // assign PID--returns 0 on error
 struct process *process_get(pid_t pid); // get process for PID
+void process_cleanup(struct process *p); // only for fork() and process.c
+
 
 #endif /* _PROCESS_H_ */

@@ -29,6 +29,7 @@
 
 #include <limits.h>
 #include <process.h>
+#include <lib.h>
 
 struct process *pid_table[PID_MAX];
 struct rw_mutex *pidt_rw;
@@ -55,7 +56,7 @@ process_create(void)
 {
     struct process *p;
     
-    p = kmalloc(sizeof(struct process))
+    p = kmalloc(sizeof(struct process));
     if (p == NULL)
         return NULL;
     
@@ -68,7 +69,7 @@ process_create(void)
     p->ps_waitpid_cv = NULL;
     p->ps_waitpid_lock = NULL;
     
-    p->ps_children = pid_set_create()
+    p->ps_children = pid_set_create();
     if (p->ps_children == NULL)
     {
         kfree(p);
