@@ -106,6 +106,7 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
     struct fd_table *fdt;
     struct file_ctxt *fc;
     struct uio myuio;
+    struct iovec uio_iov;
     int result, amount_read;
     
     fdt = curthread->t_proc->ps_fdt;  
@@ -118,8 +119,10 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
     
     lock_acquire(fc->fc_lock);
     
-    myuio.uio_iov->iov_ubase = buf;
-    myuio.uio_iov->iov_len = buflen;
+    uio_iov.iov_ubase = buf;
+    uio_iov.iov_len = buflen;
+    
+    myuio.uio_iov = &uio_iov;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
     myuio.uio_resid = buflen;
@@ -148,6 +151,7 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
     struct fd_table *fdt;
     struct file_ctxt *fc;
     struct uio myuio;
+    struct iovec uio_iov;
     int result, amount_written;
     
     fdt = curthread->t_proc->ps_fdt;  
@@ -160,8 +164,10 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
     
     lock_acquire(fc->fc_lock);
     
-    myuio.uio_iov->iov_ubase = (userptr_t) buf;
-    myuio.uio_iov->iov_len = count;
+    uio_iov.iov_ubase = (userptr_t)buf;
+    uio_iov.iov_len = count;
+    
+    myuio.uio_iov = &uio_iov;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
     myuio.uio_resid = count;

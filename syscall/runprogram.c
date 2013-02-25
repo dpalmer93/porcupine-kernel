@@ -154,24 +154,32 @@ runprogram(char *progname)
 int
 setup_inouterr(struct fd_table *fdt)
 {
-    struct vnode *v_stdin, v_stdout, v_stderr;
-    struct file_ctxt *stdin, stdout, stderr;
+    int err;
+    struct vnode *v_stdin, *v_stdout, *v_stderr;
+    struct file_ctxt *stdin, *stdout, *stderr;
+    
+    char path[5];
+    strcpy(path, "con:");
     
     // open console vnode three times
-    if ((result = vfs_open("con:", O_RDONLY, 0, &v_stdin)))
+    // we have to reset the path every time because
+    // vfs_open() messes with the contents of the string
+    if ((err = vfs_open(path, O_RDONLY, 0, &v_stdin)))
     {
-        return result;
+        return err;
     }
-    if ((result = vfs_open("con:", O_WRONLY, 0, &v_stdout)))
+    strcpy(path, "con:");
+    if ((err = vfs_open(path, O_WRONLY, 0, &v_stdout)))
     {
         vfs_close(v_stdin);
-        return result;
+        return err;
     }
-    if ((result = vfs_open("con:", O_WRONLY, 0, &v_stderr)))
+    strcpy(path, "con:");
+    if ((err = vfs_open(path, O_WRONLY, 0, &v_stderr)))
     {
         vfs_close(v_stdin);
         vfs_close(v_stdout);
-        return result;
+        return err;
     }
     
     // create file contexts
@@ -198,26 +206,10 @@ setup_inouterr(struct fd_table *fdt)
     }
     
     // insert file contexts
-    if ((result = fdt_replace(fdt, STDIN_FILENO, stdin)))
-    {
-        fc_close(stdin);
-        fc_close(stdout);
-        fc_close(stderr);
-        return EMFILE;
-    }
-    if ((result = fdt_replace(fdt, STDOUT_FILENO, stdout)))
-    {
-        fc_close(stdin);
-        fc_close(stdout);
-        fc_close(stderr);
-        return EMFILE;
-    }
-    if ((result = fdt_replace(fdt, STDERR_FILENO, stderr)))
-    {
-        fc_close(stdin);
-        fc_close(stdout);
-        fc_close(stderr);
-        return EMFILE;
-    }
+    fdt_replace(fdt, STDIN_FILENO, stdin);
+    fdt_replace(fdt, STDOUT_FILENO, stdout);
+    fdt_replace(fdt, STDERR_FILENO, stderr);
+    
+    return 0;
 }
 

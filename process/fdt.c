@@ -69,7 +69,7 @@ fdt_destroy(struct fd_table * fdt)
 
     /* Call fc_close() which may or may not free the file_ctxt
        depending on the number of references */
-    for(int i = 0; i < OPEN_MAX; i++) {
+    for(int i = 0; i < OPEN_MAX && fdt->fds[i] != NULL; i++) {
         fc_close(fdt->fds[i]);
     }
     

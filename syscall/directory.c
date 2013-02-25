@@ -41,10 +41,13 @@ int
 sys___getcwd(userptr_t buf, size_t buflen, int *err)
 {
     struct uio myuio;
+    struct iovec uio_iov;
     int result;
     
-    myuio.uio_iov->iov_ubase = buf;
-    myuio.uio_iov->iov_len = buflen;
+    uio_iov.iov_ubase = buf;
+    uio_iov.iov_len = buflen;
+    
+    myuio.uio_iov = &uio_iov;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = 0;
     myuio.uio_resid = buflen;
