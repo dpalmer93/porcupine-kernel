@@ -28,7 +28,6 @@
  */
 
 #include <kern/errno.h>
-#include <syscall.h>
 #include <lib.h>
 #include <limits.h>
 #include <copyinout.h>
@@ -37,6 +36,7 @@
 #include <addrspace.h>
 #include <current.h>
 #include <process.h>
+#include <syscall.h>
 
 // helper functions for argument handling
 int copyinargs(const_userptr_t argv, char **kargv, int *argc, size_t *total_len);

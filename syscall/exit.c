@@ -25,48 +25,37 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * process.h: process system declarations.
  */
 
-#ifndef _PROCESS_H_
-#define _PROCESS_H_
-
 #include <types.h>
-#include <thread.h>
-#include <synch.h>
-#include <addrspace.h>
 #include <pid_set.h>
-#include <fdt.h>
+#include <process.h>
+#include <syscall.h>
 
-typedef enum _pstat_t {
-    PS_ACTIVE, 
-    PS_ZOMBIE
-} pstat_t;
+int
+sys__exit(void)
+{
+    
+}
 
-struct process {
-    pid_t                ps_pid;
-    pstat_t              ps_status;
-    int                  ps_exit_code;
-    struct thread       *ps_thread;
-    struct fd_table     *ps_fdt;
-    struct addrspace    *ps_addrspace;
-    struct pid_set      *ps_children;
-    struct cv           *ps_waitpid_cv;
-    struct lock         *ps_waitpid_lock;
-};
-
-void process_bootstrap(void);
-void process_shutdown(void);
-
-struct process *process_create(void); // set up process struct
-void process_destroy(pid_t pid); // remove and free process struct
-                                 // and ALL substructures
-int process_waiton(struct process *p);
-
-pid_t process_identify(struct process *p); // assign PID--returns 0 on error
-struct process *process_get(pid_t pid); // get process for PID
-void process_cleanup(struct process *p); // only for fork() and process.c
-
-
-#endif /* _PROCESS_H_ */
+int sys_waitpid(pid_t pid, userptr_t stat_loc, int options)
+{
+    int exit_code;
+    
+    struct process *proc = curthread->t_proc;
+    struct pid_set *children = proc->ps_children;
+    if (!pid_set_includes(children, pid))
+        return ECHILD;
+    
+    struct process *child = process_get(pid);
+    // The child is in our PID set, so it must exist
+    KASSERT(child != NULL);
+    
+    exit_code = process_waiton(child);
+    
+    int err;
+    if ((err = copyout(&exit_code, stat_loc, sizeof(int))))
+        return err;
+    
+    return 0;
+}

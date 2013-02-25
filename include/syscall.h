@@ -65,6 +65,8 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 // on error, returns error code in err
 int sys_fork(const struct trapframe *tf, int *err);
 int sys_execv(const_userptr_t path, const_userptr_t argv);
+int sys__exit(void);
+int sys_waitpid(pid_t pid, userptr_t stat_loc, int options);
 
 int sys_open(const_userptr_t filename, int flags, int* err);
 int sys_close(int fd);

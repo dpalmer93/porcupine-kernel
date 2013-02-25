@@ -98,9 +98,22 @@ process_create(void)
     p->ps_status = PS_ACTIVE;
     
     // process exits normally by default.
-    p->ps_ret_val = 0;
+    p->ps_exit_code = 0;
     
     return p;
+}
+
+// Wait on a process.  For use in runprogram() and waitpid()
+int
+process_waiton(struct process *p)
+{
+    int exit_code
+    lock_acquire(p->ps_waitpid_lock);
+    while (p->ps_status == PS_ACTIVE)
+        cv_wait(p->ps_waitpid_cv, p->ps_waitpid_cv);
+    exit_code = p->ps_exit_code;
+    lock_release(p->ps_waitpid_lock);
+    return exit_code;
 }
 
 /*

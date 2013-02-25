@@ -121,22 +121,30 @@ syscall(struct trapframe *tf)
             retval = sys_execv((const_userptr_t)tf->tf_a0,
                                (const_userptr_t)tf->tf_a1);
             break;
+        case SYS__exit:
+            err = sys__exit();
+            break;
+        case SYS_waitpid:
+            err = sys_waitpid((pid_t)tf->tf_a0,
+                              (userptr_t)tf->tf_a1,
+                              (int)tf->tf_a2);
+            break;
         case SYS_open:
-            retval = sys_open((const_userptr_t) tf->tf_a0,
-                              (int) tf->tf_a1, &err);
+            retval = sys_open((const_userptr_t)tf->tf_a0,
+                              (int)tf->tf_a1, &err);
             break;
         case SYS_close:
-            err = sys_close((int) tf->tf_a0);
+            err = sys_close((int)tf->tf_a0);
             break;
         case SYS_read:
-            retval = sys_read((int) tf->tf_a0, 
-                              (userptr_t) tf->tf_a1,
-                              (size_t) tf->tf_a2, &err);
+            retval = sys_read((int)tf->tf_a0, 
+                              (userptr_t)tf->tf_a1,
+                              (size_t)tf->tf_a2, &err);
             break;
         case SYS_write:
-            retval = sys_write((int) tf->tf_a0,
-                               (const_userptr_t) tf->tf_a1,
-                               (size_t) tf->tf_a2, &err);
+            retval = sys_write((int)tf->tf_a0,
+                               (const_userptr_t)tf->tf_a1,
+                               (size_t)tf->tf_a2, &err);
             break;
         /*    
         case SYS_lseek:
