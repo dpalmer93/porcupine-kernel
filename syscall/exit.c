@@ -29,16 +29,24 @@
 
 #include <types.h>
 #include <kern/wait.h>
+#include <kern/errno.h>
 #include <pid_set.h>
 #include <process.h>
+#include <current.h>
+#include <lib.h>
+#include <copyinout.h>
 #include <syscall.h>
 
 int
 sys__exit(int code)
 {
     struct process *proc = curthread->t_proc;
-    process_finish(proc);
+    process_finish(proc, code);
     thread_exit();
+    
+    // should not return from thread_exit()
+	panic("thread_exit() returned\n");
+	return EINVAL;
 }
 
 int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err)

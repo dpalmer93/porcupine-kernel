@@ -28,6 +28,7 @@
  */
 
 #include <kern/errno.h>
+#include <syscall.h>
 #include <lib.h>
 #include <limits.h>
 #include <copyinout.h>
@@ -36,7 +37,6 @@
 #include <addrspace.h>
 #include <current.h>
 #include <process.h>
-#include <syscall.h>
 
 // helper functions for argument handling
 int copyinargs(const_userptr_t argv, char **kargv, int *argc, size_t *total_len);
@@ -60,7 +60,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     // copy in args
     int argc;
     size_t total_len;
-    char *kargv[ARGNUM_MAX];
+    char *kargv[ARGNUM_MAX + 1];
     err = copyinargs(argv, kargv, &argc, &total_len);
     if (err)
     {
@@ -88,6 +88,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
         kfree(kpath);
         return ENOMEM;
     }
+    curthread->t_proc->ps_addrspace = as;
+    curthread->t_addrspace = as;
     
     // Activate the new address space
     as_activate(as);
@@ -97,6 +99,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     if (err)
     {
         as_activate(old_as);
+        curthread->t_proc->ps_addrspace = old_as;
+        curthread->t_addrspace = old_as;
         as_destroy(as);
         vfs_close(v);
         free_kargv(kargv);
@@ -114,6 +118,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     if (err)
     {
         as_activate(old_as);
+        curthread->t_proc->ps_addrspace = old_as;
+        curthread->t_addrspace = old_as;
         as_destroy(as);
         vfs_close(v);
         free_kargv(kargv);
@@ -121,12 +127,15 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
         return err;
     }
     
-    // copy arguments just above stack
-    vaddr_t user_argv = stackptr + 4;
-    err = copyoutargs((userptr_t)user_argv, kargv, argc, total_len);
+    // copy arguments at base of stack
+    stackptr -= total_len;
+    stackptr -= (argc + 1) * sizeof(userptr_t);
+    err = copyoutargs((userptr_t)stackptr, kargv, argc, total_len);
     if (err)
     {
         as_activate(old_as);
+        curthread->t_proc->ps_addrspace = old_as;
+        curthread->t_addrspace = old_as;
         as_destroy(as);
         vfs_close(v);
         free_kargv(kargv);
@@ -135,12 +144,10 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     }
     
     // destroy old address space
-    curthread->t_proc->ps_addrspace = as;
-    curthread->t_addrspace = as;
     as_destroy(old_as);
     
     // Warp to user mode
-    enter_new_process(argc, (userptr_t) user_argv, stackptr, entrypoint);
+    enter_new_process(argc, (userptr_t)stackptr, stackptr, entrypoint);
     
     // enter_new_process() does not return
 	panic("enter_new_process returned\n");
@@ -224,10 +231,10 @@ int
 copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len)
 {
     int err;
-    userptr_t uargv[ARGNUM_MAX];
+    userptr_t uargv[argc + 1];
     
     // allocate space for argv array and null terminator
-    userptr_t start_of_args = argv + argc + 1;
+    userptr_t start_of_args = argv + (argc + 1) * sizeof(uintptr_t);
     
     // copy strings "in bulk"
     err = copyout(kargv[0], start_of_args, total_len);
@@ -242,9 +249,10 @@ copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len)
     {
         uargv[i] = (kargv[i] - kargv[0]) + start_of_args;
     }
+    uargv[argc] = NULL;
     
     // copy argv itself
-    err = copyout(uargv, argv, argc + 1);
+    err = copyout(uargv, argv, (argc + 1) * sizeof(uintptr_t));
     if (err)
     {
         free_kargv(kargv);

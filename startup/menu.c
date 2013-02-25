@@ -36,6 +36,7 @@
 #include <uio.h>
 #include <clock.h>
 #include <thread.h>
+#include <process.h>
 #include <vfs.h>
 #include <sfs.h>
 #include <syscall.h>
@@ -142,7 +143,7 @@ common_prog(int nargs, char **args)
 		kprintf("thread_fork failed: %s\n", strerror(result));
 		return result;
 	}
-    
+    while (1);
     process_waiton(prog_thread->t_proc);
 
 	return 0;

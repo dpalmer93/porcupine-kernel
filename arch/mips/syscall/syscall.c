@@ -102,7 +102,8 @@ syscall(struct trapframe *tf)
      * Initialize retval64 to 0 as well.  If retval64 is nonzero,
      * use it.  Otherwise, use retval.
 	 */
-
+    
+    err = 0;
 	retval = 0;
     retval64 = 0;
 

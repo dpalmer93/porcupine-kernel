@@ -91,7 +91,8 @@ fdt_copy(struct fd_table *fdt)
     // increment the reference count of every
     // FDT entry we copy
     for(int i = 0; i < OPEN_MAX; i++) {
-        fc_incref(fdt->fds[i]);
+        if (fdt->fds[i] != NULL)
+            fc_incref(fdt->fds[i]);
         new_fdt->fds[i] = fdt->fds[i];
     }
     rw_rdone(fdt->fd_rw);

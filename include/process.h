@@ -46,8 +46,8 @@ typedef enum _pstat_t {
 
 struct process {
     pid_t                ps_pid;
-    pstat_t              ps_status;
-    int                  ps_exit_code;
+    volatile pstat_t     ps_status;
+    volatile int         ps_exit_code;
     struct thread       *ps_thread;
     struct fd_table     *ps_fdt;
     struct addrspace    *ps_addrspace;
@@ -64,7 +64,7 @@ void process_destroy(pid_t pid); // remove and free process struct
                                  // and ALL substructures
 
 // exit signaling
-void process_finish(struct process *p);
+void process_finish(struct process *p, int code);
 int process_waiton(struct process *p); // waits and returns exit code
 int process_checkon(struct process *p); // returns -1 if process not dead
 

@@ -74,7 +74,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     // copy the address space of the parent
     *err = as_copy(parent->ps_addrspace,
                    &child->ps_addrspace);
-    if (err)
+    if (*err)
     {
         process_destroy(child_pid);
         return -1;
@@ -114,7 +114,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
                        enter_forked_process,
                        child_tf, 0,
                        NULL);
-    if (err)
+    if (*err)
     {
         process_destroy(child_pid);
         pid_set_remove(parent->ps_children, child_pid);
