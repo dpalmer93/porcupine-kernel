@@ -28,7 +28,7 @@
  */
 
 #include <types.h>
-#include <errno.h>
+#include <kern/errno.h>
 #include <uio.h>
 #include <process.h>
 #include <syscall.h>

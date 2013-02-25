@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#include <errno.h>
+#include <kern/errno.h>
 #include <syscall.h>
 
 // helper functions for argument handling
