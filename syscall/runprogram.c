@@ -36,6 +36,7 @@
 #include <types.h>
 #include <kern/errno.h>
 #include <kern/fcntl.h>
+#include <kern/unistd.h>
 #include <lib.h>
 #include <thread.h>
 #include <current.h>
@@ -44,6 +45,9 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+
+// Helper function for setting up standard file descriptors
+int setup_inouterr(struct fd_table *fdt);
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -96,6 +100,15 @@ runprogram(char *progname)
         return ENOMEM;
     }
     
+    // Open FDs for stdin, stdout, and stderr
+    result = setup_inouterr(proc->ps_fdt);
+    if (result)
+    {
+        process_destroy(pid);
+        vfs_close(v);
+        return result;
+    }
+    
     // associate thread and process
     curthread->t_proc = proc;
     proc->ps_thread = curthread;
@@ -137,5 +150,75 @@ runprogram(char *progname)
 	// enter_new_process() does not return.
 	panic("enter_new_process returned\n");
 	return EINVAL;
+}
+
+int
+setup_inouterr(struct fd_table *fdt)
+{
+    struct vnode *v_stdin, v_stdout, v_stderr;
+    struct file_ctxt *stdin, stdout, stderr;
+    
+    // open console vnode three times
+    if ((result = vfs_open("con:", O_RDONLY, 0, &v_stdin)))
+    {
+        return result;
+    }
+    if ((result = vfs_open("con:", O_WRONLY, 0, &v_stdout)))
+    {
+        vfs_close(v_stdin);
+        return result;
+    }
+    if ((result = vfs_open("con:", O_WRONLY, 0, &v_stderr)))
+    {
+        vfs_close(v_stdin);
+        vfs_close(v_stdout);
+        return result;
+    }
+    
+    // create file contexts
+    if((stdin = fc_create(v_stdin)) == NULL)
+    {
+        vfs_close(v_stdin);
+        vfs_close(v_stdout);
+        vfs_close(v_stderr);
+        return ENOMEM;
+    }
+    if ((stdout = fc_create(v_stdout)) == NULL)
+    {
+        fc_close(stdin);
+        vfs_close(v_stdout);
+        vfs_close(v_stderr);
+        return ENOMEM;
+    }
+    if ((stderr = fc_create(v_stderr)) == NULL)
+    {
+        fc_close(stdin);
+        fc_close(stdout);
+        vfs_close(v_stderr);
+        return ENOMEM;
+    }
+    
+    // insert file contexts
+    if ((result = fdt_replace(fdt, STDIN_FILENO, stdin)))
+    {
+        fc_close(stdin);
+        fc_close(stdout);
+        fc_close(stderr);
+        return EMFILE;
+    }
+    if ((result = fdt_replace(fdt, STDOUT_FILENO, stdout)))
+    {
+        fc_close(stdin);
+        fc_close(stdout);
+        fc_close(stderr);
+        return EMFILE;
+    }
+    if ((result = fdt_replace(fdt, STDERR_FILENO, stderr)))
+    {
+        fc_close(stdin);
+        fc_close(stdout);
+        fc_close(stderr);
+        return EMFILE;
+    }
 }
 
