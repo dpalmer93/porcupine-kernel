@@ -32,7 +32,11 @@
 #include <uio.h>
 #include <process.h>
 #include <syscall.h>
-
+#include <copyinout.h>
+#include <current.h>
+#include <stat.h>
+#include <kern/seek.h>
+#include <vfs.h>
 
 // Error stored in err
 int
@@ -43,7 +47,7 @@ sys_open(const_userptr_t filename, int flags, int* err)
     char kfilename[PATH_MAX];
     struct vnode *file;
     struct file_ctxt *fc;
-    struct fd_table fdt;
+    struct fd_table *fdt;
     
     // copy in filename to kernel space
     result = copyinstr(filename, kfilename, PATH_MAX, &got);
@@ -68,7 +72,7 @@ sys_open(const_userptr_t filename, int flags, int* err)
     fdt = curthread->t_proc->ps_fdt;
     result = fdt_insert(fdt, fc);
     if (result == -1) {
-        fc_destroy(fc);
+        fc_close(fc);
         *err = EMFILE;
         return -1;
     }
@@ -81,7 +85,7 @@ sys_open(const_userptr_t filename, int flags, int* err)
 int
 sys_close(int fd)
 {
-    struct file_table *fdt;
+    struct fd_table *fdt;
     struct file_ctxt *fc;
 
     fdt = curthread->t_proc->ps_fdt;
@@ -99,7 +103,7 @@ sys_close(int fd)
 int
 sys_read(int fd, userptr_t buf, size_t buflen, int *err)
 {
-    struct file_table *fdt;
+    struct fd_table *fdt;
     struct file_ctxt *fc;
     struct uio myuio;
     int result, amount_read;
@@ -114,10 +118,8 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
     
     lock_acquire(fc->fc_lock);
     
-    myuio.uio_iov = {
-        iov_ubase = buf;
-        iov_len = buflen;
-    };
+    myuio.uio_iov->iov_ubase = buf;
+    myuio.uio_iov->iov_len = buflen;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
     myuio.uio_resid = buflen;
@@ -132,7 +134,7 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
     }
     
     amount_read = myuio.uio_offset - fc->fc_offset;
-    fc->offset = myuio.uio_offset;
+    fc->fc_offset = myuio.uio_offset;
     
     lock_release(fc->fc_lock);
     
@@ -143,7 +145,7 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
 int
 sys_write(int fd, const_userptr_t buf, size_t count, int *err)
 {
-    struct file_table *fdt;
+    struct fd_table *fdt;
     struct file_ctxt *fc;
     struct uio myuio;
     int result, amount_written;
@@ -158,10 +160,8 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
     
     lock_acquire(fc->fc_lock);
     
-    myuio.uio_iov = {
-        iov_ubase = buf;
-        iov_len = buflen;
-    };
+    myuio.uio_iov->iov_ubase = (userptr_t) buf;
+    myuio.uio_iov->iov_len = count;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
     myuio.uio_resid = count;
@@ -176,7 +176,7 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
     }
     
     amount_written = myuio.uio_offset - fc->fc_offset;
-    fc->offset = myuio.uio_offset;
+    fc->fc_offset = myuio.uio_offset;
     
     lock_release(fc->fc_lock);
     
@@ -187,7 +187,7 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
 off_t 
 sys_lseek(int fd, off_t offset, int whence, int *err)
 {
-    struct file_table *fdt;
+    struct fd_table *fdt;
     struct file_ctxt *fc;
     struct stat statbuf;
     off_t new_offset;
@@ -202,17 +202,17 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
     
     lock_acquire(fc->fc_lock);
     
-    VOP_STAT(fc->vnode, &statbuf);
+    VOP_STAT(fc->fc_vnode, &statbuf);
     
     switch(whence) {
         case SEEK_SET:
             new_offset = offset;
             break;
         case SEEK_CUR:
-            new_offset = offset + fc_offset;
+            new_offset = offset + fc->fc_offset;
             break;
-        case SEEK_END
-            new_offset = statbuf.st_size + offset;
+        case SEEK_END:
+            new_offset = statbuf.st_size + fc->fc_offset;
             break;
         default:
             *err = EINVAL;
@@ -238,7 +238,7 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
 int
 sys_dup2(int old_fd, int new_fd, int *err)
 {
-    struct file_table *fdt;
+    struct fd_table *fdt;
     struct file_ctxt *fc;
     
     fdt = curthread->t_proc->ps_fdt;  

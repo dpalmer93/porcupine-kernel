@@ -66,7 +66,7 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 int sys_fork(const struct trapframe *tf, int *err);
 int sys_execv(const_userptr_t path, const_userptr_t argv);
 
-int sys_open(const_userptr_t filename, int flags);
+int sys_open(const_userptr_t filename, int flags, int* err);
 int sys_close(int fd);
 int sys_read(int fd, userptr_t buf, size_t buflen, int *err);
 int sys_write(int fd, const_userptr_t buf, size_t count, int *err);
