@@ -29,10 +29,17 @@
 
 #include <kern/errno.h>
 #include <syscall.h>
+#include <lib.h>
+#include <limits.h>
+#include <copyinout.h>
+#include <vfs.h>
+#include <addrspace.h>
+#include <current.h>
+#include <process.h>
 
 // helper functions for argument handling
 char **copyinargs(const_userptr_t argv, int *argc, int *total_len);
-int copyoutargs(userptr_t argv, const char **kargv, int argc, int total_len);
+int copyoutargs(userptr_t argv, char **kargv, int argc, int total_len);
 void free_kargv(char **kargv);
 
 int
@@ -45,8 +52,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
         return ENOMEM;
     
     // copy in path
-    int path_len;
-    if (err = copyinstr(path, kpath, PATH_MAX, &path_len))
+    size_t path_len;
+    if ((err = copyinstr(path, kpath, PATH_MAX, &path_len)))
         return err;
     
     // copy in args
@@ -114,7 +121,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     
     // copy arguments just above stack
     vaddr_t user_argv = stackptr + 4;
-    err = copyoutargs((userptr_t)user_argv, kargv, argc, total_len)
+    err = copyoutargs((userptr_t)user_argv, kargv, argc, total_len);
     if (err)
     {
         as_activate(old_as);
@@ -131,7 +138,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     as_destroy(old_as);
     
     // Warp to user mode
-    enter_new_process(argc, user_argv, stackptr, entrypoint);
+    enter_new_process(argc, (userptr_t) user_argv, stackptr, entrypoint);
     
     // enter_new_process() does not return
 	panic("enter_new_process returned\n");
@@ -145,7 +152,7 @@ copyinargs(const_userptr_t argv, int *argc, int *total_len)
     *argc = 0;
     
     // allocate space in kernel heap for copying arg pointers
-    userptr_t *kargv = (userptr_t)kmalloc((ARGNUM_MAX + 1) * sizeof(userptr_t));
+    userptr_t *kargv = (userptr_t *)kmalloc((ARGNUM_MAX + 1) * sizeof(userptr_t));
     if (kargv == NULL)
         return NULL;
     
@@ -214,7 +221,7 @@ copyinargs(const_userptr_t argv, int *argc, int *total_len)
 
 // returns 0 on success, error code on failure
 int
-copyoutargs(userptr_t argv, const char **kargv, int argc, int total_len)
+copyoutargs(userptr_t argv, char **kargv, int argc, int total_len)
 {
     // allocate space for argv array and null terminator
     userptr_t start_of_args = argv + argc + 1;
