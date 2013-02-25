@@ -30,6 +30,7 @@
 #include <types.h>
 #include <limits.h>
 #include <pid_set.h>
+#include <lib.h>
 
 #define SEGBITS 5
 #define SEGMASK 0x1F
@@ -37,7 +38,7 @@
 
 struct pid_set {
     uint32_t *bits[SEGSIZE];
-}
+};
 
 uint32_t *allocate_subset(void);
 
