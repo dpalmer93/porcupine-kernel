@@ -59,7 +59,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     
     // copy in args
     int argc;
-    int total_len;
+    size_t total_len;
     char *kargv[ARGNUM_MAX];
     err = copyinargs(argv, kargv, &argc, &total_len);
     if (err)
@@ -224,13 +224,13 @@ int
 copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len)
 {
     int err;
-    userptr_t *uargv[ARGNUM_MAX];
+    userptr_t uargv[ARGNUM_MAX];
     
     // allocate space for argv array and null terminator
     userptr_t start_of_args = argv + argc + 1;
     
     // copy strings "in bulk"
-    err = copyout(kargv[0], start_of_args, total_len)
+    err = copyout(kargv[0], start_of_args, total_len);
     if(err)
     {
         free_kargv(kargv);
@@ -244,7 +244,7 @@ copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len)
     }
     
     // copy argv itself
-    err = copyout(uargv, argv, argc + 1)
+    err = copyout(uargv, argv, argc + 1);
     if (err)
     {
         free_kargv(kargv);
