@@ -37,9 +37,8 @@
 #include <kern/errno.h>
 #include <kern/fcntl.h>
 #include <lib.h>
-#include <thread.h>
+#include <process.h>
 #include <current.h>
-#include <addrspace.h>
 #include <vm.h>
 #include <vfs.h>
 #include <syscall.h>
