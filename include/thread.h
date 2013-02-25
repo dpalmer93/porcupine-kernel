@@ -56,9 +56,6 @@ struct vnode;
 /* Macro to test if two addresses are on the same kernel stack */
 #define SAME_STACK(p1, p2)     (((p1) & STACK_MASK) == ((p2) & STACK_MASK))
 
-/* Null thread ID */
-#define TID_NULL 0
-
 
 /* States a thread can be in. */
 typedef enum {
@@ -75,7 +72,6 @@ struct thread {
 	 * debugger is messed up.
 	 */
 	char *t_name;			/* Name of this thread */
-	long t_id;				/* Unique identifier */
 	const char *t_wchan_name;	/* Name of wait channel, if sleeping */
 	threadstate_t t_state;		/* State this thread is in */
     struct process *t_proc; /* Process associated to this thread */

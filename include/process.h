@@ -61,6 +61,7 @@ void process_shutdown(void);
 
 struct process *process_create(void); // set up process struct
 void process_destroy(pid_t pid); // remove and free process struct
+                                 // and ALL substructures
 
 pid_t process_identify(struct process *p); // assign PID--returns 0 on error
 struct process *process_get(pid_t pid); // get process for PID

@@ -57,6 +57,7 @@ runprogram(char *progname)
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
 	int result;
+    struct process *proc;
 
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
@@ -64,42 +65,76 @@ runprogram(char *progname)
 		return result;
 	}
 
-	/* We should be a new thread. */
+	// We should be a new thread
 	KASSERT(curthread->t_addrspace == NULL);
 
-	/* Create a new address space. */
-	curthread->t_addrspace = as_create();
-	if (curthread->t_addrspace==NULL) {
+    // set up new process structure
+    proc = process_create();
+    if (proc == NULL)
+    {
+        vfs_close(v);
+        return ENOMEM;
+    }
+    
+    // Get a PID for the process.  ENPROC is
+    // the error code for "no more processes allowed
+    // in the system."
+    pid_t pid = process_identify(proc);
+    if (pid == 0)
+    {
+        process_cleanup(proc);
+        vfs_close(v);
+        return ENPROC;
+    }
+    
+    // Create a new file descriptor table
+    proc->ps_fdt = fdt_create();
+    if (proc->ps_fdt == NULL)
+    {
+        process_destroy(pid);
+        vfs_close(v);
+        return ENOMEM;
+    }
+    
+    // associate thread and process
+    curthread->t_proc = proc;
+    proc->ps_thread = curthread;
+    
+	// Create a new address space
+	proc->ps_addrspace = as_create();
+	if (proc->ps_addrspace==NULL) {
+        process_destroy(pid);
 		vfs_close(v);
 		return ENOMEM;
 	}
+    curthread->t_addrspace = proc->ps_addrspace;
 
-	/* Activate it. */
-	as_activate(curthread->t_addrspace);
+	// Activate it
+	as_activate(proc->ps_addrspace);
 
-	/* Load the executable. */
+	// Load the executable
 	result = load_elf(v, &entrypoint);
 	if (result) {
-		/* thread_exit destroys curthread->t_addrspace */
+		process_destroy(pid);
 		vfs_close(v);
 		return result;
 	}
 
-	/* Done with the file now. */
+	// Done with the file now
 	vfs_close(v);
 
-	/* Define the user stack in the address space */
-	result = as_define_stack(curthread->t_addrspace, &stackptr);
+	// Define the user stack in the address space
+	result = as_define_stack(proc->ps_addrspace, &stackptr);
 	if (result) {
-		/* thread_exit destroys curthread->t_addrspace */
+		process_destroy(pid);
 		return result;
 	}
 
-	/* Warp to user mode. */
+	// Warp to user mode
 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
 			  stackptr, entrypoint);
 
-	/* enter_new_process does not return. */
+	// enter_new_process() does not return.
 	panic("enter_new_process returned\n");
 	return EINVAL;
 }

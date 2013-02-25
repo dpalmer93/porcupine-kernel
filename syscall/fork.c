@@ -68,6 +68,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     {
         *err = ENOMEM;
         process_destroy(child_pid);
+        return -1
     }
     
     // copy the address space of the parent
