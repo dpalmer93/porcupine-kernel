@@ -32,6 +32,11 @@
 #ifndef _FDT_H_
 #define _FDT_H_
 
+#include <types.h>
+#include <limits.h>
+#include <synch.h>
+#include <vnode.h>
+
 struct file_ctxt {
     struct vnode       *fc_vnode;
     unsigned int        fc_refcount;
@@ -65,7 +70,7 @@ int fdt_insert(struct fd_table *fdt, struct file_ctxt *fc);
 struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
 
 // remove and return the FC associated to an FD (atomic)
-struct file_ctxt *fdt_remove(struct fd_table *fdt, int fd)
+struct file_ctxt *fdt_remove(struct fd_table *fdt, int fd);
 
 // replace entry at FD with FC (atomic)
 void fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc);

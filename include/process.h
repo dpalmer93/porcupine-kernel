@@ -36,10 +36,8 @@
 #include <thread.h>
 #include <synch.h>
 #include <addrspace.h>
-#include <vnode.h>
 #include <pid_set.h>
 #include <fdt.h>
-#include <limits.h>
 
 typedef enum _pstat_t {
     PS_ACTIVE, 
