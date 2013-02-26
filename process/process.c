@@ -110,6 +110,7 @@ process_finish(struct process *p, int code)
     lock_acquire(p->ps_waitpid_lock);
     p->ps_status = PS_ZOMBIE;
     p->ps_exit_code = code;
+    p->ps_thread = NULL;
     cv_signal(p->ps_waitpid_cv, p->ps_waitpid_lock);
     lock_release(p->ps_waitpid_lock);
 }
@@ -214,6 +215,6 @@ process_get(pid_t pid)
 {
     rw_rlock(pidt_rw);
     struct process *p = pid_table[pid];
-    rw_rlock(pidt_rw);
+    rw_rdone(pidt_rw);
     return p;
 }

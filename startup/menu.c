@@ -143,8 +143,11 @@ common_prog(int nargs, char **args)
 		kprintf("thread_fork failed: %s\n", strerror(result));
 		return result;
 	}
-    while (1);
+	
+	// TODO: fix this logic...
+    while (prog_thread == NULL || prog_thread->t_proc == NULL);
     process_waiton(prog_thread->t_proc);
+    process_destroy(prog_thread->t_proc->ps_pid);
 
 	return 0;
 }

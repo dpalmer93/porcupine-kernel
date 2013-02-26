@@ -52,7 +52,7 @@ sys___getcwd(userptr_t buf, size_t buflen, int *err)
     myuio.uio_offset = 0;
     myuio.uio_resid = buflen;
     myuio.uio_segflg = UIO_USERSPACE;
-	myuio.uio_rw = UIO_WRITE;
+	myuio.uio_rw = UIO_READ;
 	myuio.uio_space = curthread->t_proc->ps_addrspace;
     
     result = vfs_getcwd(&myuio);
