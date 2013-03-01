@@ -100,7 +100,7 @@ load_segment(struct vnode *v, off_t offset, vaddr_t vaddr,
 	u.uio_offset = offset;
 	u.uio_segflg = is_executable ? UIO_USERISPACE : UIO_USERSPACE;
 	u.uio_rw = UIO_READ;
-	u.uio_space = curthread->t_addrspace;
+	u.uio_space = curthread->t_proc->ps_addrspace;
 
 	result = VOP_READ(v, &u);
 	if (result) {
@@ -239,7 +239,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 			return ENOEXEC;
 		}
 
-		result = as_define_region(curthread->t_addrspace,
+		result = as_define_region(curthread->t_proc->ps_addrspace,
 					  ph.p_vaddr, ph.p_memsz,
 					  ph.p_flags & PF_R,
 					  ph.p_flags & PF_W,
@@ -249,7 +249,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 		}
 	}
 
-	result = as_prepare_load(curthread->t_addrspace);
+	result = as_prepare_load(curthread->t_proc->ps_addrspace);
 	if (result) {
 		return result;
 	}
@@ -292,7 +292,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 		}
 	}
 
-	result = as_complete_load(curthread->t_addrspace);
+	result = as_complete_load(curthread->t_proc->ps_addrspace);
 	if (result) {
 		return result;
 	}

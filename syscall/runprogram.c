@@ -71,7 +71,7 @@ runprogram(char *progname)
 	}
 
 	// We should be a new thread
-	KASSERT(curthread->t_addrspace == NULL);
+	KASSERT(curthread->t_proc == NULL);
 
     // set up new process structure
     proc = process_create();
@@ -121,7 +121,6 @@ runprogram(char *progname)
 		vfs_close(v);
 		return ENOMEM;
 	}
-    curthread->t_addrspace = proc->ps_addrspace;
 
 	// Activate it
 	as_activate(proc->ps_addrspace);

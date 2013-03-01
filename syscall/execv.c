@@ -89,7 +89,6 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
         return ENOMEM;
     }
     curthread->t_proc->ps_addrspace = as;
-    curthread->t_addrspace = as;
     
     // Activate the new address space
     as_activate(as);
@@ -98,9 +97,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     err = load_elf(v, &entrypoint);
     if (err)
     {
-        as_activate(old_as);
         curthread->t_proc->ps_addrspace = old_as;
-        curthread->t_addrspace = old_as;
+        as_activate(old_as);
         as_destroy(as);
         vfs_close(v);
         free_kargv(kargv);
@@ -117,9 +115,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     err = as_define_stack(as, &stackptr);
     if (err)
     {
-        as_activate(old_as);
         curthread->t_proc->ps_addrspace = old_as;
-        curthread->t_addrspace = old_as;
+        as_activate(old_as);
         as_destroy(as);
         vfs_close(v);
         free_kargv(kargv);
@@ -133,9 +130,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     err = copyoutargs((userptr_t)stackptr, kargv, argc, total_len);
     if (err)
     {
-        as_activate(old_as);
         curthread->t_proc->ps_addrspace = old_as;
-        curthread->t_addrspace = old_as;
+        as_activate(old_as);
         as_destroy(as);
         vfs_close(v);
         free_kargv(kargv);

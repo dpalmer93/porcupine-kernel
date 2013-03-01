@@ -131,15 +131,17 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 		return EINVAL;
 	}
 
-	as = curthread->t_addrspace;
-	if (as == NULL) {
+	if (curthread->t_proc == NULL) {
 		/*
-		 * No address space set up. This is probably a kernel
+		 * No user process set up. This is probably a kernel
 		 * fault early in boot. Return EFAULT so as to panic
 		 * instead of getting into an infinite faulting loop.
 		 */
 		return EFAULT;
 	}
+    as = curthread->t_proc->ps_addrspace;
+    if (as == NULL) // also a kernel fault
+        return EFAULT
 
 	/* Assert that the address space has been set up properly. */
 	KASSERT(as->as_vbase1 != 0);

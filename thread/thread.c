@@ -146,9 +146,6 @@ thread_create(const char *name)
 	thread->t_curspl = IPL_HIGH;
 	thread->t_iplhigh_count = 1; /* corresponding to t_curspl */
 
-	/* VM fields */
-	thread->t_addrspace = NULL;
-
 	/* VFS fields */
 	thread->t_cwd = NULL;
 
@@ -249,8 +246,8 @@ thread_destroy(struct thread *thread)
 	/* VFS fields, cleaned up in thread_exit */
 	KASSERT(thread->t_cwd == NULL);
 
-	/* VM fields, cleaned up in thread_exit */
-	KASSERT(thread->t_addrspace == NULL);
+	/* Process, cleaned up in thread_exit */
+	KASSERT(thread->t_proc == NULL);
 
 	/* Thread subsystem fields */
 	if (thread->t_stack != NULL) {
@@ -714,8 +711,8 @@ thread_switch(threadstate_t newstate, struct wchan *wc)
 	spinlock_release(&curcpu->c_runqueue_lock);
 
 	/* If we have an address space, activate it in the MMU. */
-	if (cur->t_addrspace != NULL) {
-		as_activate(cur->t_addrspace);
+	if (cur->t_proc != NULL && cur->t_proc->ps_addrspace != NULL) {
+		as_activate(cur->t_proc->ps_addrspace);
 	}
 
 	/* Clean up dead threads. */
@@ -748,9 +745,9 @@ thread_startup(void (*entrypoint)(void *data1, unsigned long data2),
 	/* Release the runqueue lock acquired in thread_switch. */
 	spinlock_release(&curcpu->c_runqueue_lock);
 
-	/* If we have an address space, activate it in the MMU. */
-	if (cur->t_addrspace != NULL) {
-		as_activate(cur->t_addrspace);
+	/* If we have a user process, activate its address space in the MMU. */
+	if (cur->t_proc != NULL && cur->t_proc->ps_addrspace != NULL) {
+		as_activate(cur->t_proc->ps_addrspace);
 	}
 
 	/* Clean up dead threads. */
@@ -799,19 +796,8 @@ thread_exit(void)
 		cur->t_cwd = NULL;
 	}
 
-	/* VM fields */
-	if (cur->t_addrspace) {
-		/*
-		 * Clear t_addrspace before calling as_destroy. Otherwise
-		 * if as_destroy sleeps (which is quite possible) when we
-		 * come back we'll call as_activate on a half-destroyed
-		 * address space, which is usually messily fatal.
-		 */
-		struct addrspace *as = cur->t_addrspace;
-		cur->t_addrspace = NULL;
-		as_activate(NULL);
-		as_destroy(as);
-	}
+	/* User process should have exited */
+	KASSERT (cur->t_proc == NULL);
 
 	/* Check the stack guard band. */
 	thread_checkstack(cur);
