@@ -88,21 +88,15 @@ int
 common_prog(int nargs, char **args)
 {
 	int result;
-    struct thread *prog_thread;
-
-#if OPT_SYNCHPROBS
-	kprintf("Warning: this probably won't work with a "
-		"synchronization-problems kernel.\n");
-#endif
+    struct process *proc;
     
-    pid_t pid;
-	result = runprogram(nargs, args, &pid);
+	result = runprogram(nargs, args, &proc);
 	if (result) {
 		kprintf("runprogram failed: %s\n", strerror(result));
 		return result;
 	}
 	
-	sys_waitpid(pid);
+	process_waiton(proc);
 
 	return 0;
 }

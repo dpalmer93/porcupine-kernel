@@ -233,7 +233,7 @@ copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, size_t *total_len)
         
         // move on to the next string, padding properly
         kargs_cur += arg_len;
-        char *kargs_cur_padded = WORD_ALIGN(kargs_cur);
+        char *kargs_cur_padded = (char *)WORD_ALIGN((uintptr_t)kargs_cur);
         while (kargs_cur < kargs_cur_padded)
         {
             *kargs_cur = 0;

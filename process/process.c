@@ -29,6 +29,7 @@
 
 #include <limits.h>
 #include <process.h>
+#include <current.h>
 #include <lib.h>
 #include <pid_set.h>
 
