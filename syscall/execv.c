@@ -162,7 +162,6 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     // destroy old address space and free memory
     // that we will no longer need
     as_destroy(old_as);
-    free_kargv(kargv);
     kfree(old_name);
     
     
