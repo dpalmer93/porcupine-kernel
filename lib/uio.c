@@ -31,6 +31,7 @@
 #include <lib.h>
 #include <uio.h>
 #include <thread.h>
+#include <process.h>
 #include <current.h>
 #include <copyinout.h>
 

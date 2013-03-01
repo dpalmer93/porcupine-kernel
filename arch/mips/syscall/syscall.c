@@ -253,6 +253,9 @@ enter_forked_process(void *child_tf, unsigned long trash)
     curthread->t_proc = me;
     me->ps_thread = curthread;
     
+    // activate address space
+    as_activate(me->ps_addrspace);
+    
     // set the return value to 0, advance the pc,
     // and switch to user mode
     stack_tf.tf_a3 = 0;

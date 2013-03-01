@@ -45,6 +45,7 @@
 #include <current.h>
 #include <synch.h>
 #include <addrspace.h>
+#include <process.h>
 #include <mainbus.h>
 #include <vnode.h>
 
@@ -140,6 +141,7 @@ thread_create(const char *name)
 	thread->t_stack = NULL;
 	thread->t_context = NULL;
 	thread->t_cpu = NULL;
+	thread->t_proc = NULL;
 
 	/* Interrupt state fields */
 	thread->t_in_interrupt = false;

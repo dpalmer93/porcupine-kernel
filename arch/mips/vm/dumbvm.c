@@ -35,6 +35,7 @@
 #include <thread.h>
 #include <current.h>
 #include <mips/tlb.h>
+#include <process.h>
 #include <addrspace.h>
 #include <vm.h>
 
@@ -141,7 +142,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	}
     as = curthread->t_proc->ps_addrspace;
     if (as == NULL) // also a kernel fault
-        return EFAULT
+        return EFAULT;
 
 	/* Assert that the address space has been set up properly. */
 	KASSERT(as->as_vbase1 != 0);

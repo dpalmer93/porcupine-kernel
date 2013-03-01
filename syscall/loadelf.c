@@ -57,6 +57,7 @@
 #include <thread.h>
 #include <current.h>
 #include <addrspace.h>
+#include <process.h>
 #include <vnode.h>
 #include <elf.h>
 
