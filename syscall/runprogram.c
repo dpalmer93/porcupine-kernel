@@ -140,7 +140,7 @@ runprogram(int nargs, char **args, struct process **created_proc)
 	as_activate(proc->ps_addrspace);
 
 	// Load the executable
-	result = load_elf(v, &entrypoint);
+	result = load_elf(v, proc->ps_addrspace, &entrypoint);
 	if (result) {
         as_activate(NULL);
 		process_destroy(pid);

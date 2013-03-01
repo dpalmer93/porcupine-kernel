@@ -151,7 +151,7 @@ load_segment(struct vnode *v, off_t offset, vaddr_t vaddr,
  * Returns the entry point (initial PC) for the program in ENTRYPOINT.
  */
 int
-load_elf(struct vnode *v, vaddr_t *entrypoint)
+load_elf(struct vnode *v, struct addrspace *as, vaddr_t *entrypoint)
 {
 	Elf_Ehdr eh;   /* Executable header */
 	Elf_Phdr ph;   /* "Program header" = segment header */
@@ -240,7 +240,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 			return ENOEXEC;
 		}
 
-		result = as_define_region(curthread->t_proc->ps_addrspace,
+		result = as_define_region(as,
 					  ph.p_vaddr, ph.p_memsz,
 					  ph.p_flags & PF_R,
 					  ph.p_flags & PF_W,

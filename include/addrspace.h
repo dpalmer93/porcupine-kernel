@@ -115,10 +115,11 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
  * Functions in loadelf.c
  *    load_elf - load an ELF user program executable into the current
  *               address space. Returns the entry point (initial PC)
- *               in the space pointed to by ENTRYPOINT.
+ *               in the space pointed to by ENTRYPOINT.  The address
+ *               space as must be activated before load_elf() is called.
  */
 
-int load_elf(struct vnode *v, vaddr_t *entrypoint);
+int load_elf(struct vnode *v, struct addrspace *as, vaddr_t *entrypoint);
 
 
 #endif /* _ADDRSPACE_H_ */

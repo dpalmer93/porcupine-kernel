@@ -113,7 +113,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     as_activate(as);
     
     vaddr_t entrypoint;
-    err = load_elf(v, &entrypoint);
+    err = load_elf(v, as, &entrypoint);
     if (err)
     {
         proc->ps_addrspace = old_as;
