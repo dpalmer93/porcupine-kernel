@@ -193,9 +193,7 @@ process_destroy(pid_t pid)
     rw_wlock(pidt_rw);
     struct process *p = pid_table[pid];
     
-    // Cannot destroy a currently running process
     KASSERT(p->ps_thread == NULL);
-    KASSERT(p != curthread->t_proc);
     
     // children should already have been orphaned
     KASSERT(pid_set_empty(p->ps_children));

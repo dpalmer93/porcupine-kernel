@@ -97,6 +97,7 @@ common_prog(int nargs, char **args)
 	}
 	
 	process_waiton(proc);
+    process_destroy(proc);
 
 	return 0;
 }

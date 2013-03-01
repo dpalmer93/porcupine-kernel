@@ -28,9 +28,18 @@
  */
 
 /*
- * Sample/test code for running a user program.  You can use this for
- * reference when implementing the execv() system call. Remember though
- * that execv() needs to do more than this function does.
+ * runprogram() runs a user program invoked from the
+ * kernel menu.  As the caller has no process context,
+ * a new one must be created and set up.
+ * 
+ * runprogram() is split into two pieces.
+ * runprogram() sets up all of the process that it
+ * can without activating the process' address space.
+ * Then it spawns a new thread, which calls run_process().
+ * run_process() loads the executable and sets up the stack
+ * and arguments.
+ * runprogram() passes the created process back to the menu so that
+ * the menu can wait on the process' ps_waitpid_cv.
  */
 
 #include <types.h>
@@ -46,12 +55,13 @@
 #include <syscall.h>
 #include <test.h>
 
-// Data needed for a new thread to enter_new_process()
+// Data needed for a new thread to finish setting up
+// the new process
 struct new_process_context {
-    int argc;
-    userptr_t argv;
-    vaddr_t stack;
-    vaddr_t entry;
+    int             nargs;
+    char          **args;
+    struct process *proc;
+    struct vnode   *executable;
 };
 
 // helper function that calls enter_new_process() from a new thread
@@ -72,8 +82,6 @@ runprogram(int nargs, char **args, struct process **created_proc)
         return E2BIG;
     
 	struct vnode *v;
-	vaddr_t entrypoint, stackptr;
-	userptr_t uargv[nargs + 1];
 	int result;
     struct process *proc;
     
@@ -135,55 +143,6 @@ runprogram(int nargs, char **args, struct process **created_proc)
 		vfs_close(v);
 		return ENOMEM;
 	}
-
-	// Activate it
-	as_activate(proc->ps_addrspace);
-
-	// Load the executable
-	result = load_elf(v, &entrypoint);
-	if (result) {
-        as_activate(NULL);
-		process_destroy(pid);
-		vfs_close(v);
-		return result;
-	}
-
-	// Done with the file now
-	vfs_close(v);
-
-	// Define the user stack in the address space
-	result = as_define_stack(proc->ps_addrspace, &stackptr);
-	if (result) {
-        as_activate(NULL);
-		process_destroy(pid);
-		return result;
-	}
-	
-	// Copy out arguments
-    for (int i = 0; i < nargs; i++)
-    {
-        int aligned_length = WORD_ALIGN(strlen(args[i]) + 1);
-        stackptr -= aligned_length;
-        uargv[i] = (userptr_t)stackptr;
-        size_t arg_len;
-        result = copyoutstr(args[i], uargv[i], strlen(args[i]) + 1, &arg_len);
-        if (result) {
-            as_activate(NULL);
-            process_destroy(pid);
-            return result;
-        }
-    }
-    uargv[nargs] =(userptr_t)NULL;
-    
-    // Copy out the argv array itself
-	stackptr -= (nargs + 1) * sizeof(userptr_t);
-	result = copyout(uargv, (userptr_t)stackptr,
-                     (nargs + 1) * sizeof(userptr_t));
-	if (result) {
-        as_activate(NULL);
-	    process_destroy(pid);
-	    return result;
-	}
     
     struct new_process_context *ctxt = kmalloc(sizeof(struct new_process_context));
     if (ctxt == NULL)
@@ -192,10 +151,10 @@ runprogram(int nargs, char **args, struct process **created_proc)
         process_destroy(pid);
         return ENOMEM;
     }
-    ctxt->argc = nargs;
-    ctxt->argv = (userptr_t)stackptr;
-    ctxt->stack = stackptr;
-    ctxt->entry = entrypoint;
+    ctxt->nargs = nargs;
+    ctxt->args = args;
+    ctxt->proc = proc;
+    ctxt->executable = v;
 
 	// Start a new thread to warp to user mode
     result = thread_fork("user process",
@@ -217,18 +176,76 @@ runprogram(int nargs, char **args, struct process **created_proc)
 void
 run_process(void *ptr, unsigned long num)
 {
-    struct new_process_context my_ctxt;
-    (void)num;
+	vaddr_t entrypoint, stackptr;
+	userptr_t uargv[nargs + 1];
     
-    // copy and free passed-in context
+    // extract and free passed-in context
     struct new_process_context *ctxt = (struct new_process_context *)ptr;
-    my_ctxt.argc = ctxt->argc;
-    my_ctxt.argv = ctxt->argv;
-    my_ctxt.stack = ctxt->stack;
-    my_ctxt.entry = ctxt->entry;
+    struct process *proc = ctxt->proc;
+    struct vnode *v = ctxt->executable;
+    int nargs = ctxt->nargs;
+    char **args = ctxt->args;
     kfree(ctxt);
     
-    enter_new_process(my_ctxt.argc, my_ctxt.argv, my_ctxt.stack, my_ctxt.entry);
+    pid_t pid = proc->ps_pid;
+    
+    // attach process to thread
+    curthread->t_proc = proc;
+    
+	// Activate address space
+	as_activate(proc->ps_addrspace);
+    
+	// Load the executable
+	result = load_elf(v, &entrypoint);
+	if (result) {
+		vfs_close(v);
+        kprintf("runprogram failed: %s\n", strerror(result));
+        // alert the kernel menu that the process exited
+        process_finish(proc, 1);
+		return;
+	}
+    
+	// Done with the file now
+	vfs_close(v);
+    
+	// Define the user stack in the address space
+	result = as_define_stack(proc->ps_addrspace, &stackptr);
+	if (result) {
+        kprintf("runprogram failed: %s\n", strerror(result));
+        // alert the kernel menu that the process exited
+        process_finish(proc, 1);
+		return;
+	}
+	
+	// Copy out arguments
+    for (int i = 0; i < nargs; i++)
+    {
+        int aligned_length = WORD_ALIGN(strlen(args[i]) + 1);
+        stackptr -= aligned_length;
+        uargv[i] = (userptr_t)stackptr;
+        size_t arg_len;
+        result = copyoutstr(args[i], uargv[i], strlen(args[i]) + 1, &arg_len);
+        if (result) {
+            kprintf("runprogram failed: %s\n", strerror(result));
+            // alert the kernel menu that the process exited
+            process_finish(proc, 1);
+            return;
+        }
+    }
+    uargv[nargs] =(userptr_t)NULL;
+    
+    // Copy out the argv array itself
+	stackptr -= (nargs + 1) * sizeof(userptr_t);
+	result = copyout(uargv, (userptr_t)stackptr,
+                     (nargs + 1) * sizeof(userptr_t));
+	if (result) {
+        kprintf("runprogram failed: %s\n", strerror(result));
+        // alert the kernel menu that the process exited
+        process_finish(proc, 1);
+	    return;
+	}
+    
+    enter_new_process(nargs, (userptr_t)stackptr, stackptr, entrypoint);
     
     // enter_new_process() does not return
 	panic("enter_new_process returned\n");
