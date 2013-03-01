@@ -47,6 +47,7 @@ int
 sys_execv(const_userptr_t path, const_userptr_t argv)
 {
     int err;
+    struct process *proc = curthread->t_proc;
     
     char *kpath = kmalloc(PATH_MAX);
     if (kpath == NULL)
@@ -55,7 +56,20 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     // copy in path
     size_t path_len;
     if ((err = copyinstr(path, kpath, PATH_MAX, &path_len)))
+    {
+        kfree(kpath);
         return err;
+    }
+    
+    // give the process a new name
+    char *old_name = proc->ps_name;
+    proc->ps_name = kstrdup(kpath);
+    if (proc->ps_name == NULL)
+    {
+        proc->ps_name = old_name;
+        kfree(kpath);
+        return ENOMEM;
+    }
     
     // copy in args
     int argc;
@@ -64,6 +78,8 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     err = copyinargs(argv, kargv, &argc, &total_len);
     if (err)
     {
+        kfree(proc->ps_name);
+        proc->ps_name = old_name;
         kfree(kpath);
         return err;
     }
@@ -71,10 +87,12 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     // Open the file.
     struct vnode *v;
 	err = vfs_open(kpath, O_RDONLY, 0, &v);
+    kfree(kpath);
 	if (err)
     {
         free_kargv(kargv);
-        kfree(kpath);
+        kfree(proc->ps_name);
+        proc->ps_name = old_name;
 		return err;
     }
     
@@ -85,10 +103,11 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     {
         vfs_close(v);
         free_kargv(kargv);
-        kfree(kpath);
+        kfree(proc->ps_name);
+        proc->ps_name = old_name;
         return ENOMEM;
     }
-    curthread->t_proc->ps_addrspace = as;
+    proc->ps_addrspace = as;
     
     // Activate the new address space
     as_activate(as);
@@ -97,17 +116,18 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     err = load_elf(v, &entrypoint);
     if (err)
     {
-        curthread->t_proc->ps_addrspace = old_as;
+        proc->ps_addrspace = old_as;
         as_activate(old_as);
         as_destroy(as);
         vfs_close(v);
         free_kargv(kargv);
-        kfree(kpath);
+        kfree(proc->ps_name);
+        proc->ps_name = old_name;
         return err;
     }
     
     // close the file now, since we will not be returning
-    // here from user mode
+    // here from user mode.
     vfs_close(v);
     
     // set up user stack
@@ -115,12 +135,12 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     err = as_define_stack(as, &stackptr);
     if (err)
     {
-        curthread->t_proc->ps_addrspace = old_as;
+        proc->ps_addrspace = old_as;
         as_activate(old_as);
         as_destroy(as);
-        vfs_close(v);
         free_kargv(kargv);
-        kfree(kpath);
+        kfree(proc->ps_name);
+        proc->ps_name = old_name;
         return err;
     }
     
@@ -130,17 +150,21 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     err = copyoutargs((userptr_t)stackptr, kargv, argc, total_len);
     if (err)
     {
-        curthread->t_proc->ps_addrspace = old_as;
+        proc->ps_addrspace = old_as;
         as_activate(old_as);
         as_destroy(as);
-        vfs_close(v);
         free_kargv(kargv);
-        kfree(kpath);
+        kfree(proc->ps_name);
+        proc->ps_name = old_name;
         return err;
     }
     
-    // destroy old address space
+    // destroy old address space and free memory
+    // that we will no longer need
     as_destroy(old_as);
+    free_kargv(kargv);
+    kfree(old_name);
+    
     
     // Warp to user mode
     enter_new_process(argc, (userptr_t)stackptr, stackptr, entrypoint);
@@ -209,7 +233,7 @@ copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, size_t *total_len)
         
         // move on to the next string, padding properly
         kargs_cur += arg_len;
-        char *kargs_cur_padded = (char *)(((uintptr_t)kargs_cur + 0x3) & ~0x3);
+        char *kargs_cur_padded = WORD_ALIGN(kargs_cur);
         while (kargs_cur < kargs_cur_padded)
         {
             *kargs_cur = 0;

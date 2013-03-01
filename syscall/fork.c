@@ -44,7 +44,7 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     struct process *parent = curthread->t_proc;
     
     // set up new process structure
-    struct process *child = process_create();
+    struct process *child = process_create(parent->ps_name);
     if (child == NULL)
     {
         *err = ENOMEM;

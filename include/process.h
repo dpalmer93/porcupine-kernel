@@ -45,21 +45,22 @@ typedef enum _pstat_t {
 } pstat_t;
 
 struct process {
-    pid_t                ps_pid;
-    volatile pstat_t     ps_status;
-    volatile int         ps_exit_code;
-    struct thread       *ps_thread;
-    struct fd_table     *ps_fdt;
-    struct addrspace    *ps_addrspace;
-    struct pid_set      *ps_children;
-    struct cv           *ps_waitpid_cv;
-    struct lock         *ps_waitpid_lock;
+    pid_t                ps_pid;            // unique process ID
+    char                *ps_name;           // name for debugging
+    volatile pstat_t     ps_status;         // execution status
+    volatile int         ps_exit_code;      // exit code set by _exit()
+    struct thread       *ps_thread;         // associated thread
+    struct fd_table     *ps_fdt;            // file descriptor table
+    struct addrspace    *ps_addrspace;      // address space
+    struct pid_set      *ps_children;       // PIDs of children
+    struct cv           *ps_waitpid_cv;     // CV for waitpid()
+    struct lock         *ps_waitpid_lock;   // lock for waitpid()
 };
 
 void process_bootstrap(void);
 void process_shutdown(void);
 
-struct process *process_create(void); // set up process struct
+struct process *process_create(char *name); // set up process struct
 void process_destroy(pid_t pid); // remove and free process struct
                                  // and ALL substructures
 

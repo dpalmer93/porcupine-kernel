@@ -46,35 +46,53 @@
 #include <syscall.h>
 #include <test.h>
 
+// Data needed for a new thread to enter_new_process()
+struct new_process_context {
+    int argc;
+    userptr_t argv;
+    vaddr_t stack;
+    vaddr_t entry;
+}
+
+// helper function that calls enter_new_process() from a new thread
+void run_process(void *ptr, int num);
+
 // Helper function for setting up standard file descriptors
 int setup_inouterr(struct fd_table *fdt);
 
 /*
- * Load program "progname" and start running it in usermode.
- * Does not return except on error.
- *
- * Calls vfs_open on progname and thus may destroy it.
+ * Load program and start running it in usermode
+ * in a new thread.
+ * This is essentially an amalgam of fork() and execv().
  */
 int
-runprogram(char *progname)
+runprogram(int nargs, char **args, struct process **created_proc)
 {
+    if (nargs > ARGNUM_MAX)
+        return E2BIG;
+    
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
-	userptr_t argv[2];
+	userptr_t uargv[nargs + 1];
 	int result;
     struct process *proc;
+    
+    // copy the string, since vfs_open() will modify it
+    char *progname = kstrdup(args[0]);
+    if (progname == NULL)
+        return ENOMEM;
 
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
 	if (result) {
 		return result;
 	}
-
-	// We should be a new thread
-	KASSERT(curthread->t_proc == NULL);
+    
+    // We no longer need the duplicate program name
+    kfree(progname);
 
     // set up new process structure
-    proc = process_create();
+    proc = process_create(args[0]);
     if (proc == NULL)
     {
         vfs_close(v);
@@ -110,10 +128,6 @@ runprogram(char *progname)
         return result;
     }
     
-    // associate thread and process
-    curthread->t_proc = proc;
-    proc->ps_thread = curthread;
-    
 	// Create a new address space
 	proc->ps_addrspace = as_create();
 	if (proc->ps_addrspace==NULL) {
@@ -128,6 +142,7 @@ runprogram(char *progname)
 	// Load the executable
 	result = load_elf(v, &entrypoint);
 	if (result) {
+        as_activate(NULL);
 		process_destroy(pid);
 		vfs_close(v);
 		return result;
@@ -139,34 +154,83 @@ runprogram(char *progname)
 	// Define the user stack in the address space
 	result = as_define_stack(proc->ps_addrspace, &stackptr);
 	if (result) {
+        as_activate(NULL);
 		process_destroy(pid);
 		return result;
 	}
 	
-	// Set up argv
-	stackptr -= strlen(progname) + 1;
-	argv[0] = (userptr_t)stackptr;
-	argv[1] = NULL;
-	size_t arg_len;
-	result = copyoutstr(progname, argv[0], strlen(progname) + 1, &arg_len);
+	// Copy out arguments
+    for (int i = 0; i < nargs; i++)
+    {
+        int aligned_length = WORD_ALIGN(strlen(args[i]) + 1);
+        stackptr -= aligned_length;
+        uargv[i] = (userptr_t)stackptr;
+        size_t arg_len;
+        result = copyoutstr(args[i], stackptr, strlen(args[i]) + 1, &arg_len);
+        if (result) {
+            as_activate(NULL);
+            process_destroy(pid);
+            return result;
+        }
+    }
+    uargv[nargs] =(userptr_t)NULL;
+    
+    // Copy out the argv array itself
+	stackptr -= (nargs + 1) * sizeof(userptr_t);
+	result = copyout(uargv, (userptr_t)stackptr,
+                     (nargs + 1) * sizeof(userptr_t));
 	if (result) {
+        as_activate(NULL);
 	    process_destroy(pid);
 	    return result;
 	}
-	stackptr -= 2 * sizeof(userptr_t);
-	result = copyout(argv, (userptr_t)stackptr, 2 * sizeof(userptr_t));
-	if (result) {
-	    process_destroy(pid);
-	    return result;
-	}
-	
+    
+    struct new_process_context *ctxt = kmalloc(sizeof(struct new_process_context));
+    if (ctxt == NULL)
+    {
+        as_activate(NULL);
+        process_destroy(pid);
+        return ENOMEM;
+    }
+    ctxt->argc = nargs;
+    ctxt->argv = (userptr_t)stackptr;
+    ctxt->stack = stackptr;
+    ctxt->entry = entrypoint;
 
-	// Warp to user mode
-	enter_new_process(1, (userptr_t)stackptr, stackptr, entrypoint);
+	// Start a new thread to warp to user mode
+    result = thread_fork("user process",
+                         run_process,
+                         ctxt, 0, NULL);
+    if (result)
+    {
+        kfree(ctxt);
+        as_activate(NULL);
+        process_destroy(pid);
+        return result;
+    }
+    
+    // pass process to caller and return
+    *created_proc = proc;
+	return 0;
+}
 
-	// enter_new_process() does not return.
+void
+run_process(void *ptr, int num)
+{
+    struct new_process_context my_ctxt;
+    
+    // copy and free passed-in context
+    struct new_process_context *ctxt = (struct new_process_context *)ptr;
+    my_ctxt.argc = ctxt->argc;
+    my_ctxt.argv = ctxt->argv;
+    my_ctxt.stack = ctxt->stack;
+    my_ctxt.entry = ctxt->entry;
+    kfree(ctxt);
+    
+    enter_new_process(my_ctxt.argc, my_ctxt.argv, my_ctxt.stack, my_ctxt.entry);
+    
+    // enter_new_process() does not return
 	panic("enter_new_process returned\n");
-	return EINVAL;
 }
 
 int

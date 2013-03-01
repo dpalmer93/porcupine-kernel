@@ -53,13 +53,24 @@ process_shutdown(void)
  * fork() will copy everything else (address space, thread, FD table)
  */
 struct process *
-process_create(void)
+process_create(char *name)
 {
     struct process *p;
     
     p = kmalloc(sizeof(struct process));
     if (p == NULL)
         return NULL;
+    
+    if (name == NULL)
+        p->ps_name = NULL;
+    else
+    {
+        p->ps_name = kstrdup(name);
+        if (p->ps_name == NULL) {
+            kfree(p);
+            return NULL;
+        }
+    }
     
     // zero all pointers so that fork() can properly
     // unwind if some structures have been set up
@@ -73,6 +84,7 @@ process_create(void)
     p->ps_children = pid_set_create();
     if (p->ps_children == NULL)
     {
+        kfree(p->ps_name);
         kfree(p);
         return NULL;
     }
@@ -81,6 +93,7 @@ process_create(void)
     if (p->ps_waitpid_lock == NULL)
     {
         pid_set_destroy(p->ps_children);
+        kfree(p->ps_name);
         kfree(p);
         return NULL;
     }
@@ -90,6 +103,7 @@ process_create(void)
     {
         lock_destroy(p->ps_waitpid_lock);
         pid_set_destroy(p->ps_children);
+        kfree(p->ps_name);
         kfree(p);
         return NULL;
     }
@@ -178,7 +192,10 @@ process_destroy(pid_t pid)
     rw_wlock(pidt_rw);
     struct process *p = pid_table[pid];
     
+    // Cannot destroy a currently running process
     KASSERT(p->ps_thread == NULL);
+    KASSERT(p != curthread->t_proc);
+    
     // children should already have been orphaned
     KASSERT(pid_set_empty(p->ps_children));
     
@@ -192,6 +209,9 @@ process_destroy(pid_t pid)
 void
 process_cleanup(struct process *p)
 {
+    if (p->ps_name)
+        kfree(p->ps_name);
+    
     if (p->ps_addrspace)
         as_destroy(p->ps_addrspace);
     

@@ -30,6 +30,8 @@
 #ifndef _TEST_H_
 #define _TEST_H_
 
+#include <process.h>
+
 /*
  * Declarations for test code and other miscellaneous high-level
  * functions.
@@ -75,7 +77,7 @@ int mallocstress(int, char **);
 int nettest(int, char **);
 
 /* Routine for running a user-level program. */
-int runprogram(char *progname);
+int runprogram(int nargs, char **args, struct process **created_proc);
 
 /* Kernel menu system. */
 void menu(char *argstr);
