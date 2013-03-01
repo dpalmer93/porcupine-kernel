@@ -41,8 +41,6 @@ struct file_ctxt {
     struct vnode       *fc_vnode;
     unsigned int        fc_refcount;
     off_t               fc_offset;
-    size_t              fc_filesize;
-    int                 fc_flags;
     struct lock        *fc_lock;
 };
 
