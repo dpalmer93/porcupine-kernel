@@ -64,14 +64,17 @@ void
 fdt_destroy(struct fd_table * fdt)
 {
     KASSERT(fdt != NULL);
-
-    rw_destroy(fdt->fd_rw);
-
+    
+    rw_wlock(fdt->fd_rw);
     /* Call fc_close() which may or may not free the file_ctxt
        depending on the number of references */
     for(int i = 0; i < OPEN_MAX && fdt->fds[i] != NULL; i++) {
         fc_close(fdt->fds[i]);
+        fdt->fds[i] = NULL;
     }
+    rw_wdone(fdt->fd_rw);
+    
+    rw_destroy(fdt->fd_rw);
     
     kfree(fdt);
 
