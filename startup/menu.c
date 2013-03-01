@@ -97,7 +97,7 @@ common_prog(int nargs, char **args)
 	}
 	
 	process_waiton(proc);
-    process_destroy(proc);
+    process_destroy(proc->ps_pid);
 
 	return 0;
 }

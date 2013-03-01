@@ -176,8 +176,9 @@ runprogram(int nargs, char **args, struct process **created_proc)
 void
 run_process(void *ptr, unsigned long num)
 {
+    (void)num;
+    int result;
 	vaddr_t entrypoint, stackptr;
-	userptr_t uargv[nargs + 1];
     
     // extract and free passed-in context
     struct new_process_context *ctxt = (struct new_process_context *)ptr;
@@ -187,10 +188,9 @@ run_process(void *ptr, unsigned long num)
     char **args = ctxt->args;
     kfree(ctxt);
     
-    pid_t pid = proc->ps_pid;
-    
     // attach process to thread
     curthread->t_proc = proc;
+    proc->ps_thread = curthread;
     
 	// Activate address space
 	as_activate(proc->ps_addrspace);
@@ -199,6 +199,8 @@ run_process(void *ptr, unsigned long num)
 	result = load_elf(v, &entrypoint);
 	if (result) {
 		vfs_close(v);
+		// process to be destroyed cannot have a thread attached
+		proc->ps_thread = NULL;
         kprintf("runprogram failed: %s\n", strerror(result));
         // alert the kernel menu that the process exited
         process_finish(proc, 1);
@@ -211,6 +213,8 @@ run_process(void *ptr, unsigned long num)
 	// Define the user stack in the address space
 	result = as_define_stack(proc->ps_addrspace, &stackptr);
 	if (result) {
+		// process to be destroyed cannot have a thread attached
+		proc->ps_thread = NULL;
         kprintf("runprogram failed: %s\n", strerror(result));
         // alert the kernel menu that the process exited
         process_finish(proc, 1);
@@ -218,6 +222,7 @@ run_process(void *ptr, unsigned long num)
 	}
 	
 	// Copy out arguments
+	userptr_t uargv[nargs + 1];
     for (int i = 0; i < nargs; i++)
     {
         int aligned_length = WORD_ALIGN(strlen(args[i]) + 1);
@@ -226,6 +231,8 @@ run_process(void *ptr, unsigned long num)
         size_t arg_len;
         result = copyoutstr(args[i], uargv[i], strlen(args[i]) + 1, &arg_len);
         if (result) {
+		    // process to be destroyed cannot have a thread attached
+		    proc->ps_thread = NULL;
             kprintf("runprogram failed: %s\n", strerror(result));
             // alert the kernel menu that the process exited
             process_finish(proc, 1);
@@ -239,6 +246,8 @@ run_process(void *ptr, unsigned long num)
 	result = copyout(uargv, (userptr_t)stackptr,
                      (nargs + 1) * sizeof(userptr_t));
 	if (result) {
+		// process to be destroyed cannot have a thread attached
+		proc->ps_thread = NULL;
         kprintf("runprogram failed: %s\n", strerror(result));
         // alert the kernel menu that the process exited
         process_finish(proc, 1);
@@ -256,7 +265,7 @@ setup_inouterr(struct fd_table *fdt)
 {
     int err;
     struct vnode *v_stdin, *v_stdout, *v_stderr;
-    struct file_ctxt *stdin, *stdout, *stderr;
+    struct file_ctxt *fc_stdin, *fc_stdout, *fc_stderr;
     
     char path[5];
     strcpy(path, "con:");
@@ -283,32 +292,32 @@ setup_inouterr(struct fd_table *fdt)
     }
     
     // create file contexts
-    if((stdin = fc_create(v_stdin)) == NULL)
+    if((fc_stdin = fc_create(v_stdin)) == NULL)
     {
         vfs_close(v_stdin);
         vfs_close(v_stdout);
         vfs_close(v_stderr);
         return ENOMEM;
     }
-    if ((stdout = fc_create(v_stdout)) == NULL)
+    if ((fc_stdout = fc_create(v_stdout)) == NULL)
     {
-        fc_close(stdin);
+        fc_close(fc_stdin);
         vfs_close(v_stdout);
         vfs_close(v_stderr);
         return ENOMEM;
     }
-    if ((stderr = fc_create(v_stderr)) == NULL)
+    if ((fc_stderr = fc_create(v_stderr)) == NULL)
     {
-        fc_close(stdin);
-        fc_close(stdout);
+        fc_close(fc_stdin);
+        fc_close(fc_stdout);
         vfs_close(v_stderr);
         return ENOMEM;
     }
     
     // insert file contexts
-    fdt_replace(fdt, STDIN_FILENO, stdin);
-    fdt_replace(fdt, STDOUT_FILENO, stdout);
-    fdt_replace(fdt, STDERR_FILENO, stderr);
+    fdt_replace(fdt, STDIN_FILENO, fc_stdin);
+    fdt_replace(fdt, STDOUT_FILENO, fc_stdout);
+    fdt_replace(fdt, STDERR_FILENO, fc_stderr);
     
     return 0;
 }
