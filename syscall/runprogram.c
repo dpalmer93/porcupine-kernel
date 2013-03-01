@@ -52,10 +52,10 @@ struct new_process_context {
     userptr_t argv;
     vaddr_t stack;
     vaddr_t entry;
-}
+};
 
 // helper function that calls enter_new_process() from a new thread
-void run_process(void *ptr, int num);
+void run_process(void *ptr, unsigned long num);
 
 // Helper function for setting up standard file descriptors
 int setup_inouterr(struct fd_table *fdt);
@@ -166,7 +166,7 @@ runprogram(int nargs, char **args, struct process **created_proc)
         stackptr -= aligned_length;
         uargv[i] = (userptr_t)stackptr;
         size_t arg_len;
-        result = copyoutstr(args[i], stackptr, strlen(args[i]) + 1, &arg_len);
+        result = copyoutstr(args[i], uargv[i], strlen(args[i]) + 1, &arg_len);
         if (result) {
             as_activate(NULL);
             process_destroy(pid);
@@ -215,9 +215,10 @@ runprogram(int nargs, char **args, struct process **created_proc)
 }
 
 void
-run_process(void *ptr, int num)
+run_process(void *ptr, unsigned long num)
 {
     struct new_process_context my_ctxt;
+    (void)num;
     
     // copy and free passed-in context
     struct new_process_context *ctxt = (struct new_process_context *)ptr;
