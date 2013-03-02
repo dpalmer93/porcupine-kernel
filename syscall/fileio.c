@@ -99,6 +99,35 @@ sys_close(int fd)
     return 0;
 }
 
+int
+sys_dup2(int old_fd, int new_fd, int *err)
+{
+    struct fd_table *fdt;
+    struct file_ctxt *fc;
+    
+    fdt = curthread->t_proc->ps_fdt;
+    
+    fc = fdt_get(fdt, old_fd);
+    if (fc == NULL) {
+        *err = EBADF;
+        return -1;
+    }
+    if (new_fd < 0 || new_fd >= OPEN_MAX)
+    {
+        *err = EBADF;
+        return -1;
+    }
+    
+    if (new_fd == old_fd)
+        return new_fd;
+    
+    fc_incref(fc);
+    fdt_replace(fdt, new_fd, fc);
+    
+    return new_fd;
+    
+}
+
 // Error stored in err
 int
 sys_read(int fd, userptr_t buf, size_t buflen, int *err)
@@ -119,9 +148,10 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
     
     lock_acquire(fc->fc_lock);
     
+    // set up iovec
     uio_iov.iov_ubase = buf;
     uio_iov.iov_len = buflen;
-    
+    // set up uio
     myuio.uio_iov = &uio_iov;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
@@ -164,9 +194,10 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
     
     lock_acquire(fc->fc_lock);
     
+    // set up iovec
     uio_iov.iov_ubase = (userptr_t)buf;
     uio_iov.iov_len = count;
-    
+    // set up uio
     myuio.uio_iov = &uio_iov;
     myuio.uio_iovcnt = 1;
     myuio.uio_offset = fc->fc_offset;
@@ -190,7 +221,7 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
 }
 
 // Error stored in err
-off_t 
+off_t
 sys_lseek(int fd, off_t offset, int whence, int *err)
 {
     struct fd_table *fdt;
@@ -208,16 +239,17 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
     
     lock_acquire(fc->fc_lock);
     
+    // stat the file to find the length
     VOP_STAT(fc->fc_vnode, &statbuf);
     
     switch(whence) {
-        case SEEK_SET:
+        case SEEK_SET: // offset + 0
             new_offset = offset;
             break;
-        case SEEK_CUR:
+        case SEEK_CUR: // offset + current offset
             new_offset = offset + fc->fc_offset;
             break;
-        case SEEK_END:
+        case SEEK_END: // offset + file length
             new_offset = statbuf.st_size + fc->fc_offset;
             break;
         default:
@@ -226,6 +258,7 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
             return (off_t)-1;
     }
     
+    // check for integer overflow or negative offset
     if (new_offset < 0)
     {
         *err = EINVAL;
@@ -242,30 +275,25 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
 }
 
 int
-sys_dup2(int old_fd, int new_fd, int *err)
+sys_fstat(int fd, userptr_t statbuf)
 {
-    struct fd_table *fdt;
-    struct file_ctxt *fc;
+    int err;
+    struct stat kstatbuf;
     
-    fdt = curthread->t_proc->ps_fdt;  
+    fdt = curthread->t_proc->ps_fdt;
     
-    fc = fdt_get(fdt, old_fd);
-    if (fc == NULL) {
-        *err = EBADF;
-        return -1;
-    }
-    if (new_fd < 0 || new_fd >= OPEN_MAX)
-    {
-        *err = EBADF;
-        return -1;
-    }
+    fc = fdt_get(fdt, fd);
+    if (fc == NULL)
+        return EBADF;
     
-    if (new_fd == old_fd)
-        return new_fd;
+    lock_acquire(fc->fc_lock);
+    // call VFS to get the stats
+    VOP_STAT(fc->fc_vnode, &kstatbuf);
     
-    fc_incref(fc);
-    fdt_replace(fdt, new_fd, fc);
+    lock_release(fc->fc_lock);
     
-    return new_fd;
-    
+    // copy the stat to the user buffer
+    err = copyout(kstatbuf, statbuf, sizeof(struct stat));
+    if (err)
+        return err;
 }

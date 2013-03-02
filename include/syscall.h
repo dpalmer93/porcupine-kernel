@@ -71,10 +71,11 @@ pid_t sys_getpid(void);
 
 int sys_open(const_userptr_t filename, int flags, int* err);
 int sys_close(int fd);
+int sys_dup2(int old_fd, int new_fd, int *err);
 int sys_read(int fd, userptr_t buf, size_t buflen, int *err);
 int sys_write(int fd, const_userptr_t buf, size_t count, int *err);
 off_t sys_lseek(int fd, off_t offset, int whence, int *err);
-int sys_dup2(int old_fd, int new_fd, int *err);
+int sys_fstat(int fd, userptr_t statbuf);
 
 int sys___getcwd(userptr_t buf, size_t buflen, int *err);
 int sys_chdir(const_userptr_t pathname, int *err);

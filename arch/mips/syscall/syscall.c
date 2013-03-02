@@ -145,6 +145,10 @@ syscall(struct trapframe *tf)
         case SYS_close:
             err = sys_close((int)tf->tf_a0);
             break;
+        case SYS_dup2:
+            retval = sys_dup2((int)tf->tf_a0,
+                              (int)tf->tf_a1, &err);
+            break;
         case SYS_read:
             retval = sys_read((int)tf->tf_a0, 
                               (userptr_t)tf->tf_a1,
@@ -160,23 +164,21 @@ syscall(struct trapframe *tf)
             offset64 = ((int64_t)tf->tf_a2 << 32) | tf->tf_a3;
             
             // copy the whence from the stack
-            err = copyin((const_userptr_t) tf->tf_sp, &whence, 4);
+            err = copyin((const_userptr_t)tf->tf_sp, &whence, 4);
             if (err) break;
             
-            retval64 = sys_lseek((int) tf->tf_a0,
-                                 (off_t) offset64,
-                                 (int) whence, &err);
+            retval64 = sys_lseek((int)tf->tf_a0,
+                                 (off_t)offset64,
+                                 (int)whence, &err);
             break;
-        case SYS_dup2:
-            retval = sys_dup2((int) tf->tf_a0,
-                              (int) tf->tf_a1, &err);
-            break;
+        case SYS_fstat:
+            err = sys_fstat((int)tf->tf_a0, (userptr_t)tf->tf_a1);
         case SYS_chdir:
-            retval = sys_chdir((const_userptr_t) tf->tf_a0, &err);
+            retval = sys_chdir((const_userptr_t)tf->tf_a0, &err);
             break;
         case SYS___getcwd:
-            retval = sys___getcwd((userptr_t) tf->tf_a0,
-                                  (size_t) tf->tf_a1, &err);
+            retval = sys___getcwd((userptr_t)tf->tf_a0,
+                                  (size_t)tf->tf_a1, &err);
             break;
 	    default:
             kprintf("Unknown syscall %d\n", callno);
