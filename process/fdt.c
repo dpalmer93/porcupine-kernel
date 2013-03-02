@@ -184,7 +184,7 @@ fc_create(struct vnode *file)
 {
     struct file_ctxt *fc;
     
-    fc = kmalloc(sizeof(fc));
+    fc = kmalloc(sizeof(struct file_ctxt));
     if (fc == NULL) {
         return NULL;
     }
