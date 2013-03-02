@@ -84,6 +84,10 @@ syscall(struct trapframe *tf)
 	int32_t retval;
     int64_t retval64;
 	int err;
+	
+	// for lseek
+	int64_t offset64;
+    int32_t whence; // this must be copied from the stack
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -133,6 +137,7 @@ syscall(struct trapframe *tf)
             break;
         case SYS_getpid:
             retval = sys_getpid();
+            break;
         case SYS_open:
             retval = sys_open((const_userptr_t)tf->tf_a0,
                               (int)tf->tf_a1, &err);
@@ -150,22 +155,18 @@ syscall(struct trapframe *tf)
                                (const_userptr_t)tf->tf_a1,
                                (size_t)tf->tf_a2, &err);
             break;
-        /*    
         case SYS_lseek:
-            // extract the offset from regs a2-a3
-            int64_t offset64;
+            // extract the offset from aligned pair of regs a2-a3
             offset64 = tf->tf_a2 | ((int64_t)tf->tf_a3 << 32);
             
             // copy the whence from the stack
-            int32_t whence;
             err = copyin((const_userptr_t) tf->tf_sp, &whence, 4);
             if (err) break;
             
             retval64 = sys_lseek((int) tf->tf_a0,
                                  (off_t) offset64,
                                  (int) whence, &err);
-            break; */            
-            
+            break;
         case SYS_dup2:
             retval = sys_dup2((int) tf->tf_a0,
                               (int) tf->tf_a1, &err);
