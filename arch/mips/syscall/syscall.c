@@ -159,6 +159,11 @@ syscall(struct trapframe *tf)
                                (const_userptr_t)tf->tf_a1,
                                (size_t)tf->tf_a2, &err);
             break;
+        case SYS_getdirentry:
+            retval = sys_getdirentry((int)tf->tf_a0,
+                                     (userptr_t)tf->tf_a1,
+                                     (size_t)tf->tf_a2, &err);
+            break;
         case SYS_lseek:
             // extract the offset from aligned pair of regs a2-a3
             offset64 = ((int64_t)tf->tf_a2 << 32) | tf->tf_a3;

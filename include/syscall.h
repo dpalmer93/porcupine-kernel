@@ -74,6 +74,7 @@ int sys_close(int fd);
 int sys_dup2(int old_fd, int new_fd, int *err);
 int sys_read(int fd, userptr_t buf, size_t buflen, int *err);
 int sys_write(int fd, const_userptr_t buf, size_t count, int *err);
+int sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *err);
 off_t sys_lseek(int fd, off_t offset, int whence, int *err);
 int sys_fstat(int fd, userptr_t statbuf);
 
