@@ -157,7 +157,7 @@ syscall(struct trapframe *tf)
             break;
         case SYS_lseek:
             // extract the offset from aligned pair of regs a2-a3
-            offset64 = tf->tf_a2 | ((int64_t)tf->tf_a3 << 32);
+            offset64 = ((int64_t)tf->tf_a2 << 32) | tf->tf_a3;
             
             // copy the whence from the stack
             err = copyin((const_userptr_t) tf->tf_sp, &whence, 4);
@@ -196,8 +196,8 @@ syscall(struct trapframe *tf)
 	}
     else if (retval64) {
         // Use the 64-bit return value if one exists (e.g., lseek)
-        tf->tf_v0 = retval64 & 0xFFFFFFFF;
-        tf->tf_v1 = retval64 >> 32;
+        tf->tf_v0 = retval64 >> 32;
+        tf->tf_v1 = retval64 & 0xFFFFFFFF;
         tf->tf_a3 = 0;
     }
 	else {
