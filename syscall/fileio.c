@@ -279,6 +279,8 @@ sys_fstat(int fd, userptr_t statbuf)
 {
     int err;
     struct stat kstatbuf;
+    struct fd_table *fdt;
+    struct file_ctxt *fc;
     
     fdt = curthread->t_proc->ps_fdt;
     
@@ -293,7 +295,9 @@ sys_fstat(int fd, userptr_t statbuf)
     lock_release(fc->fc_lock);
     
     // copy the stat to the user buffer
-    err = copyout(kstatbuf, statbuf, sizeof(struct stat));
+    err = copyout(&kstatbuf, statbuf, sizeof(struct stat));
     if (err)
         return err;
+    
+    return 0;
 }
