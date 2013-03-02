@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2013
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,56 +27,13 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SYSCALL_H_
-#define _SYSCALL_H_
-
 #include <types.h>
+#include <process.h>
+#include <current.h>
+#include <syscall.h>
 
-struct trapframe; /* from <machine/trapframe.h> */
-
-/*
- * The system call dispatcher.
- */
-
-void syscall(struct trapframe *tf);
-
-/*
- * Support functions.
- */
-
-/* Helper for fork(). You write this. */
-void enter_forked_process(void *child_tf, unsigned long trash);
-
-/* Enter user mode. Does not return. */
-void enter_new_process(int argc, userptr_t argv, vaddr_t stackptr,
-		       vaddr_t entrypoint);
-
-
-/*
- * Prototypes for IN-KERNEL entry points for system call implementations.
- */
-
-int sys_reboot(int code);
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
-
-// Added in Assignment 2:
-
-// sys_fork() uses trapframe to set up the child
-// on error, returns error code in err
-int sys_fork(const struct trapframe *tf, int *err);
-int sys_execv(const_userptr_t path, const_userptr_t argv);
-int sys__exit(int code);
-int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err);
-pid_t sys_getpid(void);
-
-int sys_open(const_userptr_t filename, int flags, int* err);
-int sys_close(int fd);
-int sys_read(int fd, userptr_t buf, size_t buflen, int *err);
-int sys_write(int fd, const_userptr_t buf, size_t count, int *err);
-off_t sys_lseek(int fd, off_t offset, int whence, int *err);
-int sys_dup2(int old_fd, int new_fd, int *err);
-
-int sys___getcwd(userptr_t buf, size_t buflen, int *err);
-int sys_chdir(const_userptr_t pathname, int *err);
-
-#endif /* _SYSCALL_H_ */
+pid_t
+sys_getpid(void)
+{
+    return curthread->t_proc->ps_pid;
+}
