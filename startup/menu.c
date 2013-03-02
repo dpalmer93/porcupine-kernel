@@ -87,16 +87,18 @@ static
 int
 common_prog(int nargs, char **args)
 {
-	int result;
+	int err;
+	int exit_code;
     struct process *proc;
     
-	result = runprogram(nargs, args, &proc);
-	if (result) {
-		kprintf("runprogram failed: %s\n", strerror(result));
-		return result;
+	err = runprogram(nargs, args, &proc);
+	if (err) {
+		kprintf("runprogram failed: %s\n", strerror(err));
+		return err;
 	}
 	
-	process_waiton(proc);
+	exit_code = process_waiton(proc);
+	kprintf("%s exited with code %d\n", args[0], exit_code);
     process_destroy(proc->ps_pid);
 
 	return 0;
