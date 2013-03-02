@@ -262,8 +262,11 @@ sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *err)
     
     lock_release(fc->fc_lock);
     
-    // return the directory entry number
-    return fc->fc_offset;
+    // return length of directory entry name
+    // VOP_GETDIRENTRY uses uio_offset as the directory
+    // entry number, so we must use uio_resid to get the
+    // number of bytes read.
+    return buflen - myuio.uio_resid;
 }
 
 // Error stored in err
