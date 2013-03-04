@@ -59,6 +59,7 @@ struct cpu {
 	 */
 	struct thread *c_curthread;	/* Current thread on cpu */
 	struct threadlist c_zombies;	/* List of exited threads */
+    struct pid_set c_proc_zombies; /* List of exited processes */
 	unsigned c_hardclocks;		/* Counter of hardclock() calls */
 
 	/*

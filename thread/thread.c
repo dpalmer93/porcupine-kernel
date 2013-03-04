@@ -181,6 +181,7 @@ cpu_create(unsigned hardware_number)
 
 	c->c_curthread = NULL;
 	threadlist_init(&c->c_zombies);
+    c->c_proc_zombies = pid_set_create();
 	c->c_hardclocks = 0;
 
 	c->c_isidle = false;
@@ -282,6 +283,9 @@ exorcise(void)
 		KASSERT(z->t_state == S_ZOMBIE);
 		thread_destroy(z);
 	}
+    
+    
+    
 }
 
 /*
