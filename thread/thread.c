@@ -181,7 +181,7 @@ cpu_create(unsigned hardware_number)
 
 	c->c_curthread = NULL;
 	threadlist_init(&c->c_zombies);
-    c->c_proc_zombies = pid_set_create();
+    c->c_orphans = pid_set_create();
 	c->c_hardclocks = 0;
 
 	c->c_isidle = false;
@@ -269,7 +269,7 @@ thread_destroy(struct thread *thread)
 /*
  * Clean up zombies. (Zombies are threads that have exited but still
  * need to have thread_destroy called on them.)
- *
+ * Also cleans up any orphan zombie processes.
  * The list of zombies is per-cpu.
  */
 static
@@ -278,13 +278,13 @@ exorcise(void)
 {
 	struct thread *z;
 
+    
+    
 	while ((z = threadlist_remhead(&curcpu->c_zombies)) != NULL) {
 		KASSERT(z != curthread);
 		KASSERT(z->t_state == S_ZOMBIE);
 		thread_destroy(z);
 	}
-    
-    
     
 }
 
