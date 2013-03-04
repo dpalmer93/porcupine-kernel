@@ -71,6 +71,7 @@ struct file_ctxt *fdt_get(struct fd_table *fdt, int fd);
 struct file_ctxt *fdt_remove(struct fd_table *fdt, int fd);
 
 // replace entry at FD with FC (atomic)
-void fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc);
+// returns 0 on success or error code on failure
+int fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc);
 
 #endif /* _FDT_H_ */

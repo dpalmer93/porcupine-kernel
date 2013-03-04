@@ -147,6 +147,9 @@ fdt_remove(struct fd_table *fdt, int fd)
 {
     KASSERT(fdt != NULL);
     
+    if (fd < 0 || fd >= OPEN_MAX)
+        return NULL;
+    
     struct file_ctxt *fc;
     
     rw_wlock(fdt->fd_rw);
@@ -164,11 +167,14 @@ fdt_remove(struct fd_table *fdt, int fd)
     return fc;
 }
 
-void
+int
 fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc)
 {
     KASSERT(fdt != NULL);
     KASSERT(fc != NULL);
+    
+    if (fd < 0 || fd >= OPEN_MAX)
+        return EBADF;
     
     rw_wlock(fdt->fd_rw);
     if (fdt->fds[fd] != NULL) {
@@ -176,6 +182,7 @@ fdt_replace(struct fd_table *fdt, int fd, struct file_ctxt *fc)
     }
     fdt->fds[fd] = fc;
     rw_wdone(fdt->fd_rw);
+    return 0;
 }
 
 
