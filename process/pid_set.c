@@ -38,6 +38,7 @@
 
 struct pid_set {
     uint32_t *bits[SEGSIZE];
+    size_t size;
 };
 
 uint32_t *allocate_subset(void);
@@ -50,14 +51,18 @@ pid_set_create(void)
         return NULL;
     for (int i = 0; i < SEGSIZE; i++)
         set->bits[i] = NULL;
+    set->size = 0;
     return set;
 }
 
 void
 pid_set_destroy(struct pid_set *set)
 {
+    // free the subsets
+    for (int i = 0; i < SEGSIZE; i++)
+        kfree(set->bits[i]);
+    
     kfree(set);
-    return;
 }
 
 bool
@@ -76,21 +81,10 @@ pid_set_includes(struct pid_set *set, pid_t pid)
 bool
 pid_set_empty(struct pid_set *set)
 {
-    for (int i = 0; i < SEGSIZE; i++)
-    {
-        if (set->bits[i] != NULL)
-        {
-            for (int j = 0; j < SEGSIZE; j++)
-            {
-                if (set->bits[i][j] != 0)
-                    return false;
-            }
-        }
-    }
-    return true;
+    return set->size == 0;
 }
 
-bool
+int
 pid_set_add(struct pid_set *set, pid_t pid)
 {
     int index1 = (pid >> (2 * SEGBITS)) & SEGMASK;
@@ -100,10 +94,16 @@ pid_set_add(struct pid_set *set, pid_t pid)
     if (set->bits[index1] == NULL)
     {
         if ((set->bits[index1] = allocate_subset()) == NULL)
-            return false;
+            return ENOMEM;
     }
-    set->bits[index1][index2] |= (1 << index3);
-    return true;
+    
+    // set the bit if not set
+    if (!(set->bits[index1][index2] & (1 << index3)))
+    {
+        set->size++;
+        set->bits[index1][index2] |= (1 << index3);
+    }
+    return 0;
 }
 
 void
@@ -115,11 +115,17 @@ pid_set_remove(struct pid_set *set, pid_t pid)
     
     if (set->bits[index1] == NULL)
         return;
-    set->bits[index1][index2] &= ~(1 << index3);
+    
+    // unset the bit if set
+    if (set->bits[index1][index2] & (1 << index3))
+    {
+        set->bits[index1][index2] ^= (1 << index3);
+        set->size--;
+    }
 }
 
 void
-pid_set_map(struct pid_set *set, void (*func)(pid_t))
+pid_set_map(struct pid_set *set, bool (*func)(pid_t))
 {
     for (int i = 0; i < SEGSIZE && set->bits[i]; i++)
     {
@@ -127,8 +133,13 @@ pid_set_map(struct pid_set *set, void (*func)(pid_t))
         {
             for (int k = 0; k < 32 && (set->bits[i][j] & (1 << k)); k++)
             {
+                // get the corresponding PID
                 pid_t pid = (i << (2 * SEGBITS)) + (j << SEGBITS) + k;
-                func(pid);
+                if (func(pid))
+                {
+                    // remove the PID
+                    set->bits[i][j] ^= (1 << k);
+                }
             }
         }
     }

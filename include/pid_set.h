@@ -36,21 +36,23 @@
 
 struct pid_set;
 
-// returns null if out of memory
+// pid_set_create() returns NULL if out of memory
 struct pid_set *pid_set_create(void);
-
 void pid_set_destroy(struct pid_set *set);
 
 bool pid_set_empty(struct pid_set *set);
-
-// returns false if out of memory
-bool pid_set_add(struct pid_set *set, pid_t pid);
-
 bool pid_set_includes(struct pid_set *set, pid_t pid);
 
+// pid_set_add() returns ENOMEM if out of memory
+int pid_set_add(struct pid_set *set, pid_t pid);
 void pid_set_remove(struct pid_set *set, pid_t pid);
 
-void pid_set_map(struct pid_set *set, void (*func)(pid_t));
+// Maps <func> once over the set of PIDs, removing
+// a PID p if and only if func(p) returns true.  That is,
+// pid_set_map(set, func) does the following:
+//     FOR pid IN set:
+//       IF func(pid) THEN pid_set_remove(set, pid);
+void pid_set_map(struct pid_set *set, bool (*func)(pid_t));
 
 
 #endif /* _PID_SET_H_ */
