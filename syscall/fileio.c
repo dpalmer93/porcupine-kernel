@@ -121,8 +121,12 @@ sys_dup2(int old_fd, int new_fd, int *err)
     if (new_fd == old_fd)
         return new_fd;
     
+    
+    *err = fdt_replace(fdt, new_fd, fc);
+    if (*err)
+        return -1;
+    
     fc_incref(fc);
-    fdt_replace(fdt, new_fd, fc);
     
     return new_fd;
     
