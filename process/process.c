@@ -123,6 +123,9 @@ process_create(char *name)
 void
 process_finish(struct process *p, int code)
 {
+    // should only be called from the process' thread
+    KASSERT(p == curthread->t_proc);
+
     // orphan all children
     if (!pid_set_empty(p->ps_children))
         pid_set_map(p->ps_children, process_orphan);
@@ -130,7 +133,15 @@ process_finish(struct process *p, int code)
     lock_acquire(p->ps_waitpid_lock);
     p->ps_status = PS_ZOMBIE;
     p->ps_exit_code = code;
+    
+    // disassociate process and thread so that they
+    // can be properly destroyed.
+    // NOTE: the parent process (or the kernel menu if
+    // the process was started from the menu)
+    // is responsible for freeing p
+    curthread->t_proc = NULL;
     p->ps_thread = NULL;
+    
     cv_signal(p->ps_waitpid_cv, p->ps_waitpid_lock);
     lock_release(p->ps_waitpid_lock);
 }

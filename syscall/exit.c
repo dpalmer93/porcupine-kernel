@@ -44,10 +44,6 @@ sys__exit(int code)
     
     process_finish(proc, code);
     
-    // Remove reference to the process struct: the
-    // parent is responsible for freeing its memory.
-    curthread->t_proc = NULL;
-    
     thread_exit();
     
     // should not return from thread_exit()

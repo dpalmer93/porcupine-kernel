@@ -199,8 +199,6 @@ run_process(void *ptr, unsigned long num)
 	result = load_elf(v, &entrypoint);
 	if (result) {
 		vfs_close(v);
-		// process to be destroyed cannot have a thread attached
-		proc->ps_thread = NULL;
         kprintf("runprogram failed: %s\n", strerror(result));
         // alert the kernel menu that the process exited
         process_finish(proc, 1);
@@ -213,8 +211,6 @@ run_process(void *ptr, unsigned long num)
 	// Define the user stack in the address space
 	result = as_define_stack(proc->ps_addrspace, &stackptr);
 	if (result) {
-		// process to be destroyed cannot have a thread attached
-		proc->ps_thread = NULL;
         kprintf("runprogram failed: %s\n", strerror(result));
         // alert the kernel menu that the process exited
         process_finish(proc, 1);
@@ -231,8 +227,6 @@ run_process(void *ptr, unsigned long num)
         size_t arg_len;
         result = copyoutstr(args[i], uargv[i], strlen(args[i]) + 1, &arg_len);
         if (result) {
-		    // process to be destroyed cannot have a thread attached
-		    proc->ps_thread = NULL;
             kprintf("runprogram failed: %s\n", strerror(result));
             // alert the kernel menu that the process exited
             process_finish(proc, 1);
@@ -246,8 +240,6 @@ run_process(void *ptr, unsigned long num)
 	result = copyout(uargv, (userptr_t)stackptr,
                      (nargs + 1) * sizeof(userptr_t));
 	if (result) {
-		// process to be destroyed cannot have a thread attached
-		proc->ps_thread = NULL;
         kprintf("runprogram failed: %s\n", strerror(result));
         // alert the kernel menu that the process exited
         process_finish(proc, 1);

@@ -117,7 +117,12 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
             code, sig, trapcodenames[code], epc, vaddr);
 
-	process_destroy(curthread->t_proc->ps_pid);
+    struct process *proc = curthread->t_proc;
+    
+    // zombify process
+	process_finish(proc, 255);
+	
+	// die
     thread_exit();
     
     // thread_exit() should not return!
