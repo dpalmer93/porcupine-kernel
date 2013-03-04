@@ -73,6 +73,7 @@ static
 void
 kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 {
+    struct process *proc;
 	int sig = 0;
 
 	KASSERT(code < NTRAPCODES);
@@ -107,14 +108,17 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		sig = SIGFPE;
 		break;
 	}
-
-	/*
-	 * You will probably want to change this.
-	 */
-
+    
+    
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
-		code, sig, trapcodenames[code], epc, vaddr);
-	panic("I don't know how to handle this\n");
+            code, sig, trapcodenames[code], epc, vaddr);
+
+    proc = curthread->t_proc;
+	process_destroy(proc);
+    thread_exit();
+    
+    // thread_exit() should not return!
+	panic("kill_curthread: I don't know how to handle this\n");
 }
 
 /*

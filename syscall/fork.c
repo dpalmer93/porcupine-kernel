@@ -82,10 +82,10 @@ sys_fork(const struct trapframe *parent_tf, int *err)
     
     // add PID to children now.  That way, if we fail to
     // allocate memory, we have not yet forked a thread
-    if (!pid_set_add(parent->ps_children, child_pid))
+    *err = pid_set_add(parent->ps_children, child_pid)
+    if (*err)
     {
         process_destroy(child_pid);
-        *err = ENOMEM;
         return -1;
     }
     

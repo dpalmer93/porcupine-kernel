@@ -50,8 +50,6 @@ sys__exit(int code)
     
     thread_exit();
     
-    
-    
     // should not return from thread_exit()
 	panic("thread_exit() returned\n");
 	return EINVAL;
