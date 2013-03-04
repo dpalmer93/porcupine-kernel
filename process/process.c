@@ -30,6 +30,7 @@
 #include <limits.h>
 #include <process.h>
 #include <current.h>
+#include <cpu.h>
 #include <lib.h>
 #include <pid_set.h>
 
@@ -250,17 +251,18 @@ process_orphan(pid_t pid)
 {
     struct pid_set* orphan_set = curthread->t_cpu->c_orphans;
     pid_set_add(orphan_set, pid);
-    return 0;
+    return false;
 }
 
 bool
 process_check_destroy(pid_t pid)
 {
     struct process *p = process_get(pid);
-    if (p->ps_status == PS_ZOMBIE)
-        process_destroy(p);
+    if (p->ps_status == PS_ZOMBIE) {
+        process_destroy(p->ps_pid);
         //returning 1 removes it from the pid_set
-        return 1;
+        return true;
+    }
     
-    return 0;
+    return false;
 }

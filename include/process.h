@@ -74,5 +74,6 @@ struct process *process_get(pid_t pid); // get process for PID
 void process_cleanup(struct process *p); // only for fork() and process.c
 bool process_orphan(pid_t pid); // places processes on cpu's orphan set
                                 // used with pid_set_map
+bool process_check_destroy(pid_t pid);
 
 #endif /* _PROCESS_H_ */

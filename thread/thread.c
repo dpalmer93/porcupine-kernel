@@ -48,6 +48,7 @@
 #include <process.h>
 #include <mainbus.h>
 #include <vnode.h>
+#include <pid_set.h>
 
 #include "opt-synchprobs.h"
 
@@ -278,7 +279,7 @@ exorcise(void)
 {
 	struct thread *z;
 
-    pid_set_map(curcpu->c_orphans, pid_check_destroy);
+    pid_set_map(curcpu->c_orphans, process_check_destroy);
     
 	while ((z = threadlist_remhead(&curcpu->c_zombies)) != NULL) {
 		KASSERT(z != curthread);
