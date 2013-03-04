@@ -49,10 +49,18 @@ sys__exit(int code)
     
     thread_exit();
     
+    
+    
     // should not return from thread_exit()
 	panic("thread_exit() returned\n");
 	return EINVAL;
 }
+
+// Checks if a process has exited, if it has destroy it
+// If it has not, put it on the orphan set
+// Used in sys__exit and pid_set_map to deal with children properly
+void 
+(pid_t)
 
 int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err)
 {
