@@ -195,8 +195,9 @@ process_destroy(pid_t pid)
     
     KASSERT(p->ps_thread == NULL);
     
-    // children should already have been orphaned
-    KASSERT(pid_set_empty(p->ps_children));
+    // orphan all children
+    if (!pid_set_empty(p->ps_children))
+        pid_set_map(p->ps_children, process_orphan);
     
     pid_table[pid] = NULL;
     rw_wdone(pidt_rw);
