@@ -38,6 +38,55 @@
 #include <copyinout.h>
 
 int
+sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *err)
+{
+    struct fd_table *fdt;
+    struct file_ctxt *fc;
+    struct uio myuio;
+    struct iovec uio_iov;
+    int result;
+    
+    fdt = curthread->t_proc->ps_fdt;
+    
+    fc = fdt_get(fdt, fd);
+    if (fc == NULL) {
+        *err = EBADF;
+        return -1;
+    }
+    
+    lock_acquire(fc->fc_lock);
+    
+    // set up iovec
+    uio_iov.iov_ubase = buf;
+    uio_iov.iov_len = buflen;
+    // set up uio
+    myuio.uio_iov = &uio_iov;
+    myuio.uio_iovcnt = 1;
+    myuio.uio_offset = fc->fc_offset;
+    myuio.uio_resid = buflen;
+    myuio.uio_segflg = UIO_USERSPACE;
+	myuio.uio_rw = UIO_READ;
+	myuio.uio_space = curthread->t_proc->ps_addrspace;
+    
+    result = VOP_GETDIRENTRY(fc->fc_vnode, &myuio);
+    if (result) {
+        *err = result;
+        return -1;
+    }
+    
+    // update the offset...the offset "indexes" into the directory
+    fc->fc_offset = myuio.uio_offset;
+    
+    lock_release(fc->fc_lock);
+    
+    // return length of directory entry name
+    // VOP_GETDIRENTRY uses uio_offset as the directory
+    // entry number, so we must use uio_resid to get the
+    // number of bytes read.
+    return buflen - myuio.uio_resid;
+}
+
+int
 sys___getcwd(userptr_t buf, size_t buflen, int *err)
 {
     struct uio myuio;
