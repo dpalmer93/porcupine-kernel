@@ -244,3 +244,23 @@ process_get(pid_t pid)
     rw_rdone(pidt_rw);
     return p;
 }
+
+bool
+process_orphan(pid_t pid)
+{
+    struct pid_set* orphan_set = curthread->t_cpu->c_orphans;
+    pid_set_add(orphan_set, pid);
+    return 0;
+}
+
+bool
+process_check_destroy(pid_t pid)
+{
+    struct process *p = process_get(pid);
+    if (p->ps_status == PS_ZOMBIE)
+        process_destroy(p);
+        //returning 1 removes it from the pid_set
+        return 1;
+    
+    return 0;
+}
