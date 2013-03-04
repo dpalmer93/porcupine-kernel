@@ -72,6 +72,7 @@ int process_checkon(struct process *p); // returns -1 if process not dead
 pid_t process_identify(struct process *p); // assign PID--returns 0 on error
 struct process *process_get(pid_t pid); // get process for PID
 void process_cleanup(struct process *p); // only for fork() and process.c
-
+bool process_orphan(pid_t pid); // places processes on cpu's orphan set
+                                // used with pid_set_map
 
 #endif /* _PROCESS_H_ */
