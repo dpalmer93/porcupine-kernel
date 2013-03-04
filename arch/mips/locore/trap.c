@@ -121,7 +121,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
     thread_exit();
     
     // thread_exit() should not return!
-	panic("kill_curthread: I don't know how to handle this\n");
+	panic("kill_curthread: thread_exit() returned\n");
 }
 
 /*
