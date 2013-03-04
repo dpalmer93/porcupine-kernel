@@ -122,6 +122,10 @@ process_create(char *name)
 void
 process_finish(struct process *p, int code)
 {
+    // orphan all children
+    if (!pid_set_empty(p->ps_children))
+        pid_set_map(p->ps_children, process_orphan);
+    
     lock_acquire(p->ps_waitpid_lock);
     p->ps_status = PS_ZOMBIE;
     p->ps_exit_code = code;
@@ -195,12 +199,14 @@ process_destroy(pid_t pid)
     
     KASSERT(p->ps_thread == NULL);
     
-    // orphan all children
-    if (!pid_set_empty(p->ps_children))
-        pid_set_map(p->ps_children, process_orphan);
-    
     pid_table[pid] = NULL;
     rw_wdone(pidt_rw);
+    
+    // orphan all children if not already done in process_finish()
+    // (this is important because kill_curthread() calls
+    // process_destroy() on a process that has not properly exited.)
+    if (!pid_set_empty(p->ps_children))
+        pid_set_map(p->ps_children, process_orphan);
     
     process_cleanup(p);
 }
