@@ -283,9 +283,6 @@ exorcise(void)
 		KASSERT(z->t_state == S_ZOMBIE);
 		thread_destroy(z);
 	}
-    
-    
-    
 }
 
 /*
