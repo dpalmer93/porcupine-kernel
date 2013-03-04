@@ -29,6 +29,7 @@
  
 #include <fdt.h>
 #include <limits.h>
+#include <kern/errno.h>
 #include <lib.h>
 #include <vfs.h>
 

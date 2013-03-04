@@ -122,7 +122,7 @@ sys_dup2(int old_fd, int new_fd, int *err)
         return new_fd;
     
     
-    *err = fdt_replace(fdt, new_fd, fc)
+    *err = fdt_replace(fdt, new_fd, fc);
     if (*err)
         return -1;
     
