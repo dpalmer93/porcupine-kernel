@@ -29,6 +29,7 @@
 
 #include <types.h>
 #include <limits.h>
+#include <kern/errno.h>
 #include <pid_set.h>
 #include <lib.h>
 
