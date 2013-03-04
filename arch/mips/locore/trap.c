@@ -38,6 +38,7 @@
 #include <current.h>
 #include <vm.h>
 #include <mainbus.h>
+#include <process.h>
 #include <syscall.h>
 
 
@@ -73,7 +74,10 @@ static
 void
 kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 {
-    struct process *proc;
+    // This should only be called in a thread that has a
+    // user context.
+    KASSERT(curthread->t_proc != NULL);
+    
 	int sig = 0;
 
 	KASSERT(code < NTRAPCODES);
@@ -113,8 +117,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
             code, sig, trapcodenames[code], epc, vaddr);
 
-    proc = curthread->t_proc;
-	process_destroy(proc);
+	process_destroy(curthread->t_proc->ps_pid);
     thread_exit();
     
     // thread_exit() should not return!
