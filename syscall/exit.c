@@ -93,12 +93,9 @@ int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err)
     pid_set_remove(children, child->ps_pid);
     process_destroy(child->ps_pid);
     
-    // (if stat_loc == NULL, the user does not want the exit code)
-    if (stat_loc != NULL)
-    {
-        if ((*err = copyout(&exit_code, stat_loc, sizeof(int))))
-            return -1;
-    }
+    // try to give the user the exit code
+    if ((*err = copyout(&exit_code, stat_loc, sizeof(int))))
+        return -1;
     
     return pid;
 }
