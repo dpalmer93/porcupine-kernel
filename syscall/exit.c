@@ -75,7 +75,7 @@ int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err)
     
     switch (options)
     {
-        case WNOHANG & WUNTRACED:
+        case WNOHANG | WUNTRACED:
         case WNOHANG:
             exit_code = process_checkon(child);
             if (exit_code == -1)
