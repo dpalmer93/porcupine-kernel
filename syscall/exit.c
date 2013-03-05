@@ -73,19 +73,32 @@ int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err)
     // The child is in our PID set, so it must exist
     KASSERT(child != NULL);
     
-    if (options & WNOHANG)
+    switch (options)
     {
-        exit_code = process_checkon(child);
-        if (exit_code == -1)
-            return 0;
+        case WNOHANG & WUNTRACED:
+        case WNOHANG:
+            exit_code = process_checkon(child);
+            if (exit_code == -1)
+                return 0;
+            break;
+        case WUNTRACED:
+        case 0:
+            exit_code = process_waiton(child);
+            break;
+        default:
+            *err = EINVAL;
+            return -1;
     }
-    else exit_code = process_waiton(child);
     
     pid_set_remove(children, child->ps_pid);
     process_destroy(child->ps_pid);
     
-    if ((*err = copyout(&exit_code, stat_loc, sizeof(int))))
-        return -1;
+    // (if stat_loc == NULL, the user does not want the exit code)
+    if (stat_loc != NULL)
+    {
+        if ((*err = copyout(&exit_code, stat_loc, sizeof(int))))
+            return -1;
+    }
     
     return pid;
 }
