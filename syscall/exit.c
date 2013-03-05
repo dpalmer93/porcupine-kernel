@@ -42,7 +42,7 @@ sys__exit(int code)
 {
     struct process *proc = curthread->t_proc;    
     
-    process_finish(proc, code);
+    process_finish(proc, _MKWAIT_EXIT(code));
     
     thread_exit();
     

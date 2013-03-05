@@ -146,7 +146,7 @@ process_finish(struct process *p, int code)
     lock_release(p->ps_waitpid_lock);
 }
 
-// Wait on a process.  For use in runprogram() and waitpid()
+// Wait on a process.  For use in waitpid()
 int
 process_waiton(struct process *p)
 {

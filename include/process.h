@@ -64,8 +64,9 @@ struct process *process_create(char *name); // set up process struct
 void process_destroy(pid_t pid); // remove and free process struct
                                  // and ALL substructures
 
-// exit signaling
+// unwind and set exit code (see kern/wait.h)
 void process_finish(struct process *p, int code);
+
 int process_waiton(struct process *p); // waits and returns exit code
 int process_checkon(struct process *p); // returns -1 if process not dead
 

@@ -46,6 +46,8 @@
 #include <kern/errno.h>
 #include <kern/fcntl.h>
 #include <kern/unistd.h>
+#include <kern/wait.h>
+#include <kern/signal.h>
 #include <lib.h>
 #include <process.h>
 #include <copyinout.h>
@@ -200,8 +202,8 @@ run_process(void *ptr, unsigned long num)
 	if (result) {
 		vfs_close(v);
         kprintf("runprogram failed: %s\n", strerror(result));
-        // alert the kernel menu that the process exited
-        process_finish(proc, 1);
+        // alert the kernel menu that the process aborted
+        process_finish(proc, _MKWAIT_SIG(SIGABRT));
 		return;
 	}
     
@@ -212,8 +214,8 @@ run_process(void *ptr, unsigned long num)
 	result = as_define_stack(proc->ps_addrspace, &stackptr);
 	if (result) {
         kprintf("runprogram failed: %s\n", strerror(result));
-        // alert the kernel menu that the process exited
-        process_finish(proc, 1);
+        // alert the kernel menu that the process aborted
+        process_finish(proc, _MKWAIT_SIG(SIGABRT));
 		return;
 	}
 	
@@ -228,8 +230,8 @@ run_process(void *ptr, unsigned long num)
         result = copyoutstr(args[i], uargv[i], strlen(args[i]) + 1, &arg_len);
         if (result) {
             kprintf("runprogram failed: %s\n", strerror(result));
-            // alert the kernel menu that the process exited
-            process_finish(proc, 1);
+            // alert the kernel menu that the process aborted
+            process_finish(proc, _MKWAIT_SIG(SIGABRT));
             return;
         }
     }
@@ -241,8 +243,8 @@ run_process(void *ptr, unsigned long num)
                      (nargs + 1) * sizeof(userptr_t));
 	if (result) {
         kprintf("runprogram failed: %s\n", strerror(result));
-        // alert the kernel menu that the process exited
-        process_finish(proc, 1);
+        // alert the kernel menu that the process aborted
+        process_finish(proc, _MKWAIT_SIG(SIGABRT));
 	    return;
 	}
     

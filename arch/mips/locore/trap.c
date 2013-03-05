@@ -119,8 +119,8 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 
     struct process *proc = curthread->t_proc;
     
-    // zombify process
-	process_finish(proc, 255);
+    // zombify process and set signal for waitpid
+	process_finish(proc, _MKWAIT_SIG(sig));
 	
 	// die
     thread_exit();

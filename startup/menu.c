@@ -31,6 +31,7 @@
 #include <kern/errno.h>
 #include <kern/reboot.h>
 #include <kern/unistd.h>
+#include <kern/wait.h>
 #include <limits.h>
 #include <lib.h>
 #include <uio.h>
@@ -98,7 +99,13 @@ common_prog(int nargs, char **args)
 	}
 	
 	exit_code = process_waiton(proc);
-	kprintf("%s exited with code %d\n", args[0], exit_code);
+    if (WIFEXITED(exit_code))
+        kprintf("%s exited with code %d\n", args[0], WEXITSTATUS(exit_code));
+    else if (WIFSIGNALED(exit_code))
+        kprintf("%s received a fatal signal: %d", WTERMSIG(exit_code));
+    else if (WIFSTOPPED(exit_code))
+        kprintf("%s stopped on signal %d", WSTOPSIG(exit_code));
+    
     process_destroy(proc->ps_pid);
 
 	return 0;
