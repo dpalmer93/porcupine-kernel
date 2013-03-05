@@ -260,7 +260,7 @@ process_get(pid_t pid)
 bool
 process_orphan(pid_t pid)
 {
-    struct pid_set* orphan_set = curthread->t_cpu->c_orphans;
+    struct pid_set *orphan_set = curthread->t_cpu->c_orphans;
     pid_set_add(orphan_set, pid);
     return false;
 }
@@ -269,11 +269,12 @@ bool
 process_check_destroy(pid_t pid)
 {
     struct process *p = process_get(pid);
-    if (p->ps_status == PS_ZOMBIE) {
-        process_destroy(p->ps_pid);
-        //returning 1 removes it from the pid_set
-        return true;
-    }
+    // check whether the process has exited
+    if (process_checkon(p) == -1)
+        return false;
     
-    return false;
+    process_destroy(p->ps_pid);
+    // returning true removes pid from the pid_set
+    // during pid_set_map()
+    return true;
 }

@@ -140,6 +140,7 @@ pid_set_map(struct pid_set *set, bool (*func)(pid_t))
                 {
                     // remove the PID
                     set->bits[i][j] ^= (1 << k);
+                    set->size--;
                 }
             }
         }
