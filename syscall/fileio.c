@@ -150,8 +150,6 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
         return -1;
     }
     
-    lock_acquire(fc->fc_lock);
-    
     // set up iovec
     uio_iov.iov_ubase = buf;
     uio_iov.iov_len = buflen;
@@ -164,8 +162,10 @@ sys_read(int fd, userptr_t buf, size_t buflen, int *err)
 	myuio.uio_rw = UIO_READ;
 	myuio.uio_space = curthread->t_proc->ps_addrspace;
     
+    lock_acquire(fc->fc_lock);
     result = VOP_READ(fc->fc_vnode, &myuio);
     if (result) {
+        lock_release(fc->fc_lock);
         *err = result;
         return -1;
     }
@@ -196,8 +196,6 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
         return -1;
     }
     
-    lock_acquire(fc->fc_lock);
-    
     // set up iovec
     uio_iov.iov_ubase = (userptr_t)buf;
     uio_iov.iov_len = count;
@@ -210,8 +208,10 @@ sys_write(int fd, const_userptr_t buf, size_t count, int *err)
 	myuio.uio_rw = UIO_WRITE;
 	myuio.uio_space = curthread->t_proc->ps_addrspace;
     
+    lock_acquire(fc->fc_lock);
     result = VOP_WRITE(fc->fc_vnode, &myuio);
     if (result) {
+        lock_release(fc->fc_lock);
         *err = result;
         return -1;
     }
@@ -257,16 +257,16 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
             new_offset = statbuf.st_size + fc->fc_offset;
             break;
         default:
-            *err = EINVAL;
             lock_release(fc->fc_lock);
+            *err = EINVAL;
             return (off_t)-1;
     }
     
     // check for integer overflow or negative offset
     if (new_offset < 0)
     {
-        *err = EINVAL;
         lock_release(fc->fc_lock);
+        *err = EINVAL;
         return (off_t)-1;
     }
     

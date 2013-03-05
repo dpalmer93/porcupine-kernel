@@ -54,8 +54,6 @@ sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *err)
         return -1;
     }
     
-    lock_acquire(fc->fc_lock);
-    
     // set up iovec
     uio_iov.iov_ubase = buf;
     uio_iov.iov_len = buflen;
@@ -68,8 +66,10 @@ sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *err)
 	myuio.uio_rw = UIO_READ;
 	myuio.uio_space = curthread->t_proc->ps_addrspace;
     
+    lock_acquire(fc->fc_lock);
     result = VOP_GETDIRENTRY(fc->fc_vnode, &myuio);
     if (result) {
+        lock_release(fc->fc_lock);
         *err = result;
         return -1;
     }
