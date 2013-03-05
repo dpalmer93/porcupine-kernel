@@ -34,7 +34,7 @@
 #include <lib.h>
 #include <pid_set.h>
 
-struct process *pid_table[PID_MAX];
+struct process *pid_table[PID_MAX + 1];
 struct rw_mutex *pidt_rw;
 
 void
