@@ -56,7 +56,10 @@ int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err)
     int exit_code;
     
     if (pid > PID_MAX || pid < PID_MIN)
-        return false;
+    {
+        *err = ESRCH;
+        return -1;
+    }
     
     struct process *proc = curthread->t_proc;
     struct pid_set *children = proc->ps_children;
