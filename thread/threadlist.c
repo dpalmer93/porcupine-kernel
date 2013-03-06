@@ -61,7 +61,7 @@ void
 threadlist_init(struct threadlist *tl, int nprior)
 {
 	DEBUGASSERT(tl != NULL);
-    KASSERT(nprior <= PRIORITY_MAX);
+    KASSERT(nprior <= PRIORITY_MAX + 1);
     
     tl->tl_head = kmalloc(nprior * sizeof(struct threadlistnode));
     if (tl->tl_head == NULL) {

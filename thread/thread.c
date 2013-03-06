@@ -199,7 +199,7 @@ cpu_create(unsigned hardware_number)
 	c->c_hardclocks = 0;
 
 	c->c_isidle = false;
-	threadlist_init(&c->c_runqueue, 8);
+	threadlist_init(&c->c_runqueue, PRIORITY_MAX + 1);
 	spinlock_init(&c->c_runqueue_lock);
 
 	c->c_ipi_pending = 0;
