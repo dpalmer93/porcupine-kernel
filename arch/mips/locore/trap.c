@@ -30,6 +30,7 @@
 #include <types.h>
 #include <signal.h>
 #include <lib.h>
+#include <kern/wait.h>
 #include <mips/specialreg.h>
 #include <mips/trapframe.h>
 #include <cpu.h>
