@@ -167,7 +167,7 @@ syscall(struct trapframe *tf)
             break;
         case SYS_lseek:
             // extract the offset from aligned pair of regs a2-a3
-            join32to64(tf->tf_a2, tf->tf_a3, &offset64);
+            join32to64(tf->tf_a2, tf->tf_a3, (uint64_t *)&offset64);
             
             // copy the whence from the stack---we need to add
             // four bytes to sp because the user program
