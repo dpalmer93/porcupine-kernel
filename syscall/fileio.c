@@ -252,10 +252,10 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
     // make sure we can seek on this file
     switch (ftype)
     {
-        case S_IFIFIO:  // FIFO
+        case S_IFIFO:  // FIFO
         case S_IFSOCK:  // socket
         case S_IFCHR:   // character device
-        case S_IFBLOCK: // block device
+        case S_IFBLK: // block device
             return ESPIPE;
         default:
             break;
