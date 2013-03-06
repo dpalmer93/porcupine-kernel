@@ -659,6 +659,9 @@ thread_switch(threadstate_t newstate, struct wchan *wc)
 	 * assume the compiler will optimize one away if they're the
 	 * same.
 	 */
+    // set the number of timeslices the thread runs for
+    // equal to 2^priority of the thread
+    next->t_ntimeslices = 1 << next->t_priority;
 	curcpu->c_curthread = next;
 	curthread = next;
 
@@ -838,10 +841,11 @@ thread_yield(void)
 void
 schedule(void)
 {
-	/*
-	 * You can write this. If we do nothing, threads will run in
-	 * round-robin fashion.
-	 */
+	/* Scheduling is currently implemented by changing the
+     * threadlist data structure into a priority queue
+     * and changing hardclock() to check the number of timeslices
+     * a thread has left to run
+     * /
 }
 
 /*

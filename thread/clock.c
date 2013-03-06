@@ -99,7 +99,17 @@ hardclock(void)
 	if ((curcpu->c_hardclocks % MIGRATE_HARDCLOCKS) == 0) {
 		thread_consider_migration();
 	}
-	thread_yield();
+    
+    // Decrement the number of timeslices it can run for
+    // If it's 0 make it yield
+    curthread->t_ntimeslices--;
+    KASSERT(curthread->t_ntimesslices >= 0);
+    if (curcpu->t_curthread->t_ntimeslices == 0) {
+        // If it has to yield due to a timer interrupt
+        // then we should increment the priority to make it run less often
+        curthread->t_priority++;
+        thread_yield();
+    }
 }
 
 /*
