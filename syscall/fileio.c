@@ -52,7 +52,7 @@ sys_open(const_userptr_t filename, int flags, int* err)
     // copy in filename to kernel space
     result = copyinstr(filename, kfilename, PATH_MAX, &got);
     if (result){
-        *err = ENAMETOOLONG;
+        *err = result;
         return -1;
     }
         
