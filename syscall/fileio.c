@@ -243,10 +243,27 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
     
     lock_acquire(fc->fc_lock);
     
-    // stat the file to find the length
+    // stat the file to find the type and length
     VOP_STAT(fc->fc_vnode, &statbuf);
     
-    switch(whence) {
+    // discard bottom 12 bits of mode
+    mode_t ftype = statbuf.st_mode & S_IFMT;
+    
+    // make sure we can seek on this file
+    switch (ftype)
+    {
+        case S_IFIFIO:  // FIFO
+        case S_IFSOCK:  // socket
+        case S_IFCHR:   // character device
+        case S_IFBLOCK: // block device
+            return ESPIPE;
+        default:
+            break;
+    }
+    
+    // determine the new offset
+    switch(whence)
+    {
         case SEEK_SET: // offset + 0
             new_offset = offset;
             break;
