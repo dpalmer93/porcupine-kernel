@@ -109,7 +109,7 @@ hardclock(void)
         // then we should increment the priority to make it run less often
         curthread->t_priority++;
         if (curthread->t_priority > PRIORITY_MAX) {
-            curthread->t_priority = PRIORITY_MAX:
+            curthread->t_priority = PRIORITY_MAX;
         }
         thread_yield();
     }

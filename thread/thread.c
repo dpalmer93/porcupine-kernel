@@ -1057,10 +1057,9 @@ wchan_sleep(struct wchan *wc)
      * I/O thread; as such, we DECREMENT its priority (LOWER priority
      * numbers are better).
      */
-    curthread->t_priority--;
-    if (curthread->t_priority < 0)
-        curthread->t_priority = 0;
-    
+    if (curthread->t_priority > 0) {
+        curthread->t_priority--;
+    }
 
 	thread_switch(S_SLEEP, wc);
 }
