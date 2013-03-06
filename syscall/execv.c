@@ -39,8 +39,8 @@
 #include <process.h>
 
 // helper functions for argument handling
-int copyinargs(const_userptr_t argv, char **kargv, int *argc, size_t *total_len);
-int copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len);
+int copyinargs(const_userptr_t argv, char **kargv, size_t *argc, size_t *total_len);
+int copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len);
 void free_kargv(char **kargv);
 
 int
@@ -198,7 +198,7 @@ copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_l
     char *kargs_cur = kargs;
     
     // copy in each argument string
-    for (int i = 0; i < argc; i++)
+    for (size_t i = 0; i < argc; i++)
     {
         // check bounds
         if (kargs_cur - kargs >= ARG_MAX)
@@ -258,7 +258,7 @@ copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len)
     }
     
     // get arg user pointers
-    for (int i = 0; i < argc; i++)
+    for (size_t i = 0; i < argc; i++)
     {
         uargv[i] = (kargv[i] - kargv[0]) + start_of_args;
     }

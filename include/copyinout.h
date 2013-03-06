@@ -79,7 +79,7 @@ int copyout(const void *src, userptr_t userdest, size_t len);
 int copyinstr(const_userptr_t usersrc, char *dest, size_t len, size_t *got);
 int copyoutstr(const char *src, userptr_t userdest, size_t len, size_t *got);
 int copyinwordstr(const_userptr_t usersrc, uintptr_t *dest, size_t len, size_t *got);
-int copyoutwordstr(const uintptr_t *src, userptr_t *dest, size_t len, size_t *got);
+int copyoutwordstr(const uintptr_t *src, userptr_t dest, size_t len, size_t *got);
 
 
 #endif /* _COPYINOUT_H_ */

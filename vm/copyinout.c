@@ -392,7 +392,7 @@ copyinwordstr(const_userptr_t usersrc, uintptr_t *dest, size_t len, size_t *actu
 		return EFAULT;
 	}
     
-	result = copyptrstr(dest, (const uintptr_t *)usersrc, len, stoplen, actual);
+	result = copywordstr(dest, (const uintptr_t *)usersrc, len, stoplen, actual);
     
 	curthread->t_machdep.tm_badfaultfunc = NULL;
 	return result;
@@ -426,7 +426,7 @@ copyoutwordstr(const uintptr_t *src, userptr_t userdest, size_t len, size_t *act
 		return EFAULT;
 	}
     
-	result = copystr((uintptr_t *)userdest, src, len, stoplen, actual);
+	result = copywordstr((uintptr_t *)userdest, src, len, stoplen, actual);
     
 	curthread->t_machdep.tm_badfaultfunc = NULL;
 	return result;
