@@ -108,6 +108,9 @@ hardclock(void)
         // If it has to yield due to a timer interrupt
         // then we should increment the priority to make it run less often
         curthread->t_priority++;
+        if (curthread->t_priority > PRIORITY_MAX) {
+            curthread->t_priority = PRIORITY_MAX:
+        }
         thread_yield();
     }
 }
