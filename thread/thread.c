@@ -858,7 +858,7 @@ schedule(void)
      * threadlist data structure into a priority queue
      * and changing hardclock() to check the number of timeslices
      * a thread has left to run
-     * /
+     */
 }
 
 /*

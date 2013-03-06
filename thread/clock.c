@@ -102,12 +102,15 @@ hardclock(void)
     
     // Decrement the number of timeslices it can run for
     // If it's 0 make it yield
+    KASSERT(curthread->t_ntimeslices != 0);
     curthread->t_ntimeslices--;
-    KASSERT(curthread->t_ntimesslices >= 0);
-    if (curcpu->t_curthread->t_ntimeslices == 0) {
+    if (curthread->t_ntimeslices == 0) {
         // If it has to yield due to a timer interrupt
         // then we should increment the priority to make it run less often
         curthread->t_priority++;
+        if (curthread->t_priority > PRIORITY_MAX) {
+            curthread->t_priority = PRIORITY_MAX:
+        }
         thread_yield();
     }
 }
