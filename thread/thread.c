@@ -181,12 +181,12 @@ cpu_create(unsigned hardware_number)
 	c->c_hardware_number = hardware_number;
 
 	c->c_curthread = NULL;
-	threadlist_init(&c->c_zombies);
+	threadlist_init(&c->c_zombies, 1);
     c->c_orphans = pid_set_create();
 	c->c_hardclocks = 0;
 
 	c->c_isidle = false;
-	threadlist_init(&c->c_runqueue);
+	threadlist_init(&c->c_runqueue, 8);
 	spinlock_init(&c->c_runqueue_lock);
 
 	c->c_ipi_pending = 0;
@@ -312,9 +312,11 @@ thread_panic(void)
 	 * risk that it might not be quite atomic.
 	 */
 	curcpu->c_runqueue.tl_count = 0;
-	curcpu->c_runqueue.tl_head.tln_next = NULL;
-	curcpu->c_runqueue.tl_tail.tln_prev = NULL;
-
+    for (int i = 0; i < curcpu->c_runqueue.tl_nprior; i++) {
+        curcpu->c_runqueue.tl_head[i].tln_next = NULL;
+        curcpu->c_runqueue.tl_tail[i].tln_prev = NULL;
+    }
+    
 	/*
 	 * Ideally, we want to make sure sleeping threads don't wake
 	 * up and start running. However, there's no good way to track
@@ -886,7 +888,7 @@ thread_consider_migration(void)
 	}
 
 	to_send = my_count - one_share;
-	threadlist_init(&victims);
+	threadlist_init(&victims, 1);
 	spinlock_acquire(&curcpu->c_runqueue_lock);
 	for (i=0; i<to_send; i++) {
 		t = threadlist_remtail(&curcpu->c_runqueue);
@@ -988,7 +990,7 @@ wchan_create(const char *name)
 		return NULL;
 	}
 	spinlock_init(&wc->wc_lock);
-	threadlist_init(&wc->wc_threads);
+	threadlist_init(&wc->wc_threads, 1);
 	wc->wc_name = name;
 	return wc;
 }
@@ -1069,7 +1071,7 @@ wchan_wakeall(struct wchan *wc)
 	struct thread *target;
 	struct threadlist list;
 
-	threadlist_init(&list);
+	threadlist_init(&list, 1);
 
 	/*
 	 * Lock the channel and grab all the threads, moving them to a

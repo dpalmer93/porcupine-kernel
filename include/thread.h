@@ -84,6 +84,8 @@ struct thread {
 	void *t_stack;			/* Kernel-level stack */
 	struct switchframe *t_context;	/* Saved register context (on stack) */
 	struct cpu *t_cpu;		/* CPU thread runs on */
+    unsigned t_priority; /* Used for scheduling */
+    unsigned t_ntimeslices; /* Used for scheduling */
 
 	/*
 	 * Interrupt state fields.

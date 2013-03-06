@@ -36,6 +36,8 @@
 #include <thread.h>
 #include <threadlist.h>
 
+#define NPRIOR_MAX 8
+
 void
 threadlistnode_init(struct threadlistnode *tln, struct thread *t)
 {
@@ -58,16 +60,28 @@ threadlistnode_cleanup(struct threadlistnode *tln)
 }
 
 void
-threadlist_init(struct threadlist *tl)
+threadlist_init(struct threadlist *tl, int nprior)
 {
 	DEBUGASSERT(tl != NULL);
-
-	tl->tl_head.tln_next = &tl->tl_tail;
-	tl->tl_head.tln_prev = NULL;
-	tl->tl_tail.tln_next = NULL;
-	tl->tl_tail.tln_prev = &tl->tl_head;
-	tl->tl_head.tln_self = NULL;
-	tl->tl_tail.tln_self = NULL;
+    KASSERT(nprior <= NPRIOR_MAX);
+    
+    tl->tl_head = kmalloc(nprior * sizeof(struct threadlistnode));
+    if (tl->tl_head == NULL) {
+        panic("threadlist: kmalloc out of memory");
+    }
+    tl->tl_tail = kmalloc(nprior * sizeof(struct threadlistnode));
+	if (tl->tl_tail == NULL) {
+        panic("threadlist: kmalloc out of memory");
+    }
+    for (int i = 0; i < nprior; i++) {
+        tl->tl_head[i].tln_next = &tl->tl_tail[i];
+        tl->tl_head[i].tln_prev = NULL;
+        tl->tl_tail[i].tln_next = NULL;
+        tl->tl_tail[i].tln_prev = &tl->tl_head[i];
+        tl->tl_head[i].tln_self = NULL;
+        tl->tl_tail[i].tln_self = NULL;
+    }
+    tl->tl_nprior = nprior;
 	tl->tl_count = 0;
 }
 
@@ -75,17 +89,20 @@ void
 threadlist_cleanup(struct threadlist *tl)
 {
 	DEBUGASSERT(tl != NULL);
-	DEBUGASSERT(tl->tl_head.tln_next == &tl->tl_tail);
-	DEBUGASSERT(tl->tl_head.tln_prev == NULL);
-	DEBUGASSERT(tl->tl_tail.tln_next == NULL);
-	DEBUGASSERT(tl->tl_tail.tln_prev == &tl->tl_head);
-	DEBUGASSERT(tl->tl_head.tln_self == NULL);
-	DEBUGASSERT(tl->tl_tail.tln_self == NULL);
-
+    for (int i = 0; i < tl->tl_nprior; i++) {
+        DEBUGASSERT(tl->tl_head[i].tln_next == &tl->tl_tail[i]);
+        DEBUGASSERT(tl->tl_head[i].tln_prev == NULL);
+        DEBUGASSERT(tl->tl_tail[i].tln_next == NULL);
+        DEBUGASSERT(tl->tl_tail[i].tln_prev == &tl->tl_head[i]);
+        DEBUGASSERT(tl->tl_head[i].tln_self == NULL);
+        DEBUGASSERT(tl->tl_tail[i].tln_self == NULL);
+    }
 	KASSERT(threadlist_isempty(tl));
 	KASSERT(tl->tl_count == 0);
 
-	/* nothing (else) to do */
+    kfree(tl->tl_head);
+    kfree(tl->tl_tail);
+    
 }
 
 bool
@@ -159,13 +176,19 @@ threadlist_removenode(struct threadlistnode *tln)
 ////////////////////////////////////////////////////////////
 // public
 
+
+// Calculate which queue it goes into and put it in that queue
 void
 threadlist_addhead(struct threadlist *tl, struct thread *t)
 {
 	DEBUGASSERT(tl != NULL);
 	DEBUGASSERT(t != NULL);
 
-	threadlist_insertafternode(&tl->tl_head, t);
+    int priority = t->t_priority;
+    // calculate correct queue on tl
+    priority = (priority * tl->tl_nprior) / NPRIOR_MAX;
+    
+	threadlist_insertafternode(&tl->tl_head[priority], t);
 	tl->tl_count++;
 }
 
@@ -174,8 +197,11 @@ threadlist_addtail(struct threadlist *tl, struct thread *t)
 {
 	DEBUGASSERT(tl != NULL);
 	DEBUGASSERT(t != NULL);
+    
+    int priority = t->t_priority;
+    priority = (priority * tl->tl_nprior) / NPRIOR_MAX;
 
-	threadlist_insertbeforenode(t, &tl->tl_tail);
+	threadlist_insertbeforenode(t, &tl->tl_tail[priority]);
 	tl->tl_count++;
 }
 
@@ -186,11 +212,18 @@ threadlist_remhead(struct threadlist *tl)
 
 	DEBUGASSERT(tl != NULL);
 
-	tln = tl->tl_head.tln_next;
-	if (tln->tln_next == NULL) {
-		/* list was empty  */
-		return NULL;
-	}
+    // iterate through all the queues and remove from the
+    // head of the first nonempty queue
+    for(int i = 0; i < tl->tl_nprior; i++) {
+        tln = tl->tl_head[i].tln_next;
+        if (tln->tln_next != NULL)
+            break;
+    }
+    // all queues are empty
+    if (tln->tln_next == NULL) {
+        return NULL;
+    }
+    
 	threadlist_removenode(tln);
 	DEBUGASSERT(tl->tl_count > 0);
 	tl->tl_count--;
@@ -203,12 +236,19 @@ threadlist_remtail(struct threadlist *tl)
 	struct threadlistnode *tln;
 
 	DEBUGASSERT(tl != NULL);
-
-	tln = tl->tl_tail.tln_prev;
-	if (tln->tln_prev == NULL) {
-		/* list was empty  */
-		return NULL;
-	}
+    
+    // iterate backwards through all the queues and
+    // and remove the tail of the first nonempty queue
+    for(int i = tl->tl_nprior - 1; i >= 0; i--) {
+        tln = tl->tl_tail[i].tln_prev;
+        if (tln->tln_prev != NULL)
+            break;
+    }
+    // all queues are empty
+    if (tln->tln_prev == NULL) {
+        return NULL;
+    }
+    
 	threadlist_removenode(tln);
 	DEBUGASSERT(tl->tl_count > 0);
 	tl->tl_count--;

@@ -56,10 +56,13 @@ struct threadlistnode {
 	struct thread *tln_self;
 };
 
+// tl_head and tl_tail are now an array of pointers to 
+// different FIFO queues
 struct threadlist {
-	struct threadlistnode tl_head;
-	struct threadlistnode tl_tail;
+	struct threadlistnode *tl_head;
+	struct threadlistnode *tl_tail;
 	unsigned tl_count;
+    int tl_nprior; // number of priorities in queue
 };
 
 /* Initialize and clean up a thread list node. */
@@ -67,7 +70,7 @@ void threadlistnode_init(struct threadlistnode *tln, struct thread *self);
 void threadlistnode_cleanup(struct threadlistnode *tln);
 
 /* Initialize and clean up a thread list. Must be empty at cleanup. */
-void threadlist_init(struct threadlist *tl);
+void threadlist_init(struct threadlist *tl, int nprior);
 void threadlist_cleanup(struct threadlist *tl);
 
 /* Check if it's empty */
