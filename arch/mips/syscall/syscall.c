@@ -87,8 +87,8 @@ syscall(struct trapframe *tf)
 	int err;
 	
 	// for lseek
-	int64_t offset64;
-    int32_t whence; // this must be copied from the stack
+	off_t offset64;
+    int whence; // this must be copied from the stack
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
