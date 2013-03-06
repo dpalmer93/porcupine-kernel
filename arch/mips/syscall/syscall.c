@@ -31,6 +31,7 @@
 #include <kern/errno.h>
 #include <kern/syscall.h>
 #include <lib.h>
+#include <endian.h>
 #include <mips/trapframe.h>
 #include <copyinout.h>
 #include <thread.h>
@@ -166,7 +167,7 @@ syscall(struct trapframe *tf)
             break;
         case SYS_lseek:
             // extract the offset from aligned pair of regs a2-a3
-            offset64 = ((int64_t)tf->tf_a2 << 32) | tf->tf_a3;
+            join32to64(tf->tf_a2, tf->tf_a3, &offset64);
             
             // copy the whence from the stack---we need to add
             // four bytes to sp because the user program
