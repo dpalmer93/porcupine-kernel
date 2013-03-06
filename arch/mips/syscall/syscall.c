@@ -167,12 +167,13 @@ syscall(struct trapframe *tf)
             // extract the offset from aligned pair of regs a2-a3
             offset64 = ((int64_t)tf->tf_a2 << 32) | tf->tf_a3;
             
-            // copy the whence from a1: it appears that it does
-            // *not* get pushed onto the stack after a2 and a3 are
-            // used.
+            // copy the whence from the stack
+            err = copyin((const_userptr_t)tf->tf_sp, &whence, 4);
+            if (err) break;
+            
             retval64 = sys_lseek((int)tf->tf_a0,
                                  (off_t)offset64,
-                                 (int)tf->tf_a1, &err);
+                                 (int)whence, &err);
             break;
         case SYS_fstat:
             err = sys_fstat((int)tf->tf_a0, (userptr_t)tf->tf_a1);
