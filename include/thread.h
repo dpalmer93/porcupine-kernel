@@ -86,8 +86,23 @@ struct thread {
 	void *t_stack;			/* Kernel-level stack */
 	struct switchframe *t_context;	/* Saved register context (on stack) */
 	struct cpu *t_cpu;		/* CPU thread runs on */
-    unsigned t_priority; /* Used for scheduling */
-    unsigned t_ntimeslices; /* Used for scheduling */
+    
+    /* Scheduling system */
+    
+    /* 
+     * t_priority gets decremented whenever the thread voluntarily
+     * yields the processor (i.e., sleeps) and incremented whenever
+     * it is preempted.  LOWER PRIORITIES ARE BETTER.
+     *
+     * In the style of the Solaris scheduler, each thread gets a
+     * number of time slices proportional to 2**t_priority:
+     *   COMPUTE THREADS get lower priority but longer time intervals
+     *   I/O THREADS get higher priority but shorter time intervals
+     * t_ntimeslices gets decremented on each time slice, and
+     * when it reaches zero, the thread is descheduled.
+     */
+    unsigned t_priority;
+    unsigned t_ntimeslices;
 
 	/*
 	 * Interrupt state fields.

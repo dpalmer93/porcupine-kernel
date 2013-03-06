@@ -65,18 +65,19 @@ threadlist_init(struct threadlist *tl, int nprior)
     
     tl->tl_head = kmalloc(nprior * sizeof(struct threadlistnode));
     if (tl->tl_head == NULL) {
-        panic("threadlist: kmalloc out of memory");
+        panic("threadlist_init: Out of Memory");
     }
     tl->tl_tail = kmalloc(nprior * sizeof(struct threadlistnode));
 	if (tl->tl_tail == NULL) {
-        panic("threadlist: kmalloc out of memory");
+        panic("threadlist_init: Out of Memory");
     }
     for (int i = 0; i < nprior; i++) {
         tl->tl_head[i].tln_next = &tl->tl_tail[i];
         tl->tl_head[i].tln_prev = NULL;
+        tl->tl_head[i].tln_self = NULL;
+        
         tl->tl_tail[i].tln_next = NULL;
         tl->tl_tail[i].tln_prev = &tl->tl_head[i];
-        tl->tl_head[i].tln_self = NULL;
         tl->tl_tail[i].tln_self = NULL;
     }
     tl->tl_nprior = nprior;
@@ -90,9 +91,10 @@ threadlist_cleanup(struct threadlist *tl)
     for (int i = 0; i < tl->tl_nprior; i++) {
         DEBUGASSERT(tl->tl_head[i].tln_next == &tl->tl_tail[i]);
         DEBUGASSERT(tl->tl_head[i].tln_prev == NULL);
+        DEBUGASSERT(tl->tl_head[i].tln_self == NULL);
+        
         DEBUGASSERT(tl->tl_tail[i].tln_next == NULL);
         DEBUGASSERT(tl->tl_tail[i].tln_prev == &tl->tl_head[i]);
-        DEBUGASSERT(tl->tl_head[i].tln_self == NULL);
         DEBUGASSERT(tl->tl_tail[i].tln_self == NULL);
     }
 	KASSERT(threadlist_isempty(tl));
