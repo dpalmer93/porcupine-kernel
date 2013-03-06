@@ -199,7 +199,7 @@ cpu_create(unsigned hardware_number)
 	c->c_hardclocks = 0;
 
 	c->c_isidle = false;
-	threadlist_init(&c->c_runqueue, PRIORITY_MAX + 1);
+	threadlist_init(&c->c_runqueue, 8);
 	spinlock_init(&c->c_runqueue_lock);
 
 	c->c_ipi_pending = 0;
@@ -600,6 +600,7 @@ thread_switch(threadstate_t newstate, struct wchan *wc)
 	/* Micro-optimization: if nothing to do, just return */
 	if (newstate == S_READY && threadlist_isempty(&curcpu->c_runqueue)) {
 		spinlock_release(&curcpu->c_runqueue_lock);
+        cur->t_ntimeslices = 1 << cur->t_priority;
 		splx(spl);
 		return;
 	}
