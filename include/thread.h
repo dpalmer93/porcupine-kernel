@@ -56,6 +56,8 @@ struct vnode;
 /* Macro to test if two addresses are on the same kernel stack */
 #define SAME_STACK(p1, p2)     (((p1) & STACK_MASK) == ((p2) & STACK_MASK))
 
+/* Max priority of a thread */
+#define PRIORITY_MAX 7
 
 /* States a thread can be in. */
 typedef enum {
@@ -84,23 +86,8 @@ struct thread {
 	void *t_stack;			/* Kernel-level stack */
 	struct switchframe *t_context;	/* Saved register context (on stack) */
 	struct cpu *t_cpu;		/* CPU thread runs on */
-    
-    /* Scheduling system */
-    
-    /* 
-     * t_priority gets decremented whenever the thread voluntarily
-     * yields the processor (i.e., sleeps) and incremented whenever
-     * it is preempted.  LOWER PRIORITIES ARE BETTER.
-     *
-     * In the style of the Solaris scheduler, each thread gets a
-     * number of time slices proportional to 2**t_priority:
-     *   COMPUTE THREADS get lower priority but longer time intervals
-     *   I/O THREADS get higher priority but shorter time intervals
-     * t_ntimeslices gets decremented on each time slice, and
-     * when it reaches zero, the thread is descheduled.
-     */
-    unsigned t_priority;
-    unsigned t_ntimeslices;
+    unsigned t_priority; /* Used for scheduling */
+    unsigned t_ntimeslices; /* Used for scheduling */
 
 	/*
 	 * Interrupt state fields.
