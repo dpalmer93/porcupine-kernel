@@ -256,7 +256,8 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
         case S_IFSOCK:  // socket
         case S_IFCHR:   // character device
         case S_IFBLK: // block device
-            return ESPIPE;
+            *err = ESPIPE;
+            return (off_t)-1;
         default:
             break;
     }
