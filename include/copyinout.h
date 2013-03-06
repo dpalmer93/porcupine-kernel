@@ -50,6 +50,16 @@
  * returns the actual length of string found in GOT. DEST is always
  * null-terminated on success. LEN and GOT include the null terminator.
  *
+ * copyinwordstr copies a null-terminated string of at most LEN words from
+ * a user-space address USERSRC to a kernel-space address DEST, and
+ * returns the actual length of string found in GOT. DEST is always
+ * null-terminated on success. LEN and GOT include the null terminator.
+ *
+ * copyoutwordstr copies a null-terminated string of at most LEN words from
+ * a kernel-space address SRC to a user-space address USERDEST, and
+ * returns the actual length of string found in GOT. DEST is always
+ * null-terminated on success. LEN and GOT include the null terminator.
+ *
  * All of these functions return 0 on success, EFAULT if a memory
  * addressing error was encountered, or (for the string versions)
  * ENAMETOOLONG if the space available was insufficient.
@@ -68,6 +78,8 @@ int copyin(const_userptr_t usersrc, void *dest, size_t len);
 int copyout(const void *src, userptr_t userdest, size_t len);
 int copyinstr(const_userptr_t usersrc, char *dest, size_t len, size_t *got);
 int copyoutstr(const char *src, userptr_t userdest, size_t len, size_t *got);
+int copyinwordstr(const_userptr_t usersrc, uintptr_t *dest, size_t len, size_t *got);
+int copyoutwordstr(const uintptr_t *src, userptr_t *dest, size_t len, size_t *got);
 
 
 #endif /* _COPYINOUT_H_ */
