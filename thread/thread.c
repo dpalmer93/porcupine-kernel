@@ -150,7 +150,7 @@ thread_create(const char *name)
     // Give each thread an initial priority in the "middle" of
     // the possible priorities.  This should not matter much, as
     // its priority will change based on its processor usage
-    thread->t_priority = MAX_PRIORITY / 2;
+    thread->t_priority = PRIORITY_MAX / 2;
     
     // Give each thread a single initial time slice to test
     // its usage behavior.
@@ -1050,6 +1050,17 @@ wchan_sleep(struct wchan *wc)
 {
 	/* may not sleep in an interrupt handler */
 	KASSERT(!curthread->t_in_interrupt);
+    
+    /*
+     * Update priority: a thread that voluntarily gives up the CPU
+     * should get scheduled more often, as it is likely to be an
+     * I/O thread; as such, we DECREMENT its priority (LOWER priority
+     * numbers are better).
+     */
+    curthread->t_priority--;
+    if (curthread->t_priority < 0)
+        curthread->t_priority = 0;
+    
 
 	thread_switch(S_SLEEP, wc);
 }

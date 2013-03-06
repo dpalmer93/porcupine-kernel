@@ -63,7 +63,7 @@ void
 threadlist_init(struct threadlist *tl, int nprior)
 {
 	DEBUGASSERT(tl != NULL);
-    KASSERT(nprior <= NPRIOR_MAX);
+    KASSERT(nprior <= PRIORITY_MAX);
     
     tl->tl_head = kmalloc(nprior * sizeof(struct threadlistnode));
     if (tl->tl_head == NULL) {
@@ -188,7 +188,7 @@ threadlist_addhead(struct threadlist *tl, struct thread *t)
 
     int priority = t->t_priority;
     // calculate correct queue on tl
-    priority = (priority * tl->tl_nprior) / NPRIOR_MAX;
+    priority = (priority * tl->tl_nprior) / (PRIORITY_MAX + 1);
     
 	threadlist_insertafternode(&tl->tl_head[priority], t);
 	tl->tl_count++;
@@ -201,7 +201,7 @@ threadlist_addtail(struct threadlist *tl, struct thread *t)
 	DEBUGASSERT(t != NULL);
     
     int priority = t->t_priority;
-    priority = (priority * tl->tl_nprior) / NPRIOR_MAX;
+    priority = (priority * tl->tl_nprior) / (PRIORITY_MAX + 1);
 
 	threadlist_insertbeforenode(t, &tl->tl_tail[priority]);
 	tl->tl_count++;
