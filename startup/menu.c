@@ -102,9 +102,9 @@ common_prog(int nargs, char **args)
     if (WIFEXITED(exit_code))
         kprintf("%s exited with code %d\n", args[0], WEXITSTATUS(exit_code));
     else if (WIFSIGNALED(exit_code))
-        kprintf("%s received a fatal signal: %d", WTERMSIG(exit_code));
+        kprintf("%s received a fatal signal: %d\n", WTERMSIG(exit_code));
     else if (WIFSTOPPED(exit_code))
-        kprintf("%s stopped on signal %d", WSTOPSIG(exit_code));
+        kprintf("%s stopped on signal %d\n", WSTOPSIG(exit_code));
     
     process_destroy(proc->ps_pid);
 
