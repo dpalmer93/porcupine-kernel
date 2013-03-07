@@ -151,10 +151,7 @@ sys_remove(const_userptr_t filename)
     // copy in filename to kernel space
     char *kfilename = kmalloc((PATH_MAX + 1) * sizeof(char));
     if (kfilename == NULL)
-    {
-        *err = ENOMEM;
-        return -1;
-    }
+        return ENOMEM;
     err = copyinstr(filename, kfilename, PATH_MAX + 1, &got);
     if (err) {
         kfree(kfilename);
@@ -162,7 +159,7 @@ sys_remove(const_userptr_t filename)
     }
     
     err = vfs_remove(kfilename);
-    if (result) {
+    if (err) {
         kfree(kfilename);
         return err;
     }
