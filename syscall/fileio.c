@@ -273,7 +273,7 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
             new_offset = offset + fc->fc_offset;
             break;
         case SEEK_END: // offset + file length
-            new_offset = statbuf.st_size + fc->fc_offset;
+            new_offset = offset + statbuf.st_size;
             break;
         default:
             lock_release(fc->fc_lock);
