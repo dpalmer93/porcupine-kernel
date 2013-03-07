@@ -44,23 +44,33 @@ sys_open(const_userptr_t filename, int flags, int* err)
 {
     int result;
     size_t got;
-    char kfilename[PATH_MAX];
     struct vnode *file;
     struct file_ctxt *fc;
     struct fd_table *fdt;
     
     // copy in filename to kernel space
-    result = copyinstr(filename, kfilename, PATH_MAX, &got);
+    char *kfilename = kmalloc((PATH_MAX + 1) * sizeof(char));
+    if (kfilename == NULL)
+    {
+        *err = ENOMEM;
+        return -1;
+    }
+    result = copyinstr(filename, kfilename, PATH_MAX + 1, &got);
     if (result){
+        kfree(kfilename);
         *err = result;
         return -1;
     }
         
     result = vfs_open(kfilename, flags, 0, &file);
     if (result) {
+        kfree(kfilename);
         *err = result;
         return -1;
     }
+    
+    // done with the filename
+    kfree(kfilename);
 
     fc = fc_create(file);
     if (fc == NULL) {
@@ -130,6 +140,37 @@ sys_dup2(int old_fd, int new_fd, int *err)
     
     return new_fd;
     
+}
+
+int
+sys_remove(const_userptr_t filename)
+{
+    size_t got;
+    int err;
+    
+    // copy in filename to kernel space
+    char *kfilename = kmalloc((PATH_MAX + 1) * sizeof(char));
+    if (kfilename == NULL)
+    {
+        *err = ENOMEM;
+        return -1;
+    }
+    err = copyinstr(filename, kfilename, PATH_MAX + 1, &got);
+    if (err) {
+        kfree(kfilename);
+        return err;
+    }
+    
+    err = vfs_remove(kfilename);
+    if (result) {
+        kfree(kfilename);
+        return err;
+    }
+    
+    // done with the file name
+    kfree(kfilename);
+    
+    return 0;
 }
 
 // Error stored in err

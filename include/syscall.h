@@ -72,6 +72,8 @@ pid_t sys_getpid(void);
 int sys_open(const_userptr_t filename, int flags, int* err);
 int sys_close(int fd);
 int sys_dup2(int old_fd, int new_fd, int *err);
+int sys_remove(const_userptr_t filename);
+
 int sys_read(int fd, userptr_t buf, size_t buflen, int *err);
 int sys_write(int fd, const_userptr_t buf, size_t count, int *err);
 int sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *err);
