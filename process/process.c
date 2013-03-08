@@ -184,7 +184,8 @@ process_identify(struct process *p)
     
     rw_wlock(pidt_rw);
     
-    // get lowest unused PID starting at p
+    // get lowest unused PID starting at pid_next
+    // loop back from PID_MAX to PID_MIN
     unsigned int i = pid_next;
     do {
         if (pid_table[i] == NULL) {
