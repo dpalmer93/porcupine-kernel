@@ -35,6 +35,8 @@
 #include <thread.h>
 #include <current.h>
 
+#include "opt-roundrobin.h"
+
 /*
  * Time handling.
  *
@@ -99,7 +101,9 @@ hardclock(void)
 	if ((curcpu->c_hardclocks % MIGRATE_HARDCLOCKS) == 0) {
 		thread_consider_migration();
 	}
-    
+#if OPT_ROUNDROBIN
+    thread_yield();
+#else
     // Decrement the number of timeslices remaining
     // If it's 0 make curthread yield
     if (curthread->t_ntimeslices > 0)
@@ -114,6 +118,7 @@ hardclock(void)
         }
         thread_yield();
     }
+#endif
 }
 
 /*
