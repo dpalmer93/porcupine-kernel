@@ -59,8 +59,8 @@ struct threadlistnode {
 // tl_head and tl_tail are now an array of pointers to 
 // different FIFO queues
 struct threadlist {
-	struct threadlistnode *tl_head;
-	struct threadlistnode *tl_tail;
+	struct threadlistnode tl_head[PRIORITY_MAX + 1];
+	struct threadlistnode tl_tail[PRIORITY_MAX + 1];
 	unsigned tl_count;
     int tl_nprior; // number of priorities in queue
 };

@@ -63,14 +63,6 @@ threadlist_init(struct threadlist *tl, int nprior)
 	DEBUGASSERT(tl != NULL);
     KASSERT(nprior <= PRIORITY_MAX + 1);
     
-    tl->tl_head = kmalloc(nprior * sizeof(struct threadlistnode));
-    if (tl->tl_head == NULL) {
-        panic("threadlist_init: Out of Memory");
-    }
-    tl->tl_tail = kmalloc(nprior * sizeof(struct threadlistnode));
-	if (tl->tl_tail == NULL) {
-        panic("threadlist_init: Out of Memory");
-    }
     for (int i = 0; i < nprior; i++) {
         tl->tl_head[i].tln_next = &tl->tl_tail[i];
         tl->tl_head[i].tln_prev = NULL;
@@ -99,10 +91,6 @@ threadlist_cleanup(struct threadlist *tl)
     }
 	KASSERT(threadlist_isempty(tl));
 	KASSERT(tl->tl_count == 0);
-
-    kfree(tl->tl_head);
-    kfree(tl->tl_tail);
-    
 }
 
 bool
