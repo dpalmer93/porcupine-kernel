@@ -111,8 +111,9 @@ hardclock(void)
         if (curthread->t_priority > PRIORITY_MAX) {
             curthread->t_priority = PRIORITY_MAX;
         }
-        thread_yield();
+        // thread_yield();
     }
+    thread_yield();
 }
 
 /*
