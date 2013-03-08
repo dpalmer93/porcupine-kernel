@@ -52,7 +52,7 @@
  * Timing constants. These should be tuned along with any work done on
  * the scheduler.
  */
-#define SCHEDULE_HARDCLOCKS	4	/* Reschedule every 4 hardclocks. */
+#define SCHEDULE_HARDCLOCKS	16	/* Reschedule every 16 hardclocks. */
 #define MIGRATE_HARDCLOCKS	16	/* Migrate every 16 hardclocks. */
 
 /*
