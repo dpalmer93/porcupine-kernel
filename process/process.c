@@ -36,6 +36,7 @@
 
 struct process *pid_table[PID_MAX + 1];
 struct rw_mutex *pidt_rw;
+unsigned int pid_next = PID_MIN;
 
 void
 process_bootstrap(void)
@@ -183,17 +184,20 @@ process_identify(struct process *p)
     
     rw_wlock(pidt_rw);
     
-    // get lowest unused PID
-    for (int i = PID_MIN; i <= PID_MAX; i++)
-    {
-        if (pid_table[i] == NULL)
-        {
+    // get lowest unused PID starting at p
+    unsigned int i = pid_next;
+    do {
+        if (pid_table[i] == NULL) {
             pid_table[i] = p;
+            pid_next = i + 1;
             rw_wdone(pidt_rw);
             p->ps_pid = i;
             return i;
         }
-    }
+        i++;
+        if (i > PID_MAX) 
+            i = PID_MIN;
+    } while (i != pid_next);
 
     rw_wdone(pidt_rw);
     return 0;
