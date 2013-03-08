@@ -31,6 +31,7 @@
 #include <process.h>
 #include <current.h>
 #include <cpu.h>
+#include <spl.h>
 #include <lib.h>
 #include <pid_set.h>
 
@@ -129,7 +130,13 @@ process_finish(struct process *p, int code)
 
     // orphan all children
     if (!pid_set_empty(p->ps_children))
+    {
+        // turn off interrupts so that we do not leave
+        // the orphan set in an inconsistent state
+        int x = splhigh();
         pid_set_map(p->ps_children, process_orphan);
+        splx(x);
+    }
     
     lock_acquire(p->ps_waitpid_lock);
     p->ps_status = PS_ZOMBIE;
