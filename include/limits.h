@@ -50,5 +50,8 @@
 #define OPEN_MAX        __OPEN_MAX
 #define IOV_MAX         __IOV_MAX
 
+/* Kernel only limits. Not exposed to users. */
+#define PRIORITY_MAX    7
+
 
 #endif /* _LIMITS_H_ */
