@@ -44,23 +44,33 @@ sys_open(const_userptr_t filename, int flags, int* err)
 {
     int result;
     size_t got;
-    char kfilename[PATH_MAX];
     struct vnode *file;
     struct file_ctxt *fc;
     struct fd_table *fdt;
     
     // copy in filename to kernel space
-    result = copyinstr(filename, kfilename, PATH_MAX, &got);
+    char *kfilename = kmalloc((PATH_MAX + 1) * sizeof(char));
+    if (kfilename == NULL)
+    {
+        *err = ENOMEM;
+        return -1;
+    }
+    result = copyinstr(filename, kfilename, PATH_MAX + 1, &got);
     if (result){
-        *err = ENAMETOOLONG;
+        kfree(kfilename);
+        *err = result;
         return -1;
     }
         
     result = vfs_open(kfilename, flags, 0, &file);
     if (result) {
+        kfree(kfilename);
         *err = result;
         return -1;
     }
+    
+    // done with the filename
+    kfree(kfilename);
 
     fc = fc_create(file);
     if (fc == NULL) {
@@ -130,6 +140,34 @@ sys_dup2(int old_fd, int new_fd, int *err)
     
     return new_fd;
     
+}
+
+int
+sys_remove(const_userptr_t filename)
+{
+    size_t got;
+    int err;
+    
+    // copy in filename to kernel space
+    char *kfilename = kmalloc((PATH_MAX + 1) * sizeof(char));
+    if (kfilename == NULL)
+        return ENOMEM;
+    err = copyinstr(filename, kfilename, PATH_MAX + 1, &got);
+    if (err) {
+        kfree(kfilename);
+        return err;
+    }
+    
+    err = vfs_remove(kfilename);
+    if (err) {
+        kfree(kfilename);
+        return err;
+    }
+    
+    // done with the file name
+    kfree(kfilename);
+    
+    return 0;
 }
 
 // Error stored in err
@@ -243,10 +281,29 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
     
     lock_acquire(fc->fc_lock);
     
-    // stat the file to find the length
+    // stat the file to find the type and length
     VOP_STAT(fc->fc_vnode, &statbuf);
     
-    switch(whence) {
+    // discard bottom 12 bits of mode
+    mode_t ftype = statbuf.st_mode & S_IFMT;
+    
+    // make sure we can seek on this file
+    switch (ftype)
+    {
+        case S_IFIFO:  // FIFO
+        case S_IFSOCK:  // socket
+        case S_IFCHR:   // character device
+        case S_IFBLK: // block device
+            lock_release(fc->fc_lock);
+            *err = ESPIPE;
+            return (off_t)-1;
+        default:
+            break;
+    }
+    
+    // determine the new offset
+    switch(whence)
+    {
         case SEEK_SET: // offset + 0
             new_offset = offset;
             break;
@@ -254,7 +311,7 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
             new_offset = offset + fc->fc_offset;
             break;
         case SEEK_END: // offset + file length
-            new_offset = statbuf.st_size + fc->fc_offset;
+            new_offset = offset + statbuf.st_size;
             break;
         default:
             lock_release(fc->fc_lock);

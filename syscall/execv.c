@@ -39,8 +39,8 @@
 #include <process.h>
 
 // helper functions for argument handling
-int copyinargs(const_userptr_t argv, char **kargv, int *argc, size_t *total_len);
-int copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len);
+int copyinargs(const_userptr_t argv, char **kargv, size_t *argc, size_t *total_len);
+int copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len);
 void free_kargv(char **kargv);
 
 int
@@ -72,7 +72,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     }
     
     // copy in args
-    int argc;
+    size_t argc;
     size_t total_len;
     char *kargv[ARGNUM_MAX + 1];
     err = copyinargs(argv, kargv, &argc, &total_len);
@@ -175,28 +175,21 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
 
 // returns error code on failure
 int
-copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, size_t *total_len)
+copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_len)
 {
     int err;
-    int argc;
+    size_t argc;
     
+    // reserve space for arg pointers (and null-terminator)
     userptr_t uargv[ARGNUM_MAX + 1];
     
     // try to copy the argv array
-    err = copyin(argv, (void *)uargv, (ARGNUM_MAX + 1) * sizeof(userptr_t));
+    err = copyinwordstr(argv, (uintptr_t *)uargv, ARGNUM_MAX + 1, &argc);
     if (err)
-    {
         return err;
-    }
     
-    // count arguments
-    for (argc = 0; argc < ARGNUM_MAX + 1; argc++)
-    {
-        if (uargv[argc] == NULL)
-            break;
-    }
-    if (argc == ARGNUM_MAX + 1)
-        return E2BIG;
+    // discount null-terminator from argc
+    argc -= 1;
     
     // allocate space for the arguments themselves
     char *kargs = (char *)kmalloc(ARG_MAX * sizeof(char));
@@ -205,7 +198,7 @@ copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, size_t *total_len)
     char *kargs_cur = kargs;
     
     // copy in each argument string
-    for (int i = 0; i < argc; i++)
+    for (size_t i = 0; i < argc; i++)
     {
         // check bounds
         if (kargs_cur - kargs >= ARG_MAX)
@@ -215,6 +208,7 @@ copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, size_t *total_len)
         }
         
         // actually perform the copy and record the length
+        // (including the null-terminator)
         size_t arg_len;
         err = copyinstr(uargv[i], kargs_cur, ARG_MAX, &arg_len);
         if (err)
@@ -227,7 +221,7 @@ copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, size_t *total_len)
         }
         
         // set the entry in kargv to point to the
-        // copied string
+        // copied-in string
         kargv[i] = kargs_cur;
         
         // move on to the next string, padding properly
@@ -247,13 +241,13 @@ copyinargs(const_userptr_t argv, char **kargv, int *argc_ret, size_t *total_len)
 
 // returns 0 on success, error code on failure
 int
-copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len)
+copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len)
 {
     int err;
     userptr_t uargv[argc + 1];
     
     // allocate space for argv array and null terminator
-    userptr_t start_of_args = argv + (argc + 1) * sizeof(uintptr_t);
+    userptr_t start_of_args = argv + (argc + 1) * sizeof(userptr_t);
     
     // copy strings "in bulk"
     err = copyout(kargv[0], start_of_args, total_len);
@@ -264,14 +258,14 @@ copyoutargs(userptr_t argv, char **kargv, int argc, size_t total_len)
     }
     
     // get arg user pointers
-    for (int i = 0; i < argc; i++)
+    for (size_t i = 0; i < argc; i++)
     {
         uargv[i] = (kargv[i] - kargv[0]) + start_of_args;
     }
     uargv[argc] = NULL;
     
     // copy argv itself
-    err = copyout(uargv, argv, (argc + 1) * sizeof(uintptr_t));
+    err = copyout(uargv, argv, (argc + 1) * sizeof(userptr_t));
     if (err)
     {
         free_kargv(kargv);

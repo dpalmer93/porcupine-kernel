@@ -255,6 +255,50 @@ copystr(char *dest, const char *src, size_t maxlen, size_t stoplen,
 }
 
 /*
+ * Similar to copystr(), but copies a null-terminated string of pointer-width
+ * integers.
+ *
+ * Copies a null-terminated string of uintptr_t of maximum length MAXLEN from SRC
+ * to DEST. If GOTLEN is not null, store the actual length found
+ * there. Both lengths are measured in words and include the null-terminator.
+ * If the string exceeds the available length, the call fails and returns
+ * ENAMETOOLONG.
+ *
+ * STOPLEN is like MAXLEN but is assumed to have come from copycheck.
+ * As such, STOPLEN is measured in bytes rather than words.
+ * If we hit MAXLEN it's because the string is too long to fit; if we
+ * hit STOPLEN it's because the string has run into the end of
+ * userspace. Thus in the latter case we return EFAULT, not
+ * ENAMETOOLONG.
+ */
+static
+int
+copywordstr(uintptr_t *dest, const uintptr_t *src, size_t maxlen, size_t stoplen,
+    size_t *gotlen)
+{
+    size_t i;
+    
+    // get stop length in words
+    stoplen /= sizeof(uintptr_t);
+    
+	for (i=0; i < maxlen && i < stoplen; i++) {
+		dest[i] = src[i];
+		if (src[i] == 0) {
+			if (gotlen != NULL) {
+				*gotlen = i+1;
+			}
+			return 0;
+		}
+	}
+	if (stoplen < maxlen) {
+		/* ran into user-kernel boundary */
+		return EFAULT;
+	}
+	/* otherwise just ran out of space */
+	return ENAMETOOLONG;
+}
+
+/*
  * copyinstr
  *
  * Copy a string from user-level address USERSRC to kernel address
@@ -316,6 +360,74 @@ copyoutstr(const char *src, userptr_t userdest, size_t len, size_t *actual)
 
 	result = copystr((char *)userdest, src, len, stoplen, actual);
 
+	curthread->t_machdep.tm_badfaultfunc = NULL;
+	return result;
+}
+
+/*
+ * copyinwordstr
+ *
+ * Copy a string of pointer-sized integers from user-level address USERSRC to
+ * kernel address DEST, as per copywordstr above. Uses the tm_badfaultfunc/copyfail
+ * logic to protect against invalid addresses supplied by a user
+ * process.
+ */
+int
+copyinwordstr(const_userptr_t usersrc, uintptr_t *dest, size_t len, size_t *actual)
+{
+	int result;
+	size_t stoplen;
+    
+    // NOTE - we must multiply len by the size of a pointer/word:
+	result = copycheck(usersrc, len * sizeof(uintptr_t), &stoplen);
+	if (result) {
+		return result;
+	}
+    
+	curthread->t_machdep.tm_badfaultfunc = copyfail;
+    
+	result = setjmp(curthread->t_machdep.tm_copyjmp);
+	if (result) {
+		curthread->t_machdep.tm_badfaultfunc = NULL;
+		return EFAULT;
+	}
+    
+	result = copywordstr(dest, (const uintptr_t *)usersrc, len, stoplen, actual);
+    
+	curthread->t_machdep.tm_badfaultfunc = NULL;
+	return result;
+}
+
+/*
+ * copyoutwordstr
+ *
+ * Copy a string of pointer-sized integers from kernel address SRC to
+ * user-level address USERDEST, as per copywordstr above. Uses the
+ * tm_badfaultfunc/copyfail logic to protect against invalid addresses
+ * supplied by a user process.
+ */
+int
+copyoutwordstr(const uintptr_t *src, userptr_t userdest, size_t len, size_t *actual)
+{
+	int result;
+	size_t stoplen;
+    
+    // NOTE - we must multiply len by the size of a pointer/word:
+	result = copycheck(userdest, len * sizeof(uintptr_t), &stoplen);
+	if (result) {
+		return result;
+	}
+    
+	curthread->t_machdep.tm_badfaultfunc = copyfail;
+    
+	result = setjmp(curthread->t_machdep.tm_copyjmp);
+	if (result) {
+		curthread->t_machdep.tm_badfaultfunc = NULL;
+		return EFAULT;
+	}
+    
+	result = copywordstr((uintptr_t *)userdest, src, len, stoplen, actual);
+    
 	curthread->t_machdep.tm_badfaultfunc = NULL;
 	return result;
 }

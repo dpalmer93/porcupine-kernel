@@ -31,6 +31,7 @@
 #include <kern/errno.h>
 #include <kern/syscall.h>
 #include <lib.h>
+#include <endian.h>
 #include <mips/trapframe.h>
 #include <copyinout.h>
 #include <thread.h>
@@ -86,8 +87,8 @@ syscall(struct trapframe *tf)
 	int err;
 	
 	// for lseek
-	int64_t offset64;
-    int32_t whence; // this must be copied from the stack
+	off_t offset64;
+    int whence; // this must be copied from the stack
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -149,6 +150,9 @@ syscall(struct trapframe *tf)
             retval = sys_dup2((int)tf->tf_a0,
                               (int)tf->tf_a1, &err);
             break;
+        case SYS_remove:
+            err = sys_remove((const_userptr_t)tf->tf_a0);
+            break;
         case SYS_read:
             retval = sys_read((int)tf->tf_a0, 
                               (userptr_t)tf->tf_a1,
@@ -166,10 +170,12 @@ syscall(struct trapframe *tf)
             break;
         case SYS_lseek:
             // extract the offset from aligned pair of regs a2-a3
-            offset64 = ((int64_t)tf->tf_a2 << 32) | tf->tf_a3;
+            join32to64(tf->tf_a2, tf->tf_a3, (uint64_t *)&offset64);
             
-            // copy the whence from the stack
-            err = copyin((const_userptr_t)tf->tf_sp, &whence, 4);
+            // copy the whence from the stack---we need to add
+            // four bytes to sp because the user program
+            // reserves this much space for saving the arg registers
+            err = copyin((const_userptr_t)(tf->tf_sp + 16), &whence, 4);
             if (err) break;
             
             retval64 = sys_lseek((int)tf->tf_a0,

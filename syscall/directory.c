@@ -124,7 +124,7 @@ sys_chdir(const_userptr_t pathname, int *err)
     
     result = copyinstr(pathname, kpathname, PATH_MAX, &got);
     if (result){
-        *err = ENAMETOOLONG;
+        *err = result;
         return -1;
     }
     
