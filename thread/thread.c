@@ -866,6 +866,9 @@ schedule(void)
      * and changing hardclock() to check the number of timeslices
      * a thread has left to run
      */
+     
+     threadlist_shuffle(&curthread->t_cpu->c_runqueue);
+     
 }
 
 /*

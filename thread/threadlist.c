@@ -71,6 +71,8 @@ threadlist_init(struct threadlist *tl, int nprior)
         tl->tl_tail[i].tln_next = NULL;
         tl->tl_tail[i].tln_prev = &tl->tl_head[i];
         tl->tl_tail[i].tln_self = NULL;
+        
+        tl->tl_nperqueue[i] = 0;
     }
     tl->tl_nprior = nprior;
 	tl->tl_count = 0;
@@ -177,7 +179,8 @@ threadlist_addhead(struct threadlist *tl, struct thread *t)
     priority = (priority * tl->tl_nprior) / (PRIORITY_MAX + 1);
     
 	threadlist_insertafternode(&tl->tl_head[priority], t);
-	tl->tl_count++;
+	tl->tl_nperqueue[priority]++;
+    tl->tl_count++;
 }
 
 void
@@ -190,6 +193,7 @@ threadlist_addtail(struct threadlist *tl, struct thread *t)
     priority = (priority * tl->tl_nprior) / (PRIORITY_MAX + 1);
 
 	threadlist_insertbeforenode(t, &tl->tl_tail[priority]);
+    tl->tl_nperqueue[priority]++;
 	tl->tl_count++;
 }
 
@@ -200,9 +204,11 @@ threadlist_remhead(struct threadlist *tl)
 
 	DEBUGASSERT(tl != NULL);
 
+    
     // iterate through all the queues and remove from the
     // head of the first nonempty queue
-    for(int i = 0; i < tl->tl_nprior; i++) {
+    int i;
+    for(i = 0; i < tl->tl_nprior; i++) {
         tln = tl->tl_head[i].tln_next;
         if (tln->tln_next != NULL)
             break;
@@ -214,6 +220,7 @@ threadlist_remhead(struct threadlist *tl)
     
 	threadlist_removenode(tln);
 	DEBUGASSERT(tl->tl_count > 0);
+    tl->tl_nperqueue[i]--;
 	tl->tl_count--;
 	return tln->tln_self;
 }
@@ -227,7 +234,8 @@ threadlist_remtail(struct threadlist *tl)
     
     // iterate backwards through all the queues and
     // and remove the tail of the first nonempty queue
-    for(int i = tl->tl_nprior - 1; i >= 0; i--) {
+    int i;
+    for(i = tl->tl_nprior - 1; i >= 0; i--) {
         tln = tl->tl_tail[i].tln_prev;
         if (tln->tln_prev != NULL)
             break;
@@ -239,10 +247,35 @@ threadlist_remtail(struct threadlist *tl)
     
 	threadlist_removenode(tln);
 	DEBUGASSERT(tl->tl_count > 0);
-	tl->tl_count--;
+	tl->tl_nperqueue[i]--;
+    tl->tl_count--;
 	return tln->tln_self;
 }
 
+void threadlist_shuffle(struct threadlist *tl) {
+    struct threadlistnode *tln;
+    
+    // Uniformly pick a queue to take a node off of
+    int i;
+    do {
+        i = random() % (PRIORITY_MAX + 1);
+    } while (i >= tl->tl_nprior);
+    
+    // if that queue was not empty, pop a node off
+    // and add it to the first queue
+    tln = tl->tl_head[i].tln_next;
+    if (tln->tln_next == NULL) {
+        return;
+    }
+    
+	threadlist_removenode(tln);
+    threadlist_insertafternode(&tl->tl_head[0], tln->tln_self);
+	tl->tl_nperqueue[i]--;
+    tl->tl_nperqueue[0]++;
+    return;
+}
+
+/* Not supported anymore
 void
 threadlist_insertafter(struct threadlist *tl,
 		       struct thread *onlist, struct thread *addee)
@@ -266,3 +299,4 @@ threadlist_remove(struct threadlist *tl, struct thread *t)
 	DEBUGASSERT(tl->tl_count > 0);
 	tl->tl_count--;
 }
+*/

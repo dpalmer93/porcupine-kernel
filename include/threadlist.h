@@ -65,6 +65,7 @@ struct threadlist {
 	struct threadlistnode tl_tail[PRIORITY_MAX + 1];
 	unsigned tl_count;
     int tl_nprior; // number of priorities in queue
+    int tl_nperqueue[PRIORITY_MAX + 1];
 };
 
 /* Initialize and clean up a thread list node. */
@@ -84,12 +85,16 @@ void threadlist_addtail(struct threadlist *tl, struct thread *t);
 struct thread *threadlist_remhead(struct threadlist *tl);
 struct thread *threadlist_remtail(struct threadlist *tl);
 
+void threadlist_shuffle(struct threadlist *tl);
+
 /* Add and remove: in middle. (TL is needed to maintain ->tl_count.) */
+/*
 void threadlist_insertafter(struct threadlist *tl,
 			    struct thread *onlist, struct thread *addee);
 void threadlist_insertbefore(struct threadlist *tl,
 			     struct thread *addee, struct thread *onlist);
 void threadlist_remove(struct threadlist *tl, struct thread *t);
+*/
 
 /* Iteration; itervar should previously be declared as (struct thread *) */
 #define THREADLIST_FORALL(itervar, tl) \
