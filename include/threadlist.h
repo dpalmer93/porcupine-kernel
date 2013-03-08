@@ -30,6 +30,8 @@
 #ifndef _THREADLIST_H_
 #define _THREADLIST_H_
 
+#include <limits.h>
+
 
 struct thread;	/* from <thread.h> */
 
