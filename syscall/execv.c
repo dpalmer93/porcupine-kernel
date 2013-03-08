@@ -49,13 +49,13 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     int err;
     struct process *proc = curthread->t_proc;
     
-    char *kpath = kmalloc(PATH_MAX);
+    char *kpath = kmalloc(PATH_MAX + 1);
     if (kpath == NULL)
         return ENOMEM;
     
     // copy in path
     size_t path_len;
-    if ((err = copyinstr(path, kpath, PATH_MAX, &path_len)))
+    if ((err = copyinstr(path, kpath, PATH_MAX + 1, &path_len)))
     {
         kfree(kpath);
         return err;
@@ -74,7 +74,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     // copy in args
     size_t argc;
     size_t total_len;
-    char *kargv[ARGNUM_MAX + 1];
+    char **kargv = kmalloc((ARGNUM_MAX + 1) * sizeof(char *));
     err = copyinargs(argv, kargv, &argc, &total_len);
     if (err)
     {
@@ -181,12 +181,15 @@ copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_l
     size_t argc;
     
     // reserve space for arg pointers (and null-terminator)
-    userptr_t uargv[ARGNUM_MAX + 1];
+    userptr_t *uargv = kmalloc((ARGNUM_MAX + 1) * sizeof(userptr_t));
     
     // try to copy the argv array
     err = copyinwordstr(argv, (uintptr_t *)uargv, ARGNUM_MAX + 1, &argc);
     if (err)
+    {
+        kfree(uargv);
         return err;
+    }
     
     // discount null-terminator from argc
     argc -= 1;
@@ -203,6 +206,7 @@ copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_l
         // check bounds
         if (kargs_cur - kargs >= ARG_MAX)
         {
+            kfree(uargv);
             kfree(kargs);
             return E2BIG;
         }
@@ -213,6 +217,7 @@ copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_l
         err = copyinstr(uargv[i], kargs_cur, ARG_MAX, &arg_len);
         if (err)
         {
+            kfree(uargv);
             kfree(kargs);
             if (err == ENAMETOOLONG)
                 return E2BIG;
@@ -234,6 +239,7 @@ copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_l
         }
     }
     
+    kfree(uargv);
     *argc_ret = argc;
     *total_len = kargs_cur - kargs;
     return 0;
@@ -244,7 +250,7 @@ int
 copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len)
 {
     int err;
-    userptr_t uargv[argc + 1];
+    userptr_t *uargv = kmalloc((argc + 1) * sizeof(userptr_t));
     
     // allocate space for argv array and null terminator
     userptr_t start_of_args = argv + (argc + 1) * sizeof(userptr_t);
@@ -253,6 +259,7 @@ copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len)
     err = copyout(kargv[0], start_of_args, total_len);
     if(err)
     {
+        kfree(uargv);
         free_kargv(kargv);
         return err;
     }
@@ -268,11 +275,13 @@ copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len)
     err = copyout(uargv, argv, (argc + 1) * sizeof(userptr_t));
     if (err)
     {
+        kfree(uargv);
         free_kargv(kargv);
         return err;
     }
     
-    // free temporary buffer
+    // free temporary buffers
+    kfree(uargv);
     free_kargv(kargv);
     
     return 0;
@@ -282,4 +291,5 @@ void
 free_kargv(char **kargv)
 {
     kfree(kargv[0]);
+    kfree(kargv);
 }

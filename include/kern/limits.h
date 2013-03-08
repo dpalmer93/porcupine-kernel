@@ -58,7 +58,7 @@
 #define __ARG_MAX       (64 * 1024)
 
 /* Max number of arguments for an exec function */
-#define __ARGNUM_MAX    64
+#define __ARGNUM_MAX    1024
 
 
 /*
