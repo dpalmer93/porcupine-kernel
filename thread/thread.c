@@ -861,14 +861,11 @@ thread_yield(void)
 void
 schedule(void)
 {
-	/* Scheduling is currently implemented by changing the
-     * threadlist data structure into a priority queue
-     * and changing hardclock() to check the number of timeslices
-     * a thread has left to run
+	/*
+     * Randomly choose a lower-priority thread and give it
+     * processor time, so as to prevent starvation.
      */
-     
-     threadlist_shuffle(&curthread->t_cpu->c_runqueue);
-     
+    threadlist_shuffle(&curthread->t_cpu->c_runqueue);
 }
 
 /*
