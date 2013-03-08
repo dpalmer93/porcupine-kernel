@@ -333,6 +333,12 @@ file      process/fdt.c
 file      process/process.c
 
 #
+# Scheduler
+#
+
+defoption roundrobin
+
+#
 # Virtual memory system
 # (you will probably want to add stuff here while doing the VM assignment)
 #

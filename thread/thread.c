@@ -51,7 +51,7 @@
 #include <pid_set.h>
 
 #include "opt-synchprobs.h"
-
+#include "opt-roundrobin.h"
 
 /* Magic number used as a guard value on kernel thread stacks. */
 #define THREAD_STACK_MAGIC 0xbaadf00d
@@ -199,7 +199,13 @@ cpu_create(unsigned hardware_number)
 	c->c_hardclocks = 0;
 
 	c->c_isidle = false;
+
+#if OPT_ROUNDROBIN
+    threadlist_init(&c->c_runqueue, 1);
+#else
 	threadlist_init(&c->c_runqueue, PRIORITY_MAX + 1);
+#endif
+
 	spinlock_init(&c->c_runqueue_lock);
 
 	c->c_ipi_pending = 0;
