@@ -100,20 +100,20 @@ hardclock(void)
 		thread_consider_migration();
 	}
     
-    // Decrement the number of timeslices it can run for
-    // If it's 0 make it yield
+    // Decrement the number of timeslices remaining
+    // If it's 0 make curthread yield
     if (curthread->t_ntimeslices > 0)
         curthread->t_ntimeslices--;
     if (curthread->t_ntimeslices == 0) {
         // If it has to yield due to a timer interrupt
         // then we should increment the priority to make it run less often
+        // (LOWER t_priority is better)
         curthread->t_priority++;
         if (curthread->t_priority > PRIORITY_MAX) {
             curthread->t_priority = PRIORITY_MAX;
         }
-        // thread_yield();
+        thread_yield();
     }
-    thread_yield();
 }
 
 /*
