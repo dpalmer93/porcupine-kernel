@@ -27,19 +27,20 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _COREMAP_H_
-#define _COREMAP_H_
-
-#include <addrspace.h>
+#include <addrspace.
 
 struct page_frame {
-    pt_entry *pf_resident;
-    blkcnt_t  pf_backing;
+    struct addrspace   *pf_as;
+    vaddr_t             pf_resident;
+    blkcnt_t            pf_backing;
 };
 
-struct coremap {
+struct page_frame   *core;
+struct spinlock      core_lock = SPINLOCK_INITIALIZER;
+int                  core_lruclock;
+
+void
+core_bootstrap(void)
+{
     
-} core;
-
-
-#endif /* _COREMAP_H_ */
+}

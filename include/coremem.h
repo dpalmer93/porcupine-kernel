@@ -27,23 +27,13 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SWAP_H_
-#define _SWAP_H_
+#ifndef _COREMEM_H_
+#define _COREMEM_H_
 
-#include <vnode.h>
-#include <bitmap.h>
-#include <synch.h>
+// Physical memory management functions
 
-struct swapdisk_t {
-    struct vnode    *swap_node;
-    struct bitmap   *swap_usage;
-    struct rw_mutex *swap_rw;
-} swapdisk;
+void    core_bootstrap(void);
+paddr_t core_get_frame(void);
 
-void        swap_bootstrap(); // initializes the swap structures
-blkcnt_t    swap_get_free(); // returns the index of a free disk block
-void        swap_free(blkcnt_t to_free); // frees a disk block
-int         swap_in(blkcnt_t src, paddr_t dst);  // returns error code
-int         swap_out(paddr_t src, blkcnt_t dst); // returns error code
 
-#endif /* _SWAP_H_ */
+#endif /* _COREMEM_H_ */

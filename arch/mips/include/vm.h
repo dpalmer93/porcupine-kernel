@@ -119,4 +119,26 @@ struct tlbshootdown {
 #define TLBSHOOTDOWN_MAX 16
 
 
+/*
+ * Page Table Entry Declaration
+ * MIPS-Specific
+ */
+struct pt_entry {
+    unsigned pe_valid:1;            // Valid mapping?
+    unsigned pe_write:1;            // Write permission
+    unsigned pe_inmem:1;            // In memory?
+    union {
+        // In-memory fields:
+        struct {
+            unsigned pe_pframe:20;  // Page frame number
+            unsigned pe_accessed:1; // Recently used?
+            unsigned pe_dirty:1;    // Dirty?
+            unsigned pe_cow:1;      // Copy-on-write?
+            unsigned pe_reserved:6; // Reserved for future use
+        };
+        // On-disk fields:
+        unsigned pe_backing:29;
+    };
+};
+
 #endif /* _MIPS_VM_H_ */
