@@ -32,8 +32,8 @@
 
 // Physical memory management functions
 
-void    core_bootstrap(void);
+void    core_bootstrap(void); // must be called after ram_bootstrap()
 paddr_t core_get_frame(void);
-
+void    core_free_frame(paddr_t pframe)
 
 #endif /* _COREMEM_H_ */

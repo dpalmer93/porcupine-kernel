@@ -27,20 +27,53 @@
  * SUCH DAMAGE.
  */
 
-#include <addrspace.
+#include <types.h>
+#include <machine/vm.h>
+#include <addrspace.h>
+#include <lib.h>
+#include <coremem.h>
 
-struct page_frame {
+struct cm_entry {
     struct addrspace   *pf_as;
     vaddr_t             pf_resident;
     blkcnt_t            pf_backing;
 };
 
-struct page_frame   *core;
+struct cm_entry     *coremap;
 struct spinlock      core_lock = SPINLOCK_INITIALIZER;
-int                  core_lruclock;
+unsigned long        core_lruclock;
+unsigned long        core_nframes;
 
 void
 core_bootstrap(void)
+{
+    // get total physical memory
+    paddr_t lo;
+    paddr_t hi;
+    ram_getsize(&lo, &hi);
+    
+    // calculate size of coremap
+    core_nframes = (hi - lo) / PAGE_SIZE;
+    size_t cmsize = core_nframes * sizeof(struct cm_entry);
+    
+    // allocate space for coremap
+    size_t cm_npages = (cmsize + PAGE_SIZE - 1) / PAGE_SIZE;
+    coremap = (struct cm_entry *)ram_stealmem(cm_npages);
+    if (coremap == NULL)
+        panic("Error during core map initialization!");
+    
+    // zero coremap
+    bzero(coremap, cmsize);
+}
+
+paddr_t
+core_get_frame(void)
+{
+    
+}
+
+void
+core_free_frame(paddr_t pframe)
 {
     
 }
