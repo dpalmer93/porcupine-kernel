@@ -45,8 +45,8 @@ struct page_table;
 
 struct page_table  *pt_create();
 void                pt_destroy(struct page_table *pt);
-paddr_t             pt_translate(vaddr_t vaddr);
-void                pt_set(vaddr_t vaddr, paddr_t paddr);
+paddr_t             pt_translate(const struct page_table *pt, vaddr_t vaddr);
+void                pt_set(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
 
 
 /*

@@ -142,4 +142,14 @@ struct pt_entry {
     };
 };
 
+/*
+ * Core Map Entry Declaration
+ * MIPS-specific
+ */
+struct cm_entry {
+    unsigned pf_pid:15;
+    unsigned pf_vpn:20;
+    unsigned pf_backing:29;
+};
+
 #endif /* _MIPS_VM_H_ */

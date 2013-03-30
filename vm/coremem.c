@@ -33,12 +33,6 @@
 #include <lib.h>
 #include <coremem.h>
 
-struct cm_entry {
-    struct addrspace   *pf_as;
-    vaddr_t             pf_resident;
-    blkcnt_t            pf_backing;
-};
-
 struct cm_entry     *coremap;
 struct spinlock      core_lock = SPINLOCK_INITIALIZER;
 unsigned long        core_lruclock;
