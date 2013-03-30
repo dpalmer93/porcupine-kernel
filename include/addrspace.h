@@ -40,12 +40,30 @@
 
 struct vnode;
 
+struct pt_entry {
+    unsigned pe_valid:1;            // Valid mapping?
+    unsigned pe_write:1;            // Write permission
+    unsigned pe_inmem:1;            // In memory?
+    union {
+        struct {
+            unsigned pe_pframe:20;  // Page frame number
+            unsigned pe_accessed:1; // Recently used?
+            unsigned pe_dirty:1;    // Dirty?
+            unsigned pe_cow:1;      // Copy-on-write?
+            unsigned pe_reserved:6; // Reserved for future use
+        };
+        unsigned pe_backing:29;
+    };
+};
+
+struct page_table {
+
+};
+
 
 /*
  * Address space - data structure associated with the virtual memory
  * space of a process.
- *
- * You write this.
  */
 
 struct addrspace {
