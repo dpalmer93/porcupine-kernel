@@ -131,14 +131,14 @@ struct pt_entry {
     union {
         // In-memory fields:
         struct {
-            unsigned pe_pframe:20;  // Page frame number
             unsigned pe_accessed:1; // Recently used?
             unsigned pe_dirty:1;    // Dirty?
             unsigned pe_cow:1;      // Copy-on-write?
             unsigned pe_reserved:6; // Reserved for future use
+            unsigned pe_pframe:20;  // Page frame number
         };
         // On-disk fields:
-        unsigned pe_backing:29;
+        unsigned pe_swapblk:29;
     };
 };
 
@@ -149,7 +149,16 @@ struct pt_entry {
 struct cm_entry {
     unsigned pf_pid:15;
     unsigned pf_vpn:20;
-    unsigned pf_backing:29;
+    unsigned pf_swapblk:29;
 };
+
+// compose a coremap entry
+#define CM_ENTRY(pid, vaddr, swapblk) { \
+    .pf_pid     = (pid),                \
+    .pf_vpn     = PAGE_NUM(vaddr)       \
+    .pf_swapblk = (swapblk)             \
+};
+
+#define PAGE_RESERVED(cme) ((cme).pf_vpn != 0x0)
 
 #endif /* _MIPS_VM_H_ */

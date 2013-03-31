@@ -33,10 +33,11 @@
 #include <lib.h>
 #include <coremem.h>
 
-struct cm_entry     *coremap;
-struct spinlock      core_lock = SPINLOCK_INITIALIZER;
-unsigned long        core_lruclock;
-unsigned long        core_nframes;
+static struct cm_entry *coremap;
+static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
+static unsigned long    core_lruclock;
+static unsigned long    core_start;
+static unsigned long    core_len;
 
 void
 core_bootstrap(void)
@@ -47,27 +48,53 @@ core_bootstrap(void)
     ram_getsize(&lo, &hi);
     
     // calculate size of coremap
-    core_nframes = (hi - lo) / PAGE_SIZE;
-    size_t cmsize = core_nframes * sizeof(struct cm_entry);
+    core_len = (hi - lo) / PAGE_SIZE;
+    size_t cmsize = core_len * sizeof(struct cm_entry);
+    size_t cm_npages = (cmsize + PAGE_SIZE - 1) / PAGE_SIZE;
     
     // allocate space for coremap
-    size_t cm_npages = (cmsize + PAGE_SIZE - 1) / PAGE_SIZE;
-    coremap = (struct cm_entry *)ram_stealmem(cm_npages);
-    if (coremap == NULL)
+    coremap = (struct cm_entry *)PADDR_TO_KVADDR(ram_stealmem(cm_npages));
+    if (coremap == KSEG0) // ram_stealmem() should not return 0
         panic("Error during core map initialization!");
     
     // zero coremap
     bzero(coremap, cmsize);
+    
+    // reserve kernel pages for coremap
+    for (int i = 0; i < cm_npages; i++)
+    {
+        coremap[i].pf_vpn = CM_ENTRY(KERN_PAGE, PADDR_TO_KVADDR(i * PAGE_SIZE), 0x0);
+    }
+    
+    // start LRU clock
+    // do not bother clocking coremap pages
+    core_clockstart = cm_npages;
+    core_lruclock = core_start;
 }
 
 paddr_t
-core_get_frame(void)
+core_fetch(void)
+{
+    spinlock_acquire(core_lock);
+    for (int i = core_lruclock + 1; i != core_lruclock; i++)
+    {
+        if (i == core_len)
+            i = core_start;
+        
+        
+    }
+    core_lruclock = i;
+    spinlock_release(core_lock);
+}
+
+void
+core_free(paddr_t frame)
 {
     
 }
 
 void
-core_free_frame(paddr_t pframe)
+core_evict(paddr_t frame)
 {
     
 }

@@ -30,10 +30,13 @@
 #ifndef _COREMEM_H_
 #define _COREMEM_H_
 
+#define KERN_PAGE 0
+
 // Physical memory management functions
 
 void    core_bootstrap(void); // must be called after ram_bootstrap()
-paddr_t core_get_frame(void);
-void    core_free_frame(paddr_t pframe)
+paddr_t core_fetch(void);
+void    core_free(paddr_t frame);
+void    core_evict(paddr_t frame);
 
 #endif /* _COREMEM_H_ */
