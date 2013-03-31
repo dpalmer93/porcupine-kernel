@@ -126,19 +126,18 @@ struct tlbshootdown {
  */
 struct pt_entry {
     unsigned pe_valid:1;            // Valid mapping?
+    unsigned pe_busy:1;             // For synchronization
     unsigned pe_write:1;            // Write permission
     unsigned pe_inmem:1;            // In memory?
     union {
         // In-memory fields:
         struct {
-            unsigned pe_accessed:1; // Recently used?
-            unsigned pe_dirty:1;    // Dirty?
             unsigned pe_cow:1;      // Copy-on-write?
-            unsigned pe_reserved:6; // Reserved for future use
+            unsigned pe_reserved:7; // Reserved for future use
             unsigned pe_pframe:20;  // Page frame number
         };
         // On-disk fields:
-        unsigned pe_swapblk:29;
+        unsigned pe_swapblk:28;
     };
 };
 
@@ -147,9 +146,12 @@ struct pt_entry {
  * MIPS-specific
  */
 struct cm_entry {
-    unsigned pf_pid:15;
-    unsigned pf_vpn:20;
-    unsigned pf_swapblk:29;
+    unsigned         ce_kernel:1;   // In use by kernel?
+    unsigned         ce_busy:1;     // For synchronization
+    unsigned         ce_accessed:1; // Recently used?
+    unsigned         ce_dirty:1;    // Dirty?
+    unsigned         ce_swapblk:28; // Swap backing block
+    struct pt_entry *ce_resident;   // Resident virtual page mapping
 };
 
 // compose a coremap entry

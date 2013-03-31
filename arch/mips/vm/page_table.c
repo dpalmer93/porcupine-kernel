@@ -40,7 +40,7 @@ struct page_table
 {
     struct pt_entry *pt_index[LEVEL_SIZE];
     struct spinlock  pt_lock;
-}
+};
 
 struct page_table *
 pt_create()
