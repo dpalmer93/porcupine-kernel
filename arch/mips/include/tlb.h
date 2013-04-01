@@ -61,6 +61,17 @@ void tlb_read(uint32_t *entryhi, uint32_t *entrylo, uint32_t index);
 int tlb_probe(uint32_t entryhi, uint32_t entrylo);
 
 /*
+ * TLB utility functions:
+ *
+ * tlb_dirty: set the dirty bit on an *existing* TLB entry
+ *
+ * tlb_load_pte: load a page table mapping into the TLB
+ */
+void tlb_dirty(vaddr_t vaddr);
+void tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte);
+
+
+/*
  * TLB entry fields.
  *
  * Note that the MIPS has support for a 6-bit address space ID. In the

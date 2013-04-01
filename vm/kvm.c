@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2013
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,44 +25,29 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ * Kernel Virtual Memory
  */
 
-#ifndef _VM_H_
-#define _VM_H_
-
-/*
- * VM system-related definitions.
- */
-
-
+#include <vm.h>
 #include <machine/vm.h>
 
-/* Fault-type arguments to vm_fault() */
-#define VM_FAULT_READ        0    /* A read was attempted */
-#define VM_FAULT_WRITE       1    /* A write was attempted */
-#define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
 
-/* Initialization function */
-void vm_bootstrap(void);
+vaddr_t
+alloc_kpages(int npages)
+{
+    // get a block of memory in k2seg
+    
+    // get physical pages and map them into k2seg
+    for (int i = 0; i < npages; i++)
+    {
+        
+    }
+}
 
-/* Fault handling function called by trap code
- * Returns 0 on success
- */
-int vm_fault(int faulttype, vaddr_t faultaddress);
-
-/* Page fault handling function called by vm_fault()
- * to handle a page fault.
- */
-int vm_page_fault(vaddr_t faultaddress, struct pt_entry *pte);
-
-/* Allocate/free kernel heap pages (called by kmalloc/kfree) */
-vaddr_t alloc_kpages(int npages);
-void free_kpages(vaddr_t addr);
-
-/* TLB shootdown handling called from interprocessor_interrupt */
-void vm_tlbshootdown_all(void);
-void vm_tlbshootdown(const struct tlbshootdown *);
-
-
-#endif /* _VM_H_ */
+void
+free_kpages(vaddr_t addr)
+{
+    // FIXME!
+}

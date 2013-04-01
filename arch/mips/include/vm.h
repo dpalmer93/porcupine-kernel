@@ -119,25 +119,25 @@ struct tlbshootdown {
 
 #define TLBSHOOTDOWN_MAX 16
 
-
 /*
  * Page Table Entry Declaration
  * MIPS-Specific
  */
 struct pt_entry {
-    unsigned pe_valid:1;            // Valid mapping?
-    unsigned pe_busy:1;             // For synchronization
-    unsigned pe_write:1;            // Write permission
-    unsigned pe_inmem:1;            // In memory?
+    volatile unsigned   pte_busy:1;     // For synchronization
+    unsigned            pte_write:1;    // Write permission
+    unsigned            pte_inmem:1;    // In memory?
     union {
-        // In-memory fields:
+        // ---------------- In-memory fields ---------------- //
         struct {
-            unsigned pe_cow:1;      // Copy-on-write?
-            unsigned pe_reserved:7; // Reserved for future use
-            unsigned pe_pframe:20;  // Page frame number
+            unsigned    pte_term:1;     // End of an extent? (kernel VM only)
+            unsigned    pte_accessed:1; // Recently accessed?
+            unsigned    pte_dirty:1;    // Dirty page?
+            unsigned    pte_reserved:6; // Reserved for future use
+            unsigned    pte_frame:20;   // Page frame number
         };
-        // On-disk fields:
-        unsigned pe_swapblk:28;
+        // ----------------- On-disk fields ----------------- //
+        unsigned        pte_swapblk:29; // Swap backing block
     };
 };
 
@@ -146,12 +146,11 @@ struct pt_entry {
  * MIPS-specific
  */
 struct cm_entry {
-    unsigned         ce_kernel:1;   // In use by kernel?
-    unsigned         ce_busy:1;     // For synchronization
-    unsigned         ce_accessed:1; // Recently used?
-    unsigned         ce_dirty:1;    // Dirty?
-    unsigned         ce_swapblk:28; // Swap backing block
-    struct pt_entry *ce_resident;   // Resident virtual page mapping
+    unsigned         cme_kernel:1;   // In use by kernel?
+    unsigned         cme_busy:1;     // For synchronization
+    unsigned         cme_reserved:1; // Reserved for future use
+    unsigned         cme_swapblk:29; // Swap backing block
+    struct pt_entry *cme_resident;   // Resident virtual page mapping
 };
 
 // compose a coremap entry
@@ -160,7 +159,5 @@ struct cm_entry {
     .pf_vpn     = PAGE_NUM(vaddr)       \
     .pf_swapblk = (swapblk)             \
 };
-
-#define PAGE_RESERVED(cme) ((cme).pf_vpn != 0x0)
 
 #endif /* _MIPS_VM_H_ */

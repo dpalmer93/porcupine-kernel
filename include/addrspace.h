@@ -41,12 +41,26 @@
 
 struct vnode;
 
+struct pt_entry;
 struct page_table;
 
 struct page_table  *pt_create();
 void                pt_destroy(struct page_table *pt);
+
+/* SYNCHRONIZATION:
+ *     If pt_acquire_entry() returns NULL, then no such page table
+ * entry exists.
+ */
+struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
+void                pt_release_entry(struct page_table *pt, pt_entry *pte);
+
 paddr_t             pt_translate(const struct page_table *pt, vaddr_t vaddr);
 void                pt_set(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
+
+
+// Must hold pte (via pt_acquire_entry()) to use these
+void pte_try_access(struct pt_entry *pte);
+bool pte_try_dirty(struct pt_entry *pte);
 
 
 /*

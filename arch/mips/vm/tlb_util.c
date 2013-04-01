@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2013
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,42 +27,39 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _VM_H_
-#define _VM_H_
+#include <vm.h>
+#include <tlb.h>
 
-/*
- * VM system-related definitions.
- */
-
-
-#include <machine/vm.h>
-
-/* Fault-type arguments to vm_fault() */
-#define VM_FAULT_READ        0    /* A read was attempted */
-#define VM_FAULT_WRITE       1    /* A write was attempted */
-#define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
-
-
-/* Initialization function */
-void vm_bootstrap(void);
-
-/* Fault handling function called by trap code
- * Returns 0 on success
- */
-int vm_fault(int faulttype, vaddr_t faultaddress);
-
-/* Page fault handling function called by vm_fault()
- * to handle a page fault.
- */
-int vm_page_fault(vaddr_t faultaddress, struct pt_entry *pte);
-
-/* Allocate/free kernel heap pages (called by kmalloc/kfree) */
-vaddr_t alloc_kpages(int npages);
-void free_kpages(vaddr_t addr);
-
-/* TLB shootdown handling called from interprocessor_interrupt */
-void vm_tlbshootdown_all(void);
-void vm_tlbshootdown(const struct tlbshootdown *);
+void
+tlb_dirty(vaddr_t vaddr)
+{
+    // get the index of the existing entry
+    uint32_t entryhi = (vaddr & TLBHI_VPAGE);
+    uint32_t entrylo = 0;
+    uint32_t index = tlb_probe(entryhi, entrylo);
+    KASSERT(index >= 0);
+    
+    // get the entry
+    tlb_read(&entryhi, &entrylo, index);
+    
+    // set the dirty bit
+    entrylo |= TLBLO_DIRTY;
+    tlb_write(entryhi, entrylo, index);
+}
 
 
-#endif /* _VM_H_ */
+void
+tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
+{
+    uint32_t entryhi = (vaddr & TLBHI_VPAGE);
+    uint32_t entrylo = (pte.pte_frame << 12)
+    | (pte.pte_dirty << 10)
+    | (1 << 9);
+    
+    // if the VPN is already in the TLB, replace it
+    uint32_t index = tlb_probe(entryhi, 0);
+    if (index >= 0)
+        tlb_write(entryhi, entrylo, index);
+    else // otherwise, use a random slot
+        tlb_random(entryhi, entrylo);
+}

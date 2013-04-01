@@ -27,7 +27,9 @@
  * SUCH DAMAGE.
  */
 
+#include <types.h>
 #include <machine/vm.h>
+#include <errno.h>
 #include <addrspace.h>
 
 #define LEVEL_SIZE 1024
@@ -62,6 +64,50 @@ pt_destroy(struct page_table *pt)
     kfree(pt);
 }
 
+/**************** SYNCHRONIZATION FUNCTIONS ****************/
+
+// NON-BLOCKING: If the page table entry is busy, this returns
+// NULL
+struct pt_entry *
+pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
+{
+    unsigned long l1_idx = L1_INDEX(vaddr);
+    unsigned long l2_idx = L2_INDEX(vaddr);
+    unsigned long offset = PAGE_OFFSET(vaddr);
+    
+    spinlock_acquire(pt->pt_lock);
+    if (pt->pt_index[l1_idx] == NULL) {
+        spinlock_release(pt->pt_lock);
+        return NULL;
+    }
+    else {
+        struct pt_entry *entry = pt->pt_index[l1_idx][l2_idx];
+        if (entry == NULL || entry->pte_busy) {
+            spinlock_release(pt->pt_lock);
+            return NULL;
+        }
+        else {
+            entry->pte_busy = 1;
+            spinlock_release(pt->pt_lock);
+            return entry;
+        }
+    }
+}
+
+void
+pt_release_entry(struct page_table *pt, struct pt_entry *entry)
+{
+    spinlock_acquire(pt->pt_lock);
+    KASSERT(entry->pte_busy);
+    entry->pte_busy = 0;
+    spinlock_release(pt->pt_lock);
+}
+
+/***********************************************************/
+
+
+
+// Synchronized
 paddr_t
 pt_translate(const struct page_table *pt, vaddr_t vaddr)
 {
@@ -78,18 +124,19 @@ pt_translate(const struct page_table *pt, vaddr_t vaddr)
     else
     {
         struct pt_entry *entry = pt->pt_index[l1_idx][l2_idx];
-        if (!entry->pe_valid)
+        if (entry == NULL)
         {
             spinlock_release(pt->pt_lock);
             return NULL;
         }
         spinlock_release(pt->pt_lock);
-        return MAKE_ADDR(entry->pe_pframe, offset);
+        return MAKE_ADDR(entry->pte_frame, offset);
     }
 }
 
+// Synchronized
 void
-pt_set(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
+pt_set(struct page_table *pt, vaddr_t vaddr, paddr_t paddr, bool write)
 {
     unsigned long l1_idx = L1_INDEX(vaddr);
     unsigned long l2_idx = L2_INDEX(vaddr);
@@ -105,15 +152,43 @@ pt_set(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
     
     // initialize entry
     pt->pt_index[l1_idx][l2_idx] = {
-        .pe_valid = 1,
-        .pe_write = 0,
-        .pe_inmem = 1,
-        .pe_pframe = ppnum,
-        .pe_accessed = 0,
-        .pe_dirty = 0,
-        .pe_cow = 0,
-        .pe_reserved = 0
+        .pte_busy = 0,
+        .pte_write = write,
+        .pte_inmem = 1,
+        .pte_term = 0,
+        .pte_accessed = 0,
+        .pte_dirty = 0,
+        .pte_cow = 0,
+        .pte_reserved = 0
+        .pte_frame = ppnum,
     };
     
     spinlock_release(pt->pt_lock);
+}
+
+/******** Must be called with the pt_entry locked ********/
+
+
+bool
+pte_try_access(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    if (pte->pte_inmem) {
+        pte->pte_accessed = 1;
+        return true;
+    }
+    return false;
+}
+
+bool
+pte_try_dirty(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    if (pte->pte_inmem && pte->pte_write) {
+        pte->pte_dirty = 1;
+        return true;
+    }
+    return false;
 }
