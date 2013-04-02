@@ -54,7 +54,7 @@ core_bootstrap(void)
     
     // allocate space for coremap
     coremap = (struct cm_entry *)PADDR_TO_KVADDR(ram_stealmem(cm_npages));
-    if (coremap == KSEG0) // ram_stealmem() should not return 0
+    if (coremap == MIPS_KSEG0) // ram_stealmem() should not return 0
         panic("Error during core map initialization!");
     
     // zero coremap

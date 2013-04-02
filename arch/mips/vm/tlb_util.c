@@ -29,10 +29,14 @@
 
 #include <vm.h>
 #include <tlb.h>
+#include <spl.h>
 
 void
 tlb_dirty(vaddr_t vaddr)
 {
+    // turn off interrupts to make this atomic w.r.t. this CPU
+    int x = splhigh();
+    
     // get the index of the existing entry
     uint32_t entryhi = (vaddr & TLBHI_VPAGE);
     uint32_t entrylo = 0;
@@ -45,16 +49,21 @@ tlb_dirty(vaddr_t vaddr)
     // set the dirty bit
     entrylo |= TLBLO_DIRTY;
     tlb_write(entryhi, entrylo, index);
+    
+    splx(x);
 }
 
 
 void
 tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
 {
+    // turn off interrupts to make this atomic w.r.t. this CPU
+    int x = splhigh();
+    
     uint32_t entryhi = (vaddr & TLBHI_VPAGE);
     uint32_t entrylo = (pte.pte_frame << 12)
     | (pte.pte_dirty << 10)
-    | (1 << 9);
+    | TLBLO_VALID;
     
     // if the VPN is already in the TLB, replace it
     uint32_t index = tlb_probe(entryhi, 0);
@@ -62,4 +71,6 @@ tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
         tlb_write(entryhi, entrylo, index);
     else // otherwise, use a random slot
         tlb_random(entryhi, entrylo);
+    
+    splx(x);
 }

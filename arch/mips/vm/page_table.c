@@ -28,7 +28,7 @@
  */
 
 #include <types.h>
-#include <machine/vm.h>
+#include <vm.h>
 #include <errno.h>
 #include <addrspace.h>
 

@@ -29,20 +29,28 @@
  * Kernel Virtual Memory
  */
 
-#include <vm.h>
 #include <machine/vm.h>
+#include <spinlock.h>
+#include <coremem.h>
+#include <vm.h>
 
-
+static vaddr_t kvm_heaptop;
+static spinlock kvm_heaplock = SPINLOCK_INITIALIZER;
 
 vaddr_t
 alloc_kpages(int npages)
 {
-    // get a block of memory in k2seg
+    // get a block of memory in kernel virtual memory
+    spinlock_acquire(kvm_heaplock);
+    vaddr_t block = kvm_heaptop;
+    kvm_heaptop += npages * PAGE_SIZE;
+    spinlock_release(kvm_heaplock);
     
-    // get physical pages and map them into k2seg
+    // get physical pages and map them into kseg2
     for (int i = 0; i < npages; i++)
     {
-        
+        vaddr_t page = block + i * PAGE_SIZE;
+        paddr_t frame = core_fetch();
     }
 }
 
