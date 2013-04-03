@@ -30,13 +30,21 @@
 #ifndef _COREMEM_H_
 #define _COREMEM_H_
 
-#define KERN_PAGE 0
-
-// Physical memory management functions
-
-void    core_bootstrap(void); // must be called after ram_bootstrap()
-paddr_t core_fetch(void);
-void    core_free(paddr_t frame);
-void    core_evict(paddr_t frame);
+/*
+ * Physical memory management operations:
+ *
+ * core_bootstrap: sets up the core map (must be called after ram_bootstrap())
+ *
+ * core_acquire_frame: find and lock a free page frame.
+ *
+ * core_map_frame: map a page frame to a PTE and swap block
+ * (must hold the page frame lock, i.e., have called core_acquire_frame)
+ *
+ * core_free_frame: indicate that a page frame is no longer being used
+ */
+void    core_bootstrap(void);
+paddr_t core_acquire_frame(void);
+void    core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk);
+void    core_free_frame(paddr_t frame);
 
 #endif /* _COREMEM_H_ */

@@ -34,23 +34,52 @@
 #include <coremem.h>
 #include <vm.h>
 
-static vaddr_t kvm_heaptop;
-static spinlock kvm_heaplock = SPINLOCK_INITIALIZER;
+#define KHEAP_MAXPAGES 1024
+
+static struct pt_entry kvm_page_table[KHEAP_MAXPAGES];
+static spinlock kvm_lock = SPINLOCK_INITIALIZER;
+// Number of pages used so far: for synchronizing
+// kernel allocations.
+static int kvm_heaptop;
+
+struct pt_entry *
+kvm_set(vaddr_t vaddr, paddr_t paddr)
+{
+    kvm_page_table[PAGE_NUM(vaddr)] = {
+        .pte_busy = 0,
+        .pte_write = 1,
+        .pte_inmem = 1,
+        .pte_term = 0,
+        .pte_accessed = 1,
+        .pte_dirty = 1,
+        .pte_reserved = 0,
+        .pte_frame = PAGE_NUM(paddr)
+    };
+    return &kvm_page_table[PAGE_NUM(vaddr)];
+}
 
 vaddr_t
 alloc_kpages(int npages)
 {
+    vaddr_t block;
+    
     // get a block of memory in kernel virtual memory
-    spinlock_acquire(kvm_heaplock);
-    vaddr_t block = kvm_heaptop;
-    kvm_heaptop += npages * PAGE_SIZE;
-    spinlock_release(kvm_heaplock);
+    spinlock_acquire(kvm_lock);
+    if (npages + kvm_heaptop > KHEAP_MAXPAGES) {
+        spinlock_release(kvm_lock);
+        return 0;
+    }
+    block = kvm_heaptop * PAGE_SIZE + MIPS_KSEG2;
+    kvm_heaptop += npages;
+    spinlock_release(kvm_lock);
     
     // get physical pages and map them into kseg2
     for (int i = 0; i < npages; i++)
     {
         vaddr_t page = block + i * PAGE_SIZE;
-        paddr_t frame = core_fetch();
+        paddr_t frame = core_acquire_frame(); // acquire the frame
+        struct pt_entry *pte = kvm_set(page, frame);
+        core_map_frame(frame, pte, 0); // use the frame
     }
 }
 

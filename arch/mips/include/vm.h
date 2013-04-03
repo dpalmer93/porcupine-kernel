@@ -141,23 +141,4 @@ struct pt_entry {
     };
 };
 
-/*
- * Core Map Entry Declaration
- * MIPS-specific
- */
-struct cm_entry {
-    unsigned         cme_kernel:1;   // In use by kernel?
-    unsigned         cme_busy:1;     // For synchronization
-    unsigned         cme_reserved:1; // Reserved for future use
-    unsigned         cme_swapblk:29; // Swap backing block
-    struct pt_entry *cme_resident;   // Resident virtual page mapping
-};
-
-// compose a coremap entry
-#define CM_ENTRY(pid, vaddr, swapblk) { \
-    .pf_pid     = (pid),                \
-    .pf_vpn     = PAGE_NUM(vaddr)       \
-    .pf_swapblk = (swapblk)             \
-};
-
 #endif /* _MIPS_VM_H_ */

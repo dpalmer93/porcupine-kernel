@@ -33,6 +33,15 @@
 #include <lib.h>
 #include <coremem.h>
 
+
+struct cm_entry {
+    unsigned         cme_kernel:1;   // In use by kernel?
+    unsigned         cme_busy:1;     // For synchronization
+    unsigned         cme_reserved:1; // Reserved for future use
+    unsigned         cme_swapblk:29; // Swap backing block
+    struct pt_entry *cme_resident;   // Resident virtual page mapping
+};
+
 static struct cm_entry *coremap;
 static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
 static unsigned long    core_lruclock;
@@ -63,38 +72,57 @@ core_bootstrap(void)
     // reserve kernel pages for coremap
     for (int i = 0; i < cm_npages; i++)
     {
-        coremap[i].pf_vpn = CM_ENTRY(KERN_PAGE, PADDR_TO_KVADDR(i * PAGE_SIZE), 0x0);
+        coremap[i] = {
+            .cme_kernel = 1,
+            .cme_busy = 0,
+            .cme_reserved = 0,
+            .cme_swapblk = 0,
+            .cme_resident = NULL
+        };
     }
     
     // start LRU clock
     // do not bother clocking coremap pages
-    core_clockstart = cm_npages;
+    core_start = cm_npages;
     core_lruclock = core_start;
 }
 
 paddr_t
-core_fetch(void)
+core_acquire_frame(void)
 {
     spinlock_acquire(core_lock);
-    for (int i = core_lruclock + 1; i != core_lruclock; i++)
+    
+    cm_entry *cme = NULL;
+    while (cme == NULL)
     {
-        if (i == core_len)
-            i = core_start;
+        // get an index uniformly distributed over the
+        // usable part of the core map
+        int idx = random() % core_len;
+        if (idx < core_start)
+            continue;
         
         
     }
-    core_lruclock = i;
+    
+    spinlock_release(core_lock);
+}
+
+paddr_t
+core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk)
+{
+    spinlock_acquire(core_lock);
+    coremap[PAGE_NUMBER(frame)] = {
+        .cme_kernel = 0,
+        .cme_busy = 0,
+        .cme_reserved = 0,
+        .cme_swapblk = swapblk,
+        .cme_resident = pte
+    };
     spinlock_release(core_lock);
 }
 
 void
-core_free(paddr_t frame)
-{
-    
-}
-
-void
-core_evict(paddr_t frame)
+core_free_frame(paddr_t frame)
 {
     
 }
