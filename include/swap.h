@@ -37,7 +37,7 @@
 struct swapdisk_t {
     struct vnode    *swap_node;
     struct bitmap   *swap_usage;
-    struct rw_mutex *swap_rw;
+    struct spinlock *swap_lock;
 } swapdisk;
 
 void        swap_bootstrap(); // initializes the swap structures

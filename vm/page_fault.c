@@ -15,4 +15,7 @@
  *
  */
 int
-vm_page_fault(vaddr_t vaddr, pt_entry *pte);
+vm_page_fault(vaddr_t vaddr, pt_entry *pte)
+{
+    
+}

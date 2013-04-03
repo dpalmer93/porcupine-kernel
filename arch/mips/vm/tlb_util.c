@@ -53,7 +53,7 @@ tlb_dirty(vaddr_t vaddr)
     splx(x);
 }
 
-
+// The PTE lock (pte_busy) should be held before calling this
 void
 tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
 {
