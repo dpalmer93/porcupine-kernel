@@ -74,3 +74,41 @@ tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
     
     splx(x);
 }
+
+void
+tlb_invalidate(vaddr_t vaddr)
+{
+    // turn off interrupts to make this atomic w.r.t. this CPU
+    int x = splhigh();
+    
+    // check whether there is a corresponding entry
+    uint32_t entryhi = (vaddr & TLBHI_VPAGE);
+    uint32_t entrylo = 0;
+    uint32_t index = tlb_probe(entryhi, entrylo);
+    if (index >= 0) {
+        // get the entry
+        tlb_read(&entryhi, &entrylo, index);
+        
+        // clear the valid bit
+        entrylo &= ~TLBLO_VALID;
+        tlb_write(entryhi, entrylo, index);
+    }
+    
+    splx(x);
+}
+
+/*
+ * This should do basically the same thing as tlb_reset().
+ */
+void
+tlb_flush(void)
+{
+    // turn off interrupts to make this atomic w.r.t. this CPU
+    int x = splhigh();
+    
+    for (int i = 0; i < NUM_TLB; i++) {
+        tlb_write(TLBHI_INVALID(i), TLBLO_INVALID, i);
+    }
+    
+    splx(x);
+}

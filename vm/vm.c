@@ -27,6 +27,7 @@
  * SUCH DAMAGE.
  */
 
+#include <addrspace.h>
 #include <vm.h>
 
 void
@@ -39,7 +40,8 @@ int
 vm_fault(int faulttype, vaddr_t faultaddress)
 {
     /* User address fault */
-    struct page_table *pt = curthread->t_proc->ps_addrspace->as_pgtbl;
+    struct addrspace *as = curthread->t_proc->ps_addrspace;
+    struct page_table *pt = as->as_pgtbl;
     struct pt_entry *pte = pt_acquire_entry(pt, faultaddress);
     
     switch (faulttype) {
@@ -48,7 +50,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             // but the dirty bit has been cleared.  In either case,
             // the corresponding PTE must exist.
             KASSERT(pte);
-            if (pte_try_dirty(pte)) {
+            if (as_can_write(as, faultaddress) && pte_try_dirty(pte)) {
                 tlb_dirty(faultaddress, pte);
                 pt_release_entry(pt, pte);
                 return 0;
