@@ -37,7 +37,7 @@
 #define KHEAP_MAXPAGES 1024
 
 // The kernel page table is very simple.  It is just an array
-// of physical addresses.  So kvm_pt[vpn] = 
+// of physical addresses.  So kvm_pt[vpn] = frame_paddr
 static paddr_t kvm_pt[KHEAP_MAXPAGES];
 static spinlock kvm_lock = SPINLOCK_INITIALIZER;
 // Number of pages used so far: for synchronizing
@@ -57,6 +57,18 @@ kvm_translate(vaddr_t vaddr)
     return frame + PAGE_OFFSET(vaddr);
 }
 
+bool
+kvm_validate(vaddr_t vaddr)
+{
+    bool valid;
+    
+    spinlock_acquire(kvm_lock);
+    valid = ((vaddr - MIPS_KSEG2) / PAGE_SIZE) < kvm_heaptop;
+    spinlock_release(kvm_lock);
+    
+    return valid;
+}
+
 vaddr_t
 alloc_kpages(int npages)
 {
@@ -72,14 +84,8 @@ alloc_kpages(int npages)
     kvm_heaptop += npages;
     spinlock_release(kvm_lock);
     
-    // get physical pages and map them into kseg2
-    for (int i = 0; i < npages; i++)
-    {
-        vaddr_t page = block + i * PAGE_SIZE;
-        paddr_t frame = core_acquire_frame(); // acquire the frame
-        struct pt_entry *pte = kvm_set(page, frame);
-        core_map_frame(frame, pte, 0); // use the frame
-    }
+    // no need to actually map physical pages:
+    // let the page fault handler deal with this
 }
 
 void

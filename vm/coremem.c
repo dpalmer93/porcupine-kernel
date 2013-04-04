@@ -44,7 +44,6 @@ struct cm_entry {
 static struct cm_entry *coremap;
 static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
 static size_t           core_lruclock;
-static size_t           core_start;
 static size_t           core_len;
 
 void
@@ -74,46 +73,47 @@ core_bootstrap(void)
         coremap[i] = {
             .cme_kernel = 1,
             .cme_busy = 0,
-            .cme_reserved = 0,
             .cme_swapblk = 0,
             .cme_resident = NULL
         };
     }
     
     // start LRU clock
-    // do not bother clocking coremap pages
-    core_start = cm_npages;
-    core_lruclock = core_start;
+    core_lruclock = cm_npages;
 }
 
 paddr_t
 core_acquire_frame(void)
 {
+    // get an index uniformly distributed over the core map
+    int i = i0 = random() % core_len;
+    
+    // look for a free frame
     spinlock_acquire(core_lock);
-    
-    cm_entry *cme = NULL;
-    while (cme == NULL)
-    {
-        // get an index uniformly distributed over the
-        // usable part of the core map
-        int idx = random() % core_len;
-        if (idx < core_start)
-            continue;
-        
-        
+    while (coremap[i].cme_kernel || coremap[i].cme_busy || coremap[i].cme_resident) {
+        i++;
+        if (i == core_len)
+            i = 0;
+        if (i == i0) {
+            // FAILED...
+            spinlock_release(core_lock);
+            return 0;
+        }
+            
     }
-    
+    coremap[i].cme_busy = 1;
     spinlock_release(core_lock);
 }
 
-paddr_t
+void
 core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk)
 {
     spinlock_acquire(core_lock);
+    // should hold the frame's lock first
+    KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
     coremap[PAGE_NUMBER(frame)] = {
         .cme_kernel = 0,
         .cme_busy = 0,
-        .cme_reserved = 0,
         .cme_swapblk = swapblk,
         .cme_resident = pte
     };
@@ -121,7 +121,27 @@ core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk)
 }
 
 void
+core_reserve_frame(paddr_t frame)
+{
+    spinlock_acquire(core_lock);
+    coremap[i] = {
+        .cme_kernel = 1,
+        .cme_busy = 0,
+        .cme_swapblk = 0,
+        .cme_resident = NULL
+    };
+    spinlock_release(core_lock);
+}
+
+void
 core_free_frame(paddr_t frame)
 {
-    
+    spinlock_acquire(core_lock);
+    coremap[PAGE_NUMBER(frame)] = {
+        .cme_kernel = 0,
+        .cme_busy = 0,
+        .cme_swapblk = 0,
+        .cme_resident = NULL
+    };
+    spinlock_release(core_lock);
 }

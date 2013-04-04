@@ -33,18 +33,24 @@
 /*
  * Physical memory management operations:
  *
- * core_bootstrap: sets up the core map (must be called after ram_bootstrap())
+ * core_bootstrap - set up the core map (must be called after ram_bootstrap())
  *
- * core_acquire_frame: find and lock a free page frame.
+ * core_acquire_frame - find and lock a free page frame.
  *
- * core_map_frame: map a page frame to a PTE and swap block
- * (must hold the page frame lock, i.e., have called core_acquire_frame)
+ * core_map_frame - map a page frame to a PTE and swap block
+ *                  (must hold the page frame lock, i.e., have called
+ *                  core_acquire_frame)
  *
- * core_free_frame: indicate that a page frame is no longer being used
+ * core_reserve_frame - reserve a frame for kernel use.  Thereafter,
+ *                  until the frame is freed, the frame's contents cannot be
+ *                  evicted.
+ *
+ * core_free_frame - indicate that a page frame is no longer being used
  */
 void    core_bootstrap(void);
 paddr_t core_acquire_frame(void);
 void    core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk);
+void    core_reserve_frame(paddr_t frame);
 void    core_free_frame(paddr_t frame);
 
 #endif /* _COREMEM_H_ */
