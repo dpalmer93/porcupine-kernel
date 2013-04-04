@@ -36,32 +36,27 @@
 
 
 #include <vm.h>
-#include <machine/vm.h>
+#include <page_table.h>
 #include "opt-dumbvm.h"
 
 struct vnode;
 
-struct pt_entry;
-struct page_table;
-
-struct page_table  *pt_create();
-void                pt_destroy(struct page_table *pt);
-
-/* SYNCHRONIZATION:
- *     If pt_acquire_entry() returns NULL, then no such page table
- * entry exists.
+/*
+ * VM Segment - data structure representing a block of memory with
+ * common permissions.
  */
-struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
-void                pt_release_entry(struct page_table *pt, pt_entry *pte);
 
-paddr_t             pt_translate(const struct page_table *pt, vaddr_t vaddr);
-void                pt_set(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
+struct segment {
+    vaddr_t seg_base;
+    size_t  seg_npages;
+    bool    seg_write; // write permission
+}
 
+void init_segment(struct segment *seg);
+bool in_segment(struct segment *seg, vaddr_t vaddr);
 
-// Must hold pte (via pt_acquire_entry()) to use these
-void pte_try_access(struct pt_entry *pte);
-bool pte_try_dirty(struct pt_entry *pte);
-
+// number of segments (other than stack and heap)
+#define NSEGS 4
 
 /*
  * Address space - data structure associated with the virtual memory
@@ -77,8 +72,11 @@ struct addrspace {
 	paddr_t as_pbase2;
 	size_t as_npages2;
 	paddr_t as_stackpbase;
-#else
+#elif OPT_PORCUPINEVM
 	struct page_table *as_pgtbl;
+    struct segment as_segs[NSEGS];
+    struct segment as_stack;
+    struct segment as_heap;
 #endif
 };
 
@@ -129,6 +127,23 @@ int               as_define_region(struct addrspace *as,
 int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
+
+
+
+/*
+ * Porcupine VM only (not dumbvm):
+ * 
+ *    as_can_read - tests whether the specified virtual address is valid, i.e.,
+ *                  whether the process can read from it
+ *
+ *    as_can_write - tests whether the process can write to the specified
+ *                  virtual address
+ */
+ 
+#if OPT_PORCUPINEVM
+bool as_can read(struct addrspace *as, vaddr_t vaddr);
+bool as_can_write(struct addrspace *as, vaddr_t vaddr);
+#endif
 
 
 /*

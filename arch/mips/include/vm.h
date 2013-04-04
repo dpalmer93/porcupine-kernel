@@ -37,7 +37,9 @@
 
 #define PAGE_SIZE  4096         /* size of VM page */
 #define PAGE_FRAME 0xfffff000   /* mask for getting page number from addr */
-#define PAGE_NUM(addr) ((PAGE_FRAME & (addr)) >> 12) /* extract 20-bit page num from addr */
+#define PAGE_NUM(addr) ((PAGE_FRAME & (addr)) >> 12) /* extract 20-bit page num */
+#define PAGE_OFFSET(addr) ((addr) &~ PAGE_FRAME) /* extract 12-bit page offset */
+#define MAKE_ADDR(pnum, off) (((pnum) << 12) | (off)) /* addr from page num and offset */
 
 /*
  * MIPS-I hardwired memory layout:
@@ -125,19 +127,17 @@ struct tlbshootdown {
  */
 struct pt_entry {
     volatile unsigned   pte_busy:1;     // For synchronization
-    unsigned            pte_write:1;    // Write permission
     unsigned            pte_inmem:1;    // In memory?
     union {
         // ---------------- In-memory fields ---------------- //
         struct {
-            unsigned    pte_term:1;     // End of an extent? (kernel VM only)
             unsigned    pte_accessed:1; // Recently accessed?
             unsigned    pte_dirty:1;    // Dirty page?
-            unsigned    pte_reserved:6; // Reserved for future use
+            unsigned    pte_reserved:8; // Reserved for future use
             unsigned    pte_frame:20;   // Page frame number
         };
         // ----------------- On-disk fields ----------------- //
-        unsigned        pte_swapblk:29; // Swap backing block
+        unsigned        pte_swapblk:30; // Swap backing block
     };
 };
 

@@ -39,9 +39,9 @@
 #include <process.h>
 
 // helper functions for argument handling
-int copyinargs(const_userptr_t argv, char **kargv, size_t *argc, size_t *total_len);
-int copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len);
-void free_kargv(char **kargv);
+static int copyinargs(const_userptr_t argv, char **kargv, size_t *argc, size_t *total_len);
+static int copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len);
+static void free_kargv(char **kargv);
 
 int
 sys_execv(const_userptr_t path, const_userptr_t argv)
@@ -174,6 +174,7 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
 }
 
 // returns error code on failure
+static
 int
 copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_len)
 {
@@ -246,6 +247,7 @@ copyinargs(const_userptr_t argv, char **kargv, size_t *argc_ret, size_t *total_l
 }
 
 // returns 0 on success, error code on failure
+static
 int
 copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len)
 {
@@ -287,6 +289,7 @@ copyoutargs(userptr_t argv, char **kargv, size_t argc, size_t total_len)
     return 0;
 }
 
+static
 void
 free_kargv(char **kargv)
 {

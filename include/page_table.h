@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013
+ * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,65 +25,36 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * Kernel Virtual Memory
  */
 
-#include <machine/vm.h>
-#include <spinlock.h>
-#include <coremem.h>
-#include <vm.h>
+#ifndef _PAGE_TABLE_H_
+#define _PAGE_TABLE_H_
 
-#define KHEAP_MAXPAGES 1024
+struct pt_entry;
+struct page_table;
 
-// The kernel page table is very simple.  It is just an array
-// of physical addresses.  So kvm_pt[vpn] = 
-static paddr_t kvm_pt[KHEAP_MAXPAGES];
-static spinlock kvm_lock = SPINLOCK_INITIALIZER;
-// Number of pages used so far: for synchronizing
-// kernel allocations.
-static size_t kvm_heaptop;
+struct page_table  *pt_create();
+void                pt_destroy(struct page_table *pt);
 
-paddr_t
-kvm_translate(vaddr_t vaddr)
-{
-    spinlock_acquire(kvm_lock);
-    paddr_t frame = kvm_pt[PAGE_NUM(vaddr)];
-    spinlock_release(kvm_lock);
-    
-    if (frame == 0)
-        return 0;
-    
-    return frame + PAGE_OFFSET(vaddr);
-}
+/*
+ * SYNCHRONIZATION:
+ *      pt_acquire_entry: lock and acquire a page table entry via its virtual
+ *      address.  If this returns NULL, then there is no such page table entry,
+ *      i.e., the vaddr is unmapped.
+ *
+ *      pt_create_entry: create and lock a page table entry for the page containing the
+ *      specified virtual address.
+ *
+ *      pt_release_entry: release the lock on a page table entry acquired via
+ *      one of the above functions.
+ */
+struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
+struct pt_entry    *pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
+void                pt_release_entry(struct page_table *pt, pt_entry *pte);
 
-vaddr_t
-alloc_kpages(int npages)
-{
-    vaddr_t block;
-    
-    // get a block of memory in kernel virtual memory
-    spinlock_acquire(kvm_lock);
-    if (npages + kvm_heaptop > KHEAP_MAXPAGES) {
-        spinlock_release(kvm_lock);
-        return 0;
-    }
-    block = kvm_heaptop * PAGE_SIZE + MIPS_KSEG2;
-    kvm_heaptop += npages;
-    spinlock_release(kvm_lock);
-    
-    // get physical pages and map them into kseg2
-    for (int i = 0; i < npages; i++)
-    {
-        vaddr_t page = block + i * PAGE_SIZE;
-        paddr_t frame = core_acquire_frame(); // acquire the frame
-        struct pt_entry *pte = kvm_set(page, frame);
-        core_map_frame(frame, pte, 0); // use the frame
-    }
-}
 
-void
-free_kpages(vaddr_t addr)
-{
-    // FIXME!
-}
+// Must hold pte (via pt_acquire_entry()) to use these:
+void pte_try_access(struct pt_entry *pte);
+bool pte_try_dirty(struct pt_entry *pte);
+
+#endif /* _PAGE_TABLE_H_ */

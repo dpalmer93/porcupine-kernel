@@ -37,16 +37,15 @@
 struct cm_entry {
     unsigned         cme_kernel:1;   // In use by kernel?
     unsigned         cme_busy:1;     // For synchronization
-    unsigned         cme_reserved:1; // Reserved for future use
-    unsigned         cme_swapblk:29; // Swap backing block
+    unsigned         cme_swapblk:30; // Swap backing block
     struct pt_entry *cme_resident;   // Resident virtual page mapping
 };
 
 static struct cm_entry *coremap;
 static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
-static unsigned long    core_lruclock;
-static unsigned long    core_start;
-static unsigned long    core_len;
+static size_t           core_lruclock;
+static size_t           core_start;
+static size_t           core_len;
 
 void
 core_bootstrap(void)
