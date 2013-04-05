@@ -75,8 +75,8 @@ struct addrspace {
 #elif OPT_PORCUPINEVM
 	struct page_table *as_pgtbl;
     struct segment as_segs[NSEGS];
-    struct segment as_stack;
-    struct segment as_heap;
+    struct segment as_stack; // one less than bottom of stack
+    struct segment as_heap; // one more than top of heap
 #endif
 };
 
@@ -141,7 +141,7 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
  */
  
 #if OPT_PORCUPINEVM
-bool as_can read(struct addrspace *as, vaddr_t vaddr);
+bool as_can_read(struct addrspace *as, vaddr_t vaddr);
 bool as_can_write(struct addrspace *as, vaddr_t vaddr);
 #endif
 

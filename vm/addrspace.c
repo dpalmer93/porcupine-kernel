@@ -32,6 +32,8 @@
 #include <lib.h>
 #include <addrspace.h>
 #include <vm.h>
+#include <page_table.h>
+#include <machine/tlb.h>
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -48,10 +50,15 @@ as_create(void)
 	if (as == NULL) {
 		return NULL;
 	}
-
-	/*
-	 * Initialize as needed.
-	 */
+    as->as_pgtbl = pt_create();
+    if (as->as_pgtbl == NULL) {
+        kfree(as);
+        return NULL;
+    }
+    
+    // Sets each region to uninitialized
+    for (int i = 0; i < NSEGS; i++)
+        as->as_segs[i].seg_npages = 0;
 
 	return as;
 }
@@ -89,11 +96,11 @@ as_destroy(struct addrspace *as)
 void
 as_activate(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;  // suppress warning until code gets written
+    // unused
+	(void)as;
+    
+    // currently invalidate the entire tlb
+	tlb_flush();
 }
 
 /*
@@ -110,26 +117,32 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;
-	(void)vaddr;
-	(void)sz;
-	(void)readable;
-	(void)writeable;
+    // unused
 	(void)executable;
+    (void)readable;
+
+    // page align vaddr
+    vaddr = PAGE_FRAME(vaddr);
+    
+    // Find an empty region and fill it
+    // Temporarily allow writes until load is complete
+    for (int i = 0; i < NSEGS; i++) {
+        if (as->as_segs[i].seg_npages == 0) {
+            as->as_segs[i].seg_base = vaddr;
+            as->as_segs[i].seg_npages = (sz + PAGE_SIZE - 1) / PAGE_SIZE;
+            as->as_segs[i].seg_temp = (bool) writeable;
+            as->as_segs[i].seg_write = 1;
+            return 0;
+        }
+    }
+    
 	return EUNIMP;
 }
 
 int
 as_prepare_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
-
+	// Do nothing
 	(void)as;
 	return 0;
 }
@@ -137,11 +150,13 @@ as_prepare_load(struct addrspace *as)
 int
 as_complete_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;
+    // Properly set write permissions 
+    for (int i = 0; i < NSEGS; i++) {
+        if (as->as_segs[i].seg_npages) {
+            as->as_segs[i].seg_write = as->as_segs[i].seg_temp;
+        }
+    }
+	
 	return 0;
 }
 
@@ -160,3 +175,16 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	return 0;
 }
 
+bool
+as_can_write(struct addrspace *as, vaddr_t vaddr)
+{
+    // see if vaddr is in a defined region
+    for (int i = 0; i < NSEGS; i++) {
+        int seg_top = as->as_segs[i].seg_base + as->as_segs[i].seg_npages * PAGE_SIZE;
+        if (vaddr < seg_top && vaddr >= as->as_segs[i].seg_base) {
+            return as->as_segs[i].seg_write;
+        }
+    }
+    // can always write to stack or heap
+    return (vaddr > as->as_stack || vaddr < as->as_heap);
+}
