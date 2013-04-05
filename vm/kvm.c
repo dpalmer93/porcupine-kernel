@@ -32,8 +32,8 @@
 #include <machine/vm.h>
 #include <spinlock.h>
 #include <coremem.h>
-#include <vm.h>
 
+#if 0
 #define KHEAP_MAXPAGES 1024
 
 // The kernel page table is very simple.  It is just an array
@@ -68,28 +68,27 @@ kvm_validate(vaddr_t vaddr)
     
     return valid;
 }
+#endif
 
 vaddr_t
 alloc_kpages(int npages)
 {
-    vaddr_t block;
+    // this interface is strictly to be used for single pages
+    KASSERT(npages == 1);
     
-    // get a block of memory in kernel virtual memory
-    spinlock_acquire(kvm_lock);
-    if (npages + kvm_heaptop > KHEAP_MAXPAGES) {
-        spinlock_release(kvm_lock);
+    // get a physical page.
+    paddr_t frame = core_acquire_frame();
+    if (frame == 0)
         return 0;
-    }
-    block = kvm_heaptop * PAGE_SIZE + MIPS_KSEG2;
-    kvm_heaptop += npages;
-    spinlock_release(kvm_lock);
     
-    // no need to actually map physical pages:
-    // let the page fault handler deal with this
+    // reserve it for the kernel
+    core_reserve_frame(frame);
+    
+    return PADDR_TO_KVADDR(frame);
 }
 
 void
-free_kpages(vaddr_t addr)
+free_kpages(vaddr_t vaddr)
 {
-    // FIXME!
+    core_free_frame(KVADDR_TO_PADDR(vaddr));
 }

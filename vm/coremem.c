@@ -60,9 +60,11 @@ core_bootstrap(void)
     size_t cm_npages = (cmsize + PAGE_SIZE - 1) / PAGE_SIZE;
     
     // allocate space for coremap
-    coremap = (struct cm_entry *)PADDR_TO_KVADDR(ram_stealmem(cm_npages));
-    if (coremap == MIPS_KSEG0) // ram_stealmem() should not return 0
+    paddr_t cm_paddr = ram_stealmem(cm_npages);
+    if (cm_paddr == 0)
         panic("Error during core map initialization!");
+    
+    coremap = (struct cm_entry *)PADDR_TO_KVADDR(cm_paddr);
     
     // zero coremap
     bzero(coremap, cmsize);
@@ -108,29 +110,33 @@ core_acquire_frame(void)
 void
 core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk)
 {
-    spinlock_acquire(core_lock);
     // should hold the frame's lock first
     KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
     coremap[PAGE_NUMBER(frame)] = {
         .cme_kernel = 0,
-        .cme_busy = 0,
+        .cme_busy = 1,
         .cme_swapblk = swapblk,
         .cme_resident = pte
     };
-    spinlock_release(core_lock);
+    
+    // release the lock
+    coremap[i].cme_busy = 0;
 }
 
 void
 core_reserve_frame(paddr_t frame)
 {
-    spinlock_acquire(core_lock);
+    // should hold the frame's lock first
+    KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
     coremap[i] = {
         .cme_kernel = 1,
-        .cme_busy = 0,
+        .cme_busy = 1,
         .cme_swapblk = 0,
         .cme_resident = NULL
     };
-    spinlock_release(core_lock);
+    
+    // release the lock
+    coremap[i].cme_busy = 0;
 }
 
 void

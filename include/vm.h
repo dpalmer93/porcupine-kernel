@@ -56,7 +56,10 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
  */
 int vm_page_fault(vaddr_t faultaddress, struct pt_entry *pte);
 
-/* Allocate/free kernel heap pages (called by kmalloc/kfree) */
+/* Allocate/free kernel heap pages (called by kmalloc/kfree) 
+ * alloc_kpages() currently only allows allocation of single
+ * pages.
+ */
 vaddr_t alloc_kpages(int npages);
 void free_kpages(vaddr_t addr);
 

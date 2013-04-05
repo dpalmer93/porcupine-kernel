@@ -30,6 +30,7 @@
 #include <types.h>
 #include <vm.h>
 #include <errno.h>
+#include <synch.h>
 #include <addrspace.h>
 
 #define LEVEL_SIZE 1024
@@ -39,7 +40,8 @@
 struct page_table
 {
     struct pt_entry **pt_index[LEVEL_SIZE];
-    struct spinlock  pt_lock;
+    struct lock      *pt_lock;
+    struct cv        *pt_cv;
 };
 
 struct page_table *
@@ -51,14 +53,15 @@ pt_create()
     
     
     bzero(pt->pt_index, LEVEL_SIZE * sizeof(struct pt_entry **)); // zero the index
-    spinlock_init(pt_lock);
+    pt_lock = lock_create("page table lock");
+    pt_cv = cv_create("page table CV");
 }
 
 void
 pt_destroy(struct page_table *pt)
 {
-    // Will assert if someone is holding the spinlock
-    spinlock_cleanup(pt->pt_lock);
+    cv_destroy(pt->pt_cv);
+    lock_destroy(pt->pt_lock);
     
     for (int i = 0; i < LEVEL_SIZE; i++) {
         if (pt->pt_index[i] != NULL) {
@@ -82,25 +85,24 @@ pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
     unsigned long l1_idx = L1_INDEX(vaddr);
     unsigned long l2_idx = L2_INDEX(vaddr);
     
-    spinlock_acquire(pt->pt_lock);
+    lock_acquire(pt->pt_lock);
     if (pt->pt_index[l1_idx] == NULL) {
-        spinlock_release(pt->pt_lock);
+        lock_release(pt->pt_lock);
         return NULL;
     }
     
     struct pt_entry *pte = pt->pt_index[l1_idx][l2_idx];
     if (entry == NULL) {
-        spinlock_release(pt->pt_lock);
+        lock_release(pt->pt_lock);
         return NULL;
     }
     
-    while (pte->pte_busy) {
-        spinlock_release(pt->pt_lock);
-        spinlock_acquire(pt->pt_lock);
-    }
+    // wait for the page to become available
+    while (pte->pte_busy)
+        cv_wait(pt->pt_cv, pt->pt_lock);
     
     pte->pte_busy = 1;
-    spinlock_release(pt->pt_lock);
+    lock_release(pt->pt_lock);
     return pte;
 }
 
@@ -110,14 +112,14 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr)
     unsigned long l1_idx = L1_INDEX(vaddr);
     unsigned long l2_idx = L2_INDEX(vaddr);
     
-    spinlock_acquire(pt->pt_lock);
+    lock_acquire(pt->pt_lock);
     
     bool new_l2 = false;
     if (pt->pt_index[l1_idx] == NULL) {
         // create a new level 2 table
         pt->pt_index[l1_idx] = kmalloc(LEVEL_SIZE * sizeof(struct pt_entry *));
         if (pt->pt_index[l1_idx] == NULL) {
-            spinlock_release(pt->pt_lock);
+            lock_release(pt->pt_lock);
             return NULL;
         }
         // zero all its entries
@@ -132,12 +134,12 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr)
         if (pt->pt_index[l1_idx][l2_idx] == NULL) {
             // if we allocated a new L2 table earlier, free it
             if (new_l2) kfree(pt->pt_index[l1_idx]);
-            spinlock_release(pt->pt_lock);
+            lock_release(pt->pt_lock);
             return NULL;
         }
     }
     else { // entry already exists
-        spinlock_release(pt->pt_lock);
+        lock_release(pt->pt_lock);
         return NULL;
     }
     
@@ -151,16 +153,17 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr)
         .pte_frame = 0
     };
     
-    spinlock_release(pt->pt_lock);
+    lock_release(pt->pt_lock);
 }
 
 void
 pt_release_entry(struct page_table *pt, struct pt_entry *pte)
 {
-    spinlock_acquire(pt->pt_lock);
+    lock_acquire(pt->pt_lock);
     KASSERT(pte->pte_busy);
     pte->pte_busy = 0;
-    spinlock_release(pt->pt_lock);
+    cv_signal(pt->pt_cv);
+    lock_release(pt->pt_lock);
 }
 
 /***********************************************************/

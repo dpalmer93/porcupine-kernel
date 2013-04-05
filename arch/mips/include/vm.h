@@ -71,6 +71,11 @@
 #define PADDR_TO_KVADDR(paddr) ((paddr)+MIPS_KSEG0)
 
 /*
+ * A corresponding macro for converting in the opposite direction.
+ */
+#define KVADDR_TO_PADDR(vaddr) ((vaddr)-MIPS_KSEG0)
+
+/*
  * The top of user space. (Actually, the address immediately above the
  * last valid user address.)
  */
