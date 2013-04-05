@@ -69,27 +69,3 @@ kvm_validate(vaddr_t vaddr)
     return valid;
 }
 #endif
-
-vaddr_t
-alloc_kpages(int npages)
-{
-    // this interface is strictly to be used for single pages
-    KASSERT(npages == 1);
-    
-    // get a physical page.
-    paddr_t frame = core_acquire_frame();
-    if (frame == 0)
-        return 0;
-    
-    // reserve it for the kernel and unlock it
-    core_reserve_frame(frame);
-    core_release_frame(frame);
-    
-    return PADDR_TO_KVADDR(frame);
-}
-
-void
-free_kpages(vaddr_t vaddr)
-{
-    core_free_frame(KVADDR_TO_PADDR(vaddr));
-}
