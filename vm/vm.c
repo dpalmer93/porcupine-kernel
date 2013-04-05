@@ -35,7 +35,7 @@
 void
 vm_bootstrap(void)
 {
-    
+    swap_bootstrap();
 }
 
 int
