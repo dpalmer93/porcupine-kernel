@@ -62,13 +62,14 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             
         case VM_FAULT_READ:
         case VM_FAULT_WRITE:
-            // no valid mapping in the TLB
             if (pte == NULL)
-                return vm_unmapped_page_fault(faultaddress);
+                return vm_unmapped_page_fault(faultaddress, pt);
             else if (!pte_try_access(pte)) {
-                return vm_swapin_page_fault(faultaddress, pte);
+                // NOTE: this will unlock the PTE when it is done
+                return vm_swapin_page_fault(faultaddress, pt, pte);
             }
             else {
+                // Just load the TLB
                 tlb_load_pte(faultaddress, pte);
                 pt_release_entry(pt, pte);
                 return 0;

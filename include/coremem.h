@@ -35,7 +35,9 @@
  *
  * core_bootstrap - set up the core map (must be called after ram_bootstrap())
  *
- * core_acquire_frame - find and lock a free page frame.
+ * core_acquire_frame - find and lock a free page frame for manipulation.
+ *
+ * core_release_frame - release a locked page frame after manipulating it.
  *
  * core_map_frame - map a page frame to a PTE and swap block
  *                  (must hold the page frame lock, i.e., have called
@@ -49,7 +51,8 @@
  */
 void    core_bootstrap(void);
 paddr_t core_acquire_frame(void);
-void    core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk);
+void    core_release_frame(paddr_t frame);
+void    core_map_frame(paddr_t frame, struct pt_entry *pte, swapidx_t swapblk);
 void    core_reserve_frame(paddr_t frame);
 void    core_free_frame(paddr_t frame);
 

@@ -33,7 +33,7 @@
 struct pt_entry;
 struct page_table;
 
-struct page_table  *pt_create();
+struct page_table  *pt_create(void);
 void                pt_destroy(struct page_table *pt);
 
 /*

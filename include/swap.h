@@ -30,20 +30,19 @@
 #ifndef _SWAP_H_
 #define _SWAP_H_
 
+#include <types.h>
 #include <vnode.h>
 #include <bitmap.h>
 #include <synch.h>
 
-struct swapdisk_t {
-    struct vnode    *swap_node;
-    struct bitmap   *swap_usage;
-    struct spinlock *swap_lock;
-} swapdisk;
+typedef int32_t swapidx_t
 
-void        swap_bootstrap(); // initializes the swap structures
-blkcnt_t    swap_get_free(); // returns the index of a free disk block
-void        swap_free(blkcnt_t to_free); // frees a disk block
-int         swap_in(blkcnt_t src, paddr_t dst);  // returns error code
-int         swap_out(paddr_t src, blkcnt_t dst); // returns error code
+// must be called after ram_bootstrap(), core_bootstrap(), and vfs_bootstrap()
+void swap_bootstrap(void);
+
+int     swap_get_free(swapidx_t *freeblk);      // get a free disk block
+void    swap_free(swapidx_t to_free);           // free a disk block
+int     swap_in(swapidx_t src, paddr_t dst);
+int     swap_out(paddr_t src, swapidx_t dst);
 
 #endif /* _SWAP_H_ */

@@ -29,8 +29,9 @@
 
 #include <types.h>
 #include <machine/vm.h>
-#include <addrspace.h>
 #include <lib.h>
+#include <swap.h>
+#include <addrspace.h>
 #include <coremem.h>
 
 
@@ -62,7 +63,7 @@ core_bootstrap(void)
     // allocate space for coremap
     paddr_t cm_paddr = ram_stealmem(cm_npages);
     if (cm_paddr == 0)
-        panic("Error during core map initialization!");
+        panic("core_bootstrap: Out of Memory.\n");
     
     coremap = (struct cm_entry *)PADDR_TO_KVADDR(cm_paddr);
     
@@ -107,20 +108,30 @@ core_acquire_frame(void)
     spinlock_release(core_lock);
 }
 
+
 void
-core_map_frame(paddr_t frame, struct pt_entry *pte, blkcnt_t swapblk)
+core_release_frame(paddr_t frame)
+{
+    // frame must be locked before it can be unlocked
+    KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
+    
+    spinlock_acquire(core_lock);
+    coremap[PAGE_NUMBER(frame)].cme_busy = 0;
+    spinlock_release(core_lock);
+}
+
+void
+core_map_frame(paddr_t frame, struct pt_entry *pte, swapidx_t swapblk)
 {
     // should hold the frame's lock first
     KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
+    
     coremap[PAGE_NUMBER(frame)] = {
         .cme_kernel = 0,
         .cme_busy = 1,
         .cme_swapblk = swapblk,
         .cme_resident = pte
     };
-    
-    // release the lock
-    coremap[i].cme_busy = 0;
 }
 
 void
@@ -128,15 +139,13 @@ core_reserve_frame(paddr_t frame)
 {
     // should hold the frame's lock first
     KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
+    
     coremap[i] = {
         .cme_kernel = 1,
         .cme_busy = 1,
         .cme_swapblk = 0,
         .cme_resident = NULL
     };
-    
-    // release the lock
-    coremap[i].cme_busy = 0;
 }
 
 void

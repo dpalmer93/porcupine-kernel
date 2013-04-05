@@ -32,15 +32,54 @@
 // Handle a page fault in the case in which the virtual
 // page is unmapped
 int
-vm_unmapped_page_fault(vaddr_t vaddr)
+vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
 {
+    int err;
     
+    // find a free page frame
+    paddr_t frame = core_acquire_frame();
+    if (frame == 0)
+        return ENOMEM;
+    
+    // create a page table entry
+    struct pt_entry *pte = pt_create_entry(pt, vaddr, paddr);
+    if (pte == NULL) {
+        core_release_frame(frame);
+        return ENOMEM;
+    }
+    
+    // get a swap block
+    swapidx_t swapblk;
+    err = swap_get_free(swapblk);
+    if (err) {
+        core_release_frame(frame);
+        return err;
+    }
+    
+    // clean up
+    core_map_frame(frame, pte, swapblk);
+    core_release_frame(frame);
+    pt_release_entry(pt, pte);
+    return 0;
 }
 
 // Handle a page fault in the case in which the page has
 // been swapped out.
 int
-vm_swapin_page_fault(vaddr_t vaddr, struct pt_entry *pte)
+vm_swapin_page_fault(vaddr_t vaddr, struct page_table *pt, struct pt_entry *pte)
 {
+    // find a free page frame
+    paddr_t frame = core_acquire_frame();
+    if (frame == 0)
+        return ENOMEM;
     
+    // swap in the page
+    swapidx_t swapblk = pte->pte_swapblk;
+    swap_in(swapblk, frame);
+    
+    // clean up...
+    core_map_frame(frame, pte, swapblk);
+    core_release_frame(frame);
+    pt_release_entry(pt, pte);
+    return 0;
 }

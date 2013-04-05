@@ -81,8 +81,9 @@ alloc_kpages(int npages)
     if (frame == 0)
         return 0;
     
-    // reserve it for the kernel
+    // reserve it for the kernel and unlock it
     core_reserve_frame(frame);
+    core_release_frame(frame);
     
     return PADDR_TO_KVADDR(frame);
 }

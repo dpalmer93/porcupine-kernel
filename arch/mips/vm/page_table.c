@@ -45,7 +45,7 @@ struct page_table
 };
 
 struct page_table *
-pt_create()
+pt_create(void)
 {
     struct page_table *pt = kmalloc(sizeof(struct page_table));
     if (pt == NULL)
