@@ -248,6 +248,21 @@ pt_release_entry(struct page_table *pt, struct pt_entry *pte)
     lock_release(pt->pt_lock);
 }
 
+int
+pte_try_lock(struct pt_entry *pte)
+{
+    (void)pte;
+    return 0;
+}
+
+void
+pte_release_lock(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    pte->pte_busy = 0;
+}
+
 /***********************************************************/
 
 
@@ -268,6 +283,14 @@ pte_try_access(struct pt_entry *pte)
     return false;
 }
 
+void
+pte_clear_access(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    pte->pte_accessed = 0;
+}
+
 bool
 pte_try_dirty(struct pt_entry *pte)
 {
@@ -278,6 +301,26 @@ pte_try_dirty(struct pt_entry *pte)
         pte->pte_dirty = 1;
         return true;
     }
+    return false;
+}
+
+bool
+pte_is_inmem(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    if (pte->pte_inmem)
+        return true;
+    return false;
+}
+
+bool
+pte_is_dirty(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    if (pte->pte_dirty)
+        return true;
     return false;
 }
 

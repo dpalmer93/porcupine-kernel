@@ -126,50 +126,50 @@ core_acquire_frame_random(void)
 paddr_t
 core_acquire_frame(void)
 {
-    
-    spinlock_acquire(core_lock);
     int clock_steps = 0;
-    int free_frame;
+    size_t lruclock;
     while(true) {
-        // found unallocated coremap entry
-        if (!(coremap[core_lruclock].cme_kernel || coremap[core_lruclock].cme_busy || 
-              coremap[core_lruclock].cme_resident)) {
-              free_frame = core_lruclock;
-              break;
-
-        KASSERT(coremap[core_lruclock].cme_resident->pte_inmem == 1);
-        // skip busy or dirty entries
-        if (coremap[core_lruclock].cme_resident->pte_busy || coremap[core_lruclock].cme_resident->pte_dirty)
-            continue;
-        }
-        // reset accessed bit and invalidate all TLB entries with that PTE
-        if (coremap[core_lruclock].cme_resident->pte_accessed && clock_steps < MAX_CLOCKSTEPS) {
-            clock_steps++;
-            // need to invalidate other PTE's still
-            tlb_invalidate_p(CORE_TP_PADDR(core_lruclock));
-            
-            // need to do a test and set on busy bit
-            // will only try this once, because if busy we don't set the accessed bit
-            if (pte_trylock(coremap[core_lruclock].cme_resident)) {
-                coremap[core_lruclock].cme_resident->cme_accessed = 0;
-                coremap[core_lruclock].cme_resident->cme_busy = 0;
-            }
-            
-            continue;
-        }
-        // found a free frame that has not been recently accessed
-        else {
-            free_frame = core_lruclock;
-            break;
-        }
-        
-        core_lruclock = (core_lruclock + 1) % core_len;
-    }
-    core_lruclock = (core_lruclock + 1) % core_len;
     
-    coremap[free_frame].cme_busy = 1;
-    spinlock_release(core_lock);
-    return CORE_TO_PADDR(i);
+        // get current clock hand and increment clock
+        lruclock = core_incr_lruclock();
+        
+        // try to lock the coremap entry
+        if (core_try_lock(lruclock)) {
+            // found unallocated coremap entry
+            if (!(coremap[lruclock].cme_kernel) && !(coremap[lruclock].cme_resident)) {
+                break;
+            }
+            // try to lock page table entry, skip if cannot acquire
+            if (pte_try_lock(coremap[lruclock].cme_resident)) {
+                struct pt_entry *pte = coremap[lruclock].cme_resident;
+                
+                //skip entries that are dirty or not in memory
+                if (pte_is_dirty(pte) || !pte_is_inmem(pte)) {
+                    core_release_lock(lruclock);
+                    pte_release_lock(pte);
+                    continue;
+                }
+                
+                // frame has been accessed recently
+                if (clock_steps < MAX_CLOCKSTEPS && pte->pte_accessed) {
+                    clock_steps++;
+                    // need to invalidate other PTE's still
+                    tlb_invalidate_p(CORE_TO_PADDR(lruclock));
+                    // clear accessed bit and release PTE
+                    pte_clear_access(pte);
+                    core_release_lock(lruclock);
+                    pte_release_lock(pte);
+                    continue;
+                }
+                // found a frame that has not been recently accessed
+                else {
+                    break;
+                }
+            }      
+        }
+    }
+    
+    return CORE_TO_PADDR(lruclock);
 }
 
 void
@@ -231,6 +231,17 @@ core_free_frame(paddr_t frame)
     spinlock_release(core_lock);
 }
 
+// increments clock, returns old value
+size_t
+core_incr_lruclock()
+{
+    spinlock_acquire(core_lock);
+    size_t lruclock = core_lruclock;
+    core_lruclock++;
+    spinlock_release(core_lock);
+    return lruclock;
+}
+
 // helper function for cleaner daemon only
 // not exported in coremem.h
 bool
@@ -249,6 +260,13 @@ core_try_lock(size_t pgnum)
     return true;
 }
 
+void
+core_release_lock(size_t pgnum)
+{
+    KASSERT(coremap[pgnum].cme_busy == 1);
+    coremap[pgnum].cme_busy == 0;
+}
+
 // Does not wait on PTE
 // Does this by test and setting once
 void
@@ -262,7 +280,8 @@ core_clean(void *data1, unsigned long data2)
     {
         // tries to lock both the cme and pte
         // if it fails, go to the next cme
-        if (core_try_lock(pgnum) && pte_try_lock(coremap[pgnum].cme_resident) {
+        if (core_try_lock(pgnum) && pte_try_lock(coremap[pgnum].cme_resident) 
+            && coremap[pgnum].cme_resident->pte_dirty) {
             
         
         
