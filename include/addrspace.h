@@ -77,7 +77,7 @@ struct addrspace {
 #elif OPT_PORCUPINEVM
 	struct page_table  *as_pgtbl;
     struct segment      as_segs[NSEGS];
-    vaddr_t             as_stacktop;
+    vaddr_t             as_stackbtm;
     vaddr_t             as_heaptop;
     // turn of write protection while segments being loaded
     bool                as_loading;

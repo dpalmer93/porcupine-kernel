@@ -169,7 +169,10 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
-    as->as_stack = USERSTACK - PAGE_SIZE * STACK_NPAGES;
+    as->as_stackbtm = USERSTACK - PAGE_SIZE * STACK_NPAGES;
+    
+    if (as->as_stackbtm < as->as_heaptop)
+        return ENOMEM;
     
 	return 0;
 }
@@ -180,8 +183,14 @@ as_can_read(struct addrspace *as, vaddr_t vaddr)
     (void)as;
     (void)vaddr;
     
+    // see if vaddr is in a defined region
+    for (int i = 0; i < NSEGS; i++) {
+        if (in_segment(&as->as_segs[i], vaddr))
+            return true;
+    }
+    
     // all memory is readable
-    return true;
+    return false;
 }
 
 bool
@@ -189,11 +198,17 @@ as_can_write(struct addrspace *as, vaddr_t vaddr)
 {
     // see if vaddr is in a defined region
     for (int i = 0; i < NSEGS; i++) {
-        int seg_top = as->as_segs[i].seg_base + as->as_segs[i].seg_npages * PAGE_SIZE;
-        if (vaddr < seg_top && vaddr >= as->as_segs[i].seg_base) {
+        if (in_segment(&as->as_segs[i], vaddr))
             return as->as_segs[i].seg_write;
-        }
     }
     // can always write to stack or heap
-    return (vaddr >= as->as_stack || vaddr < as->as_heap);
+    return (vaddr >= as->as_stackbtm || vaddr < as->as_heaptop);
+}
+
+bool in_segment(struct segment *seg, vaddr_t vaddr)
+{
+    if (vaddr < seg->seg_base)
+        return false;
+    
+    return (vaddr - seg->seg_base) / PAGE_SIZE < seg->seg_npages;
 }
