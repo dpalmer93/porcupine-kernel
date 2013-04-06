@@ -328,9 +328,7 @@ pte_is_inmem(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    if (pte->pte_inmem)
-        return true;
-    return false;
+    return pte->pte_inmem;
 }
 
 bool
@@ -338,9 +336,7 @@ pte_is_dirty(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    if (pte->pte_dirty)
-        return true;
-    return false;
+    return pte->pte_dirty;
 }
 
 void
