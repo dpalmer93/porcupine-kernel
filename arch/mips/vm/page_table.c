@@ -282,21 +282,6 @@ pt_release_entry(struct page_table *pt, struct pt_entry *pte)
     lock_release(pt->pt_lock);
 }
 
-int
-pte_try_lock(struct pt_entry *pte)
-{
-    (void)pte;
-    return 0;
-}
-
-void
-pte_release_lock(struct pt_entry *pte)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    pte->pte_busy = 0;
-}
-
 /***********************************************************/
 
 
