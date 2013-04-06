@@ -75,6 +75,7 @@ tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
     splx(x);
 }
 
+// invalidate by virtual page number
 void
 tlb_invalidate(vaddr_t vaddr)
 {
@@ -95,6 +96,26 @@ tlb_invalidate(vaddr_t vaddr)
     }
     
     splx(x);
+}
+
+// invalidate by physical page number
+void
+tlb_invalidate_p(paddr_t paddr)
+{
+    int x = splhigh();
+    
+    uint32_t entryhi, entrylo;
+    // loop through the TLB looking for paddr
+    for (int i = 0; i < NUM_TLB; i++) {
+        tlb_read(&entryhi, &entrylo, i);
+        
+        if ((TLBLO_PPAGE & entrylo) == PAGE_FRAME(paddr)) {
+            entrylo &= ~TLBLO_VALID;
+            tlb_write(entryhi, entrylo, i);
+        }
+    }
+
+    splx(x)
 }
 
 /*

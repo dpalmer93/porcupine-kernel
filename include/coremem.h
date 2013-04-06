@@ -50,7 +50,8 @@
  * core_free_frame - indicate that a page frame is no longer being used
  */
 void    core_bootstrap(void);
-paddr_t core_acquire_frame(void);
+paddr_t core_acquire_frame_random(void); // gets an index if there is an empty one, can fail
+paddr_t core_acquire_frame(void); // single hand lru clock 
 void    core_release_frame(paddr_t frame);
 void    core_map_frame(paddr_t frame, struct pt_entry *pte, swapidx_t swapblk);
 void    core_reserve_frame(paddr_t frame);
@@ -58,5 +59,12 @@ void    core_free_frame(paddr_t frame);
 
 // start core cleaner daemon
 void core_cleaner_bootstrap(void);
+
+// Number of access bits the lru_clock will clear before it just evicts the not busy next page
+#define MAX_CLOCKSTEPS 16
+
+// Macro to go from coremap entry to physical address
+#define CORE_TO_PADDR(i) (core_btmaddr + i * PAGE_SIZE)
+#define PADDR_TO_CORE(paddr) ((paddr - core_btmaddr) / PAGE_SIZE)
 
 #endif /* _COREMEM_H_ */

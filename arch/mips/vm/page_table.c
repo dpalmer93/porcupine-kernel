@@ -32,6 +32,7 @@
 #include <errno.h>
 #include <synch.h>
 #include <addrspace.h>
+#include <coremem.h>
 
 #define LEVEL_SIZE 1024
 #define INDEX_TO_VADDR(L1, L2) (L1 << 22 + l2 << 12)
@@ -78,10 +79,10 @@ pt_destroy(struct page_table *pt)
         if (pt->pt_index[i] != NULL) {
             for (int j = 0; j < LEVEL_SIZE; j++) {
                 if (pt->pt_index[i][j] != NULL) {
-                    // free the page frame or swap space
+                    // free the page frame and/or swap space
                     pt_entry *pte = pt->pt_index[i][j];
                     if (pte->pt_inmem)
-                        core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
+                        core_free_frame(CORE_TO_PADDR(pte->pte_frame));
                     else
                         swap_free(pte->pte_swapblk);
                     

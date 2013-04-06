@@ -122,5 +122,6 @@ ram_getsize(paddr_t *lo, paddr_t *hi)
 {
 	*lo = firstpaddr;
 	*hi = lastpaddr;
-	firstpaddr = lastpaddr = 0;
+    // Why is this line here??
+	// firstpaddr = lastpaddr = 0;
 }

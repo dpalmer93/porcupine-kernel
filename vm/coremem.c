@@ -29,6 +29,7 @@
 
 #include <types.h>
 #include <machine/vm.h>
+#include <machine/tlb.h>
 #include <lib.h>
 #include <swap.h>
 #include <addrspace.h>
@@ -46,6 +47,7 @@ static struct cm_entry *coremap;
 static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
 static size_t           core_lruclock;
 static size_t           core_len;
+static paddr_t          core_btmaddr;
 
 void
 core_bootstrap(void)
@@ -54,6 +56,11 @@ core_bootstrap(void)
     paddr_t lo;
     paddr_t hi;
     ram_getsize(&lo, &hi);
+    
+    // page align lo and store it
+    KASSERT(lo != 0);
+    lo = PAGE_FRAME(lo);
+    core_btmaddr = lo;
     
     // calculate size of coremap
     core_len = (hi - lo) / PAGE_SIZE;
@@ -86,7 +93,7 @@ core_bootstrap(void)
 }
 
 paddr_t
-core_acquire_frame(void)
+core_acquire_frame_random(void)
 {
     // get an index uniformly distributed over the core map
     int i = i0 = random() % core_len;
@@ -94,9 +101,7 @@ core_acquire_frame(void)
     // look for a free frame
     spinlock_acquire(core_lock);
     while (coremap[i].cme_kernel || coremap[i].cme_busy || coremap[i].cme_resident) {
-        i++;
-        if (i == core_len)
-            i = 0;
+        i = (i + 1) % core_len;
         if (i == i0) {
             // FAILED...
             spinlock_release(core_lock);
@@ -106,17 +111,63 @@ core_acquire_frame(void)
     }
     coremap[i].cme_busy = 1;
     spinlock_release(core_lock);
+    return CORE_TO_PADDR(i);
 }
 
+// looks for empty frame with eviction
+// one LRU clock hand that tries MAX_CLOCKSTEPS times to get an unaccessed frame
+paddr_t
+core_acquire_frame(void)
+{
+    
+    spinlock_acquire(core_lock);
+    int clock_steps = 0;
+    int free_frame;
+    while(true) {
+        // found unallocated coremap entry
+        if (!(coremap[core_lruclock].cme_kernel || coremap[core_lruclock].cme_busy || 
+              coremap[core_lruclock].cme_resident)) {
+              free_frame = core_lruclock;
+              break;
+
+        KASSERT(coremap[core_lruclock].cme_resident->pte_inmem == 1);
+        // skip busy or dirty entries
+        if (coremap[core_lruclock].cme_resident->pte_busy || coremap[core_lruclock].cme_resident->pte_dirty)
+            continue;
+        }
+        // reset accessed bit and invalidate all TLB entries with that PTE
+        if (coremap[core_lruclock].cme_resident->pte_accessed && clock_steps < MAX_CLOCKSTEPS) {
+            clock_steps++;
+            // need to invalidate other PTE's still
+            tlb_invalidate_p(CORE_TP_PADDR(core_lruclock));
+            
+            // need to do a test and set to test busy bit = 0 and set accessed bit = 0 of PTE
+            
+            continue;
+        }
+        // found a free frame that has not been recently accessed
+        else {
+            free_frame = core_lruclock;
+            break;
+        }
+        
+        core_lruclock = (core_lruclock + 1) % core_len;
+    }
+    core_lruclock = (core_lruclock + 1) % core_len;
+    
+    coremap[free_frame].cme_busy = 1;
+    spinlock_release(core_lock);
+    return CORE_TO_PADDR(i);
+}
 
 void
 core_release_frame(paddr_t frame)
 {
     // frame must be locked before it can be unlocked
-    KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
+    KASSERT(coremap[PADDR_TO_CORE(frame)].cme_busy);
     
     spinlock_acquire(core_lock);
-    coremap[PAGE_NUMBER(frame)].cme_busy = 0;
+    coremap[PADDR_TO_CORE(frame)].cme_busy = 0;
     spinlock_release(core_lock);
 }
 
@@ -124,9 +175,9 @@ void
 core_map_frame(paddr_t frame, struct pt_entry *pte, swapidx_t swapblk)
 {
     // should hold the frame's lock first
-    KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
+    KASSERT(coremap[PADDR_TO_CORE(frame)].cme_busy);
     
-    coremap[PAGE_NUMBER(frame)] = {
+    coremap[PADDR_TO_CORE(frame)] = {
         .cme_kernel = 0,
         .cme_busy = 1,
         .cme_swapblk = swapblk,
@@ -138,9 +189,9 @@ void
 core_reserve_frame(paddr_t frame)
 {
     // should hold the frame's lock first
-    KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
+    KASSERT(coremap[PADDR_TO_CORE(frame)].cme_busy);
     
-    coremap[PAGE_NUMBER(frame)] = {
+    coremap[PADDR_TO_CORE(frame)] = {
         .cme_kernel = 1,
         .cme_busy = 1,
         .cme_swapblk = 0,
@@ -153,7 +204,7 @@ core_free_frame(paddr_t frame)
 {
     spinlock_acquire(core_lock);
     
-    struct cm_entry *cme = coremap[PAGE_NUMBER(frame)];
+    struct cm_entry *cme = coremap[PADDR_TO_CORE(frame)];
     
     // free the associated swap space
     if (!cme.cme_kernel)
@@ -196,12 +247,10 @@ core_clean(void *data1, unsigned long data2)
     while (true)
     {
         if (core_try_lock(pgnum)) {
-            core_release_frame(MAKE_ADDR(pgnum, 0));
+            core_release_frame(CORE_TO_PADDR(pgnum));
         }
         
-        index++;
-        if (index >= cm_npages)
-            index = 0;
+        index = (index + 1) % cm_npages;
     }
 }
 

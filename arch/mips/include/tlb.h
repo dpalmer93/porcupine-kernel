@@ -78,6 +78,7 @@ int tlb_probe(uint32_t entryhi, uint32_t entrylo);
 void tlb_dirty(vaddr_t vaddr);
 void tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_invalidate(vaddr_t vaddr);
+void tlb_invalidate_p(paddr_t paddr);
 void tlb_flush(void);
 
 
