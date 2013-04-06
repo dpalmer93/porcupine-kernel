@@ -73,10 +73,12 @@ struct addrspace {
 	size_t as_npages2;
 	paddr_t as_stackpbase;
 #elif OPT_PORCUPINEVM
-	struct page_table *as_pgtbl;
-    struct segment as_segs[NSEGS];
-    struct segment as_stack; // one less than bottom of stack
-    struct segment as_heap; // one more than top of heap
+	struct page_table  *as_pgtbl;
+    struct segment      as_segs[NSEGS];
+    struct segment      as_stack;
+    struct segment      as_heap;
+    // turn of write protection while segments being loaded
+    bool                as_loading;
 #endif
 };
 

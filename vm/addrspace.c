@@ -50,6 +50,7 @@ as_create(void)
 	if (as == NULL) {
 		return NULL;
 	}
+    
     as->as_pgtbl = pt_create();
     if (as->as_pgtbl == NULL) {
         kfree(as);
@@ -121,8 +122,8 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 	(void)executable;
     (void)readable;
 
-    // page align vaddr
-    vaddr = PAGE_FRAME(vaddr);
+    // vaddr must be page aligned
+    KASSERT(PAGE_OFFSET(vaddr) == 0);
     
     // Find an empty region and fill it
     // Temporarily allow writes until load is complete
@@ -136,41 +137,31 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
         }
     }
     
-	return EUNIMP;
+	return ENOMEM;
 }
 
 int
 as_prepare_load(struct addrspace *as)
 {
-	// Do nothing
-	(void)as;
+	as->as_loading = true;
 	return 0;
 }
 
 int
 as_complete_load(struct addrspace *as)
 {
-    // Properly set write permissions 
-    for (int i = 0; i < NSEGS; i++) {
-        if (as->as_segs[i].seg_npages) {
-            as->as_segs[i].seg_write = as->as_segs[i].seg_temp;
-        }
-    }
-	
+    as->as_loading = false;
 	return 0;
 }
 
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;
-
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
+    as_stack = {
+        .seg_base = *stackptr - ;
+    }
 
 	return 0;
 }
