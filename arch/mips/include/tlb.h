@@ -72,6 +72,8 @@ int tlb_probe(uint32_t entryhi, uint32_t entrylo);
  *              corresponding to a virtual address, if such an entry exists.
  *              This is useful for simulating a hardware-managed page access bit.
  *
+ * tlb_invalidate_p - same thing as above, except using the paddr instead of vaddr
+ *
  * tlb_flush - atomically empty the entire TLB.  This can be used on a
  *              context switch.
  */
