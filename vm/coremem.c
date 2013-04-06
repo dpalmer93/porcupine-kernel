@@ -140,7 +140,7 @@ core_reserve_frame(paddr_t frame)
     // should hold the frame's lock first
     KASSERT(coremap[PAGE_NUMBER(frame)].cme_busy);
     
-    coremap[i] = {
+    coremap[PAGE_NUMBER(frame)] = {
         .cme_kernel = 1,
         .cme_busy = 1,
         .cme_swapblk = 0,
@@ -152,11 +152,20 @@ void
 core_free_frame(paddr_t frame)
 {
     spinlock_acquire(core_lock);
-    coremap[PAGE_NUMBER(frame)] = {
-        .cme_kernel = 0,
-        .cme_busy = 0,
-        .cme_swapblk = 0,
-        .cme_resident = NULL
-    };
+    
+    struct cm_entry *cme = coremap[PAGE_NUMBER(frame)];
+    
+    // free the associated swap space
+    if (!cme.cme_kernel)
+        swap_free(cme->cme_swapblk);
+    
+    // clear the CME
+    cme->cme_kernel = 0;
+    cme->cme_busy = 0;
+    cme->cme_swapblk = 0;
+    cme->cme_resident = NULL;
+    
     spinlock_release(core_lock);
 }
+
+

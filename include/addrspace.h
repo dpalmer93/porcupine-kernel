@@ -81,7 +81,7 @@ struct addrspace {
 	struct page_table  *as_pgtbl;
     // NSEGS + the stack and heap
     struct segment      as_segs[NSEGS + 2];
-    // turn of write protection while segments being loaded
+    // turn off write protection while loading segments
     bool                as_loading;
 #endif
 };

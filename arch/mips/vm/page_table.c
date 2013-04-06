@@ -66,8 +66,17 @@ pt_destroy(struct page_table *pt)
     for (int i = 0; i < LEVEL_SIZE; i++) {
         if (pt->pt_index[i] != NULL) {
             for (int j = 0; j < LEVEL_SIZE; j++) {
-                if (pt->pt_index[i][j] != NULL)
-                    kfree(pt->pt_index[i][j]);
+                if (pt->pt_index[i][j] != NULL) {
+                    // free the page frame or swap space
+                    pt_entry *pte = pt->pt_index[i][j];
+                    if (pte->pt_inmem)
+                        core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
+                    else
+                        swap_free(pte->pte_swapblk);
+                    
+                    // free the PTE
+                    kfree(pte);
+                }
             }
             kfree(pt->pt_index[i]);
         }
