@@ -133,13 +133,14 @@ core_acquire_frame(void)
         // get current clock hand and increment clock
         index = core_incr_lruclock();
         
-        // try to lock the coremap entry
-        if (!core_try_lock(index)) {
+        // if it's not a kernel cormap entry, then try to lock the coremap entry
+        if (!coremap[index].cme_kernel && core_try_lock(index)) {
             
             // found a free frame
-            if (!(coremap[index].cme_kernel) && !(coremap[index].cme_resident)) {
+            if (coremap[index].cme_resident == NULL) {
                 break;
             }
+            
             // try to lock page table entry, skip if cannot acquire
             if (pte_try_lock(coremap[index].cme_resident)) {
                 struct pt_entry *pte = coremap[index].cme_resident;
