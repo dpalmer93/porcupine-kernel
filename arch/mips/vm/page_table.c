@@ -34,6 +34,7 @@
 #include <addrspace.h>
 
 #define LEVEL_SIZE 1024
+#define INDEX_TO_VADDR(L1, L2) (L1 << 22 + l2 << 12)
 #define L1_INDEX(va) (PAGE_NUM(va) >> 10) // index into the level 1 table
 #define L2_INDEX(va) (PAGE_NUM(va) & (LEVEL_SIZE - 1)) // index into the level 2 table
 
@@ -51,10 +52,20 @@ pt_create(void)
     if (pt == NULL)
         return NULL;
     
-    
+    pt->pt_lock = lock_create("page table lock");
+    if (pt->pt_lock == NULL) {
+        kfree(pt);
+        return NULL;
+    }
+    pt->pt_cv = cv_create("page table CV");
+    if (pt->pt_cv == NULL) {
+        lock_destroy(pt->pt_lock);
+        kfree(pt);
+        return NULL;
+    }
     bzero(pt->pt_index, LEVEL_SIZE * sizeof(struct pt_entry **)); // zero the index
-    pt_lock = lock_create("page table lock");
-    pt_cv = cv_create("page table CV");
+    
+    return pt;
 }
 
 void
@@ -82,6 +93,71 @@ pt_destroy(struct page_table *pt)
         }
     }
     kfree(pt);
+}
+
+struct page_table *
+pt_copy_deep(struct page_table *old)
+{
+    struct page_table *new_pt = pt_create();
+    if (new_pt == NULL)
+        return NULL;
+        
+    // Loop through the old page table and copy entries
+    for (int i = 0; i < LEVEL_SIZE; i++) {
+        if (old->pt_index[i] != NULL) {
+            for (int j = 0; j < LEVEL_SIZE; j++) {
+                if (old->pt_index[i][j] != NULL) {
+                
+                    struct pt_entry *old_pte = pt_acquire_entry(old, INDEX_TO_VADDR(i, j));
+                    if (pt_create_entry(new_pt, INDEX_TO_VADDR(i, j))) {
+                        pt_release_entry(old_entry);
+                        pt_destroy(new_pt);
+                        return NULL;
+                    }
+                    struct pt_entry *new_pte = new_pt->pt_index[i][j];
+                    
+                    // Copy the new_pte's page to a new place in swap
+                    swapidx_t freeblk;
+                    if(swap_get_free(swapidx_t &freeblk)) {
+                        pt_release_entry(old_entry);
+                        pt_destroy(new_pt);
+                        return NULL;
+                    }    
+                    if (old_pte->pte_inmem) {
+                        if(swap_out(MAKE_ADDR(old_pte->pte_frame , off)), freeblk)) {
+                            swap_free(freeblk);
+                            pt_release_entry(old_entry);
+                            pt_destroy(new_pt);
+                            return NULL;
+                        }
+                    }
+                    else {
+                        if(swap_copy(old_pte->pte_swapblk, freeblk)) {
+                            swap_free(freeblk);
+                            pt_release_entry(old_entry);
+                            pt_destroy(new_pt);
+                            return NULL;
+                        }
+                    }
+                    
+                    // put the correct info into new_pte
+                    new_pte = {
+                        .pte_busy = 0;
+                        .pte_inmem = 0;
+                        .pte_swapblk = freeblk;
+                    };                
+                    
+                    pt_release_entry(old_pte);
+                }
+            }
+        }
+    }       
+            
+            
+         
+    
+    
+    
 }
 
 /**************** SYNCHRONIZATION FUNCTIONS ****************/
@@ -182,7 +258,7 @@ pt_release_entry(struct page_table *pt, struct pt_entry *pte)
 
 /******** Must be called with the pt_entry locked ********/
 
-
+ 
 bool
 pte_try_access(struct pt_entry *pte)
 {

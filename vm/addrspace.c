@@ -65,23 +65,28 @@ as_create(void)
 }
  
 int
-as_copy(struct addrspace *old, struct addrspace **ret)
+as_copy(struct addrspace *old_as, struct addrspace **ret)
 {
-	struct addrspace *newas;
+	struct addrspace *new_as;
 
-	newas = as_create();
-	if (newas==NULL) {
+	new_as = as_create();
+	if (new_as == NULL) {
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
-
-	(void)old;
-
-	*ret = newas;
-	return 0;
+	new_as->as_pgtbl = pt_copy_deep(old_as->as_pgtbl);
+    if (new_as->as_pgtbl == NULL) {
+        kfree(new_as);
+        return ENOMEM;
+    }
+    
+    for (int i = 0; i < NSEGS + 2; i++) 
+        new_as->as_segs[i] = old_as->as_segs[i];
+    
+    new_as->as_loading = false;
+    
+	*ret = new;
+    return 0;
 }
 
 void
