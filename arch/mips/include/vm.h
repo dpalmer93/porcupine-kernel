@@ -131,8 +131,6 @@ struct tlbshootdown {
  * MIPS-Specific
  */
 struct pt_entry {
-    volatile unsigned   pte_busy:1;     // For synchronization
-    unsigned            pte_inmem:1;    // In memory?
     union {
         // ---------------- In-memory fields ---------------- //
         struct {
@@ -145,6 +143,8 @@ struct pt_entry {
         // ----------------- On-disk fields ----------------- //
         unsigned        pte_swapblk:30; // Swap backing block
     };
+    unsigned            pte_inmem:1;    // In memory?
+    volatile unsigned   pte_busy:1;     // For synchronization
 };
 
 #endif /* _MIPS_VM_H_ */

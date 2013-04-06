@@ -48,15 +48,16 @@ void                pt_destroy(struct page_table *pt);
  *      pt_release_entry: release the lock on a page table entry acquired via
  *      one of the above functions.
  *
- *      pte_trylock: atomically tries to lock page table entry, returns 1 and locks if successful
+ *      pte_try_lock: atomically tries to lock page table entry,
+ *      returns true and locks if successful
  *
  */
 struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
 struct pt_entry    *pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
 void                pt_release_entry(struct page_table *pt, pt_entry *pte);
-int                 pte_try_lock(pt_entry *pte);
+bool                pte_try_lock(pt_entry *pte);
 
-// Must hold pte (via pt_acquire_entry()) to use these:
+// Must hold pte lock to use these:
 void pte_try_access(struct pt_entry *pte);
 bool pte_try_dirty(struct pt_entry *pte);
 

@@ -159,8 +159,43 @@ pt_copy_deep(struct page_table *old)
 
 /**************** SYNCHRONIZATION FUNCTIONS ****************/
 
+bool
+pte_try_lock(struct pt_entry *pte)
+{
+    // registers to perform the test-and-set
+    struct pt_entry x;
+    struct pt_entry y;
+    
+    // test first to reduce contention
+    if (pte->pte_busy)
+        return false;
+    
+    // try to set the low bit (the busy bit) atomically
+    __asm volatile(
+                   ".set push;"         // save assembler mode
+                   ".set mips32;"		// allow MIPS32 instructions
+                   ".set volatile;"     // avoid unwanted optimization
+                   "ll %0, 0(%2);"		//   x = *pte
+                   "ori %1, %0, 1"      //   x.pte_busy = 1
+                   "sc %1, 0(%2);"		//   *pte = x; x = success?
+                   ".set pop"           // restore assembler mode
+                   : "=r" (x), "+r" (y) : "r" (pte));
+    
+    // if the LL/SC failed, y will be zero
+    if (y == 0)
+        return false;
+    
+    // otherwise, return true if the PTE was not previously busy
+    return !(x.pte_busy);
+}
+
+void
+pte_unlock(struct pt_entry *pte)
+{
+    pte->pte_busy = 0;
+}
+
 // Guaranteed to return the page table entry if one exists
-// Spins if the PTE is busy
 struct pt_entry *
 pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
 {
@@ -179,11 +214,10 @@ pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
         return NULL;
     }
     
-    // wait for the page to become available
-    while (pte->pte_busy)
+    // wait for the PTE to become available
+    while (!pte_try_lock(pte))
         cv_wait(pt->pt_cv, pt->pt_lock);
     
-    pte->pte_busy = 1;
     lock_release(pt->pt_lock);
     return pte;
 }
@@ -243,7 +277,7 @@ pt_release_entry(struct page_table *pt, struct pt_entry *pte)
 {
     lock_acquire(pt->pt_lock);
     KASSERT(pte->pte_busy);
-    pte->pte_busy = 0;
+    pte_unlock(pte);
     cv_signal(pt->pt_cv);
     lock_release(pt->pt_lock);
 }
