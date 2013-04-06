@@ -89,8 +89,8 @@ pt_destroy(struct page_table *pt)
 struct page_table *
 pt_copy_deep(struct page_table *old)
 {
-    struct page_table *new = pt_create();
-    if (new == NULL)
+    struct page_table *new_pt = pt_create();
+    if (new_pt == NULL)
         return NULL;
         
     // Loop through the old page table and copy entries
@@ -100,25 +100,25 @@ pt_copy_deep(struct page_table *old)
                 if (old->pt_index[i][j] != NULL) {
                 
                     struct pt_entry *old_pte = pt_acquire_entry(old, INDEX_TO_VADDR(i, j));
-                    if (pt_create_entry(new, INDEX_TO_VADDR(i, j))) {
+                    if (pt_create_entry(new_pt, INDEX_TO_VADDR(i, j))) {
                         pt_release_entry(old_entry);
-                        pt_destroy(new);
+                        pt_destroy(new_pt);
                         return NULL;
                     }
-                    struct pt_entry *new_pte = new->pt_index[i][j];
+                    struct pt_entry *new_pte = new_pt->pt_index[i][j];
                     
                     // Copy the new_pte's page to a new place in swap
                     swapidx_t freeblk;
                     if(swap_get_free(swapidx_t &freeblk)) {
                         pt_release_entry(old_entry);
-                        pt_destroy(new);
+                        pt_destroy(new_pt);
                         return NULL;
                     }    
                     if (old_pte->pte_inmem) {
                         if(swap_out(MAKE_ADDR(old_pte->pte_frame , off)), freeblk)) {
                             swap_free(freeblk);
                             pt_release_entry(old_entry);
-                            pt_destroy(new);
+                            pt_destroy(new_pt);
                             return NULL;
                         }
                     }
@@ -126,7 +126,7 @@ pt_copy_deep(struct page_table *old)
                         if(swap_copy(old_pte->pte_swapblk, freeblk)) {
                             swap_free(freeblk);
                             pt_release_entry(old_entry);
-                            pt_destroy(new);
+                            pt_destroy(new_pt);
                             return NULL;
                         }
                     }
