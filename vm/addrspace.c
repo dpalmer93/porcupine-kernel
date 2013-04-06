@@ -127,18 +127,26 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
     // vaddr must be page aligned
     KASSERT(PAGE_OFFSET(vaddr) == 0);
     
+    size_t npages = (sz + PAGE_SIZE - 1) / PAGE_SIZE;
+    
     // Find an empty region and fill it
     // Temporarily allow writes until load is complete
     for (int i = 0; i < NSEGS; i++) {
         if (as->as_segs[i].seg_npages == 0) {
             as->as_segs[i].seg_base = vaddr;
             as->as_segs[i].seg_npages = npages;
-            as->as_segs[i].seg_temp = (bool) writeable;
-            as->as_segs[i].seg_write = true;
+            as->as_segs[i].seg_write = (bool) writeable;
+            
+            vaddr_t seg_top = vaddr + npages * PAGE_SIZE;
+            
+            // Increment the starting location of the heap to above region
+            if (as->as_heap < seg_top)
+                as->as_heap = seg_top;
+            
             return 0;
         }
     }
-    
+        
 	return ENOMEM;
 }
 
@@ -161,10 +169,8 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
-    as_stack = {
-        .seg_base = *stackptr - ;
-    }
-
+    as->as_stack = USERSTACK - PAGE_SIZE * STACK_NPAGES;
+    
 	return 0;
 }
 

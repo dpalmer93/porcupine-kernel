@@ -52,11 +52,13 @@ struct segment {
     bool    seg_write; // write permission
 }
 
-void init_segment(struct segment *seg);
 bool in_segment(struct segment *seg, vaddr_t vaddr);
 
 // number of segments (other than stack and heap)
 #define NSEGS 4
+
+// stack size
+#define STACK_NPAGES 256
 
 /*
  * Address space - data structure associated with the virtual memory
@@ -75,8 +77,8 @@ struct addrspace {
 #elif OPT_PORCUPINEVM
 	struct page_table  *as_pgtbl;
     struct segment      as_segs[NSEGS];
-    struct segment      as_stack;
-    struct segment      as_heap;
+    vaddr_t             as_stacktop;
+    vaddr_t             as_heaptop;
     // turn of write protection while segments being loaded
     bool                as_loading;
 #endif
