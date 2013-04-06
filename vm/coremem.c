@@ -141,7 +141,12 @@ core_acquire_frame(void)
             // need to invalidate other PTE's still
             tlb_invalidate_p(CORE_TP_PADDR(core_lruclock));
             
-            // need to do a test and set to test busy bit = 0 and set accessed bit = 0 of PTE
+            // need to do a test and set on busy bit
+            // will only try this once, because if busy we don't set the accessed bit
+            if (testandset_busy(coremap[core_lruclock].cme_resident)) {
+                coremap[core_lruclock].cme_resident->cme_accessed = 0;
+                coremap[core_lruclock].cme_resident->cme_busy = 0;
+            }
             
             continue;
         }
@@ -237,6 +242,7 @@ core_try_lock(size_t pgnum)
     return true;
 }
 
+// Does not lock PTE
 void
 core_clean(void *data1, unsigned long data2)
 {
