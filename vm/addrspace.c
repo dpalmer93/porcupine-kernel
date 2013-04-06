@@ -57,13 +57,15 @@ as_create(void)
         return NULL;
     }
     
+    // Heap will eventually be above defined regions
+    as->as_heap = 0;
     // Sets each region to uninitialized
     for (int i = 0; i < NSEGS; i++)
         as->as_segs[i].seg_npages = 0;
 
 	return as;
 }
-
+ 
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
@@ -98,10 +100,10 @@ void
 as_activate(struct addrspace *as)
 {
     // unused
-	(void)as;
+    (void)as;
     
-    // currently invalidate the entire tlb
-	tlb_flush();
+    // invalidate the entire tlb on context switch
+    tlb_flush();
 }
 
 /*
@@ -130,9 +132,9 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
     for (int i = 0; i < NSEGS; i++) {
         if (as->as_segs[i].seg_npages == 0) {
             as->as_segs[i].seg_base = vaddr;
-            as->as_segs[i].seg_npages = (sz + PAGE_SIZE - 1) / PAGE_SIZE;
+            as->as_segs[i].seg_npages = npages;
             as->as_segs[i].seg_temp = (bool) writeable;
-            as->as_segs[i].seg_write = 1;
+            as->as_segs[i].seg_write = true;
             return 0;
         }
     }
@@ -167,6 +169,16 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 }
 
 bool
+as_can_read(struct addrspace *as, vaddr_t vaddr)
+{
+    (void)as;
+    (void)vaddr;
+    
+    // all memory is readable
+    return true;
+}
+
+bool
 as_can_write(struct addrspace *as, vaddr_t vaddr)
 {
     // see if vaddr is in a defined region
@@ -177,5 +189,5 @@ as_can_write(struct addrspace *as, vaddr_t vaddr)
         }
     }
     // can always write to stack or heap
-    return (vaddr > as->as_stack || vaddr < as->as_heap);
+    return (vaddr >= as->as_stack || vaddr < as->as_heap);
 }
