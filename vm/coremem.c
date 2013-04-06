@@ -35,6 +35,13 @@
 #include <addrspace.h>
 #include <coremem.h>
 
+// Number of access bits the lru_clock will clear before it just evicts the not busy next page
+#define MAX_CLOCKSTEPS 16
+
+// Macro to go from coremap entry to physical address
+#define CORE_TO_PADDR(i) (core_btmaddr + i * PAGE_SIZE)
+#define PADDR_TO_CORE(paddr) ((paddr - core_btmaddr) / PAGE_SIZE)
+
 
 struct cm_entry {
     unsigned         cme_kernel:1;   // In use by kernel?
@@ -47,7 +54,7 @@ static struct cm_entry *coremap;
 static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
 static size_t           core_lruclock;
 static size_t           core_len;
-static paddr_t          core_btmaddr;
+paddr_t                 core_btmaddr;
 
 void
 core_bootstrap(void)
@@ -57,9 +64,9 @@ core_bootstrap(void)
     paddr_t hi;
     ram_getsize(&lo, &hi);
     
-    // page align lo and store it
+    // page align lo to the next free page
     KASSERT(lo != 0);
-    lo = PAGE_FRAME(lo);
+    lo = PAGE_FRAME(lo + PAGE_SIZE - 1);
     core_btmaddr = lo;
     
     // calculate size of coremap
@@ -143,7 +150,7 @@ core_acquire_frame(void)
             
             // need to do a test and set on busy bit
             // will only try this once, because if busy we don't set the accessed bit
-            if (testandset_busy(coremap[core_lruclock].cme_resident)) {
+            if (pte_trylock(coremap[core_lruclock].cme_resident)) {
                 coremap[core_lruclock].cme_resident->cme_accessed = 0;
                 coremap[core_lruclock].cme_resident->cme_busy = 0;
             }
@@ -242,7 +249,8 @@ core_try_lock(size_t pgnum)
     return true;
 }
 
-// Does not lock PTE
+// Does not wait on PTE
+// Does this by test and setting once
 void
 core_clean(void *data1, unsigned long data2)
 {
@@ -252,7 +260,13 @@ core_clean(void *data1, unsigned long data2)
     size_t pgnum;
     while (true)
     {
-        if (core_try_lock(pgnum)) {
+        // tries to lock both the cme and pte
+        // if it fails, go to the next cme
+        if (core_try_lock(pgnum) && pte_try_lock(coremap[pgnum].cme_resident) {
+            
+        
+        
+            coremap[pgnum].cme_resident->pte_busy = 0;
             core_release_frame(CORE_TO_PADDR(pgnum));
         }
         

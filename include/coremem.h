@@ -60,11 +60,6 @@ void    core_free_frame(paddr_t frame);
 // start core cleaner daemon
 void core_cleaner_bootstrap(void);
 
-// Number of access bits the lru_clock will clear before it just evicts the not busy next page
-#define MAX_CLOCKSTEPS 16
 
-// Macro to go from coremap entry to physical address
-#define CORE_TO_PADDR(i) (core_btmaddr + i * PAGE_SIZE)
-#define PADDR_TO_CORE(paddr) ((paddr - core_btmaddr) / PAGE_SIZE)
 
 #endif /* _COREMEM_H_ */

@@ -82,7 +82,7 @@ pt_destroy(struct page_table *pt)
                     // free the page frame and/or swap space
                     pt_entry *pte = pt->pt_index[i][j];
                     if (pte->pt_inmem)
-                        core_free_frame(CORE_TO_PADDR(pte->pte_frame));
+                        core_free_frame(pte->pte_frame);
                     else
                         swap_free(pte->pte_swapblk);
                     
@@ -280,3 +280,4 @@ pte_try_dirty(struct pt_entry *pte)
     }
     return false;
 }
+
