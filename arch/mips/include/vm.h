@@ -138,7 +138,8 @@ struct pt_entry {
         struct {
             unsigned    pte_accessed:1; // Recently accessed?
             unsigned    pte_dirty:1;    // Dirty page?
-            unsigned    pte_reserved:8; // Reserved for future use
+            unsigned    pte_cleaning:1; // Page currently being cleaned?
+            unsigned    pte_reserved:7; // Reserved for future use
             unsigned    pte_frame:20;   // Page frame number
         };
         // ----------------- On-disk fields ----------------- //
