@@ -198,8 +198,10 @@ as_can_write(struct addrspace *as, vaddr_t vaddr)
 {
     // see if vaddr is in a defined region
     for (int i = 0; i < NSEGS; i++) {
-        if (in_segment(&as->as_segs[i], vaddr))
-            return as->as_segs[i].seg_write;
+        if (in_segment(&as->as_segs[i], vaddr)) {
+            // turn off write protection when loading segments
+            return as->as_loading? true : as->as_segs[i].seg_write;
+        }
     }
     // can always write to stack or heap
     return (vaddr >= as->as_stackbtm || vaddr < as->as_heaptop);
