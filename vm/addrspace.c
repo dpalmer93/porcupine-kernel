@@ -76,14 +76,17 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+	newas->as_pgtbl = pt_copy_deep(old);
+    if (newas == NULL) {
+        kfree(newas);
+        return ENOMEM;
+    }
 
-	(void)old;
-
+    
+    
 	*ret = newas;
-	return 0;
+	
+    return 0;
 }
 
 void

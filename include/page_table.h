@@ -57,4 +57,7 @@ void                pt_release_entry(struct page_table *pt, pt_entry *pte);
 void pte_try_access(struct pt_entry *pte);
 bool pte_try_dirty(struct pt_entry *pte);
 
+// Deep copy of the page table and all the page table entries
+struct page_table *pt_copy_deep(struct page_table *pt);
+
 #endif /* _PAGE_TABLE_H_ */
