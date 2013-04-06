@@ -266,10 +266,11 @@ core_try_lock(size_t pgnum)
 }
 
 void
-core_unlock(size_t pgnum)
+core_unlock(size_t index)
 {
-    KASSERT(coremap[pgnum].cme_busy == 1);
-    coremap[pgnum].cme_busy == 0;
+    spinlock_acquire(core_lock);
+    coremap[index].cme_busy == 0;
+    spinlock_release(core_lock);
 }
 
 // Does not wait on PTE
@@ -280,20 +281,34 @@ core_clean(void *data1, unsigned long data2)
     (void)data1;
     (void)data2;
     
-    size_t pgnum;
+    size_t index;
     while (true)
     {
         // tries to lock both the cme and pte
         // if it fails, go to the next cme
-        if (core_try_lock(pgnum) && pte_try_lock(coremap[pgnum].cme_resident) 
-            && coremap[pgnum].cme_resident->pte_dirty) {
+        if (core_try_lock(index) && !(coremap[index].cme_kernel)
+            && coremap[index].cme_resident && pte_try_lock(coremap[index].cme_resident)) {
+            struct pt_entry *pte = coremap[index].cme_resident;
             
-        
-        
-            coremap[pgnum].cme_resident->pte_busy = 0;
-            core_release_frame(CORE_TO_PADDR(pgnum));
+            // if dirty, then set the clean bit and start writing
+            if(pte->pte_dirty) {
+                // set the cleaning bit
+                pte_start_cleaning(pte);
+                pte_unlock(pte);
+                
+                // set dirty bit on all TLB's
+                // TODO
+                
+                swap_out(CORE_TO_PADDR(index), coremap[index].cme_swapblk);
+                // once done writing, lock the PTE and check the cleaning bit
+                // if it is still set, unset it and unset the dirty bit
+                // this means that the clean was not interrupted and was successful
+                pte_finish_cleaning(pte);
+            }
+            else
+                pte_unlock(pte);
         }
-        
+        core_unlock(index);
         index = (index + 1) % cm_npages;
     }
 }
