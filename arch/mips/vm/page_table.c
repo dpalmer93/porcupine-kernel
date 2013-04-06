@@ -324,3 +324,12 @@ pte_is_dirty(struct pt_entry *pte)
     return false;
 }
 
+void
+pte_evict(struct pt_entry *pte, swapidx_t swapblk)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    
+    pte->pte_inmem = 0;
+    pte->pte_swapblk = swapblk;
+}

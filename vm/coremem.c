@@ -127,26 +127,27 @@ paddr_t
 core_acquire_frame(void)
 {
     int clock_steps = 0;
-    size_t lruclock;
+    size_t index;
     while(true) {
     
         // get current clock hand and increment clock
-        lruclock = core_incr_lruclock();
+        index = core_incr_lruclock();
         
         // try to lock the coremap entry
-        if (core_try_lock(lruclock)) {
-            // found unallocated coremap entry
-            if (!(coremap[lruclock].cme_kernel) && !(coremap[lruclock].cme_resident)) {
+        if (!core_try_lock(index)) {
+            
+            // found a free frame
+            if (!(coremap[index].cme_kernel) && !(coremap[index].cme_resident)) {
                 break;
             }
             // try to lock page table entry, skip if cannot acquire
-            if (pte_try_lock(coremap[lruclock].cme_resident)) {
-                struct pt_entry *pte = coremap[lruclock].cme_resident;
+            if (pte_try_lock(coremap[index].cme_resident)) {
+                struct pt_entry *pte = coremap[index].cme_resident;
                 
                 //skip entries that are dirty or not in memory
                 if (pte_is_dirty(pte) || !pte_is_inmem(pte)) {
-                    core_release_lock(lruclock);
-                    pte_release_lock(pte);
+                    pte_unlock(pte);
+                    core_unlock(index);
                     continue;
                 }
                 
@@ -154,22 +155,25 @@ core_acquire_frame(void)
                 if (clock_steps < MAX_CLOCKSTEPS && pte->pte_accessed) {
                     clock_steps++;
                     // need to invalidate other PTE's still
-                    tlb_invalidate_p(CORE_TO_PADDR(lruclock));
+                    tlb_invalidate_p(CORE_TO_PADDR(index));
                     // clear accessed bit and release PTE
                     pte_clear_access(pte);
-                    core_release_lock(lruclock);
-                    pte_release_lock(pte);
+                    pte_unlock(pte);
+                    core_unlock(index);
                     continue;
                 }
                 // found a frame that has not been recently accessed
                 else {
+                    pte_evict(pte, coremap[index].cme_swapblk);
+                    pte_unlock(pte);
                     break;
                 }
-            }      
+            }
+            core_unlock(index);
         }
     }
     
-    return CORE_TO_PADDR(lruclock);
+    return CORE_TO_PADDR(index);
 }
 
 void
@@ -261,7 +265,7 @@ core_try_lock(size_t pgnum)
 }
 
 void
-core_release_lock(size_t pgnum)
+core_unlock(size_t pgnum)
 {
     KASSERT(coremap[pgnum].cme_busy == 1);
     coremap[pgnum].cme_busy == 0;

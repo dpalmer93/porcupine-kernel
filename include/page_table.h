@@ -57,12 +57,13 @@ void                pt_release_entry(struct page_table *pt, pt_entry *pte);
 int                 pte_try_lock(pt_entry *pte);
 void                pte_release_lock(pt_entry *pte);
 
-// Must hold pte (via pt_acquire_entry()) to use these:
+// Must hold pte (via pt_acquire_entry() or pte_trylock()) to use these:
 void pte_try_access(struct pt_entry *pte);
 bool pte_try_dirty(struct pt_entry *pte);
 void pte_clear_access(struct pt_entry *pte);
 bool pte_is_inmem(struct pt_entry *pte);
 bool pte_is_dirty(struct pt_entry *pte);
+void pte_evict(struct pt_entry *pte, swapidx_t swapblk);
 
 // Deep copy of the page table and all the page table entries
 struct page_table *pt_copy_deep(struct page_table *pt);
