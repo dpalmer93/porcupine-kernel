@@ -56,7 +56,7 @@ void    core_map_frame(paddr_t frame, struct pt_entry *pte, swapidx_t swapblk);
 void    core_reserve_frame(paddr_t frame);
 void    core_free_frame(paddr_t frame);
 
-// start core cleaner thread
+// start core cleaner daemon
 void core_cleaner_bootstrap(void);
 
 #endif /* _COREMEM_H_ */

@@ -168,4 +168,41 @@ core_free_frame(paddr_t frame)
     spinlock_release(core_lock);
 }
 
+// helper function for cleaner daemon only
+// not exported in coremem.h
+bool
+core_try_lock(size_t pgnum)
+{
+    struct cm_entry *cme = coremap[pgnum];
+    
+    spinlock_acquire(core_lock);
+    if (cme->cme_busy) {
+        spinlock_release(core_lock);
+        return false;
+    }
+    
+    cme->cme_busy = 1;
+    spinlock_release(core_lock);
+    return true;
+}
+
+void
+core_clean(void *data1, unsigned long data2)
+{
+    (void)data1;
+    (void)data2;
+    
+    size_t pgnum;
+    while (true)
+    {
+        if (core_try_lock(pgnum)) {
+            core_release_frame(MAKE_ADDR(pgnum, 0));
+        }
+        
+        index++;
+        if (index >= cm_npages)
+            index = 0;
+    }
+}
+
 
