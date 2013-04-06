@@ -124,3 +124,18 @@ swap_out(paddr_t src, swapidx_t dst)
     
     return VOP_READ(swap_vnode, swapout_uio);
 }
+
+int
+swap_copy(swapidx_t src, swapidx_t dst)
+{
+    // buffer to hold page to be copied
+    char buf[PAGE_SIZE];
+    int err;
+    err = swap_in(src, KVADDR_TO_PADDR(&buf));
+    if (err)
+        return err;
+    err = swap_out(KVADDR_TO_PADDR(&buf), dst);
+    if (err)
+        return err;
+    return 0;
+}

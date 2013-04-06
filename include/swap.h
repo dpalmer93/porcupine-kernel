@@ -44,5 +44,6 @@ int     swap_get_free(swapidx_t *freeblk);      // get a free disk block
 void    swap_free(swapidx_t to_free);           // free a disk block
 int     swap_in(swapidx_t src, paddr_t dst);
 int     swap_out(paddr_t src, swapidx_t dst);
+int     swap_copy(swapidx_t src, swapidx_t dst);
 
 #endif /* _SWAP_H_ */
