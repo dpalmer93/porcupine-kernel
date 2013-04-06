@@ -153,11 +153,7 @@ pt_copy_deep(struct page_table *old)
         }
     }       
             
-            
-         
-    
-    
-    
+    return new_pte;
 }
 
 /**************** SYNCHRONIZATION FUNCTIONS ****************/
