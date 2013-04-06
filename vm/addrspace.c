@@ -57,11 +57,9 @@ as_create(void)
         return NULL;
     }
     
-    // Heap will eventually be above defined regions
-    as->as_heap = 0;
     // Sets each region to uninitialized
     for (int i = 0; i < NSEGS; i++)
-        as->as_segs[i].seg_npages = 0;
+        seg_zero(as->as_segs[i])
 
 	return as;
 }
@@ -89,10 +87,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
-
+	pt_destroy(as->as_pgtbl);
 	kfree(as);
 }
 
@@ -102,7 +97,7 @@ as_activate(struct addrspace *as)
     // unused
     (void)as;
     
-    // invalidate the entire tlb on context switch
+    // invalidate the entire tlb on a context switch
     tlb_flush();
 }
 
@@ -132,16 +127,13 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
     // Find an empty region and fill it
     // Temporarily allow writes until load is complete
     for (int i = 0; i < NSEGS; i++) {
-        if (as->as_segs[i].seg_npages == 0) {
-            as->as_segs[i].seg_base = vaddr;
-            as->as_segs[i].seg_npages = npages;
-            as->as_segs[i].seg_write = (bool) writeable;
+        if (seg_available(as->as_segs[i])) {
+            seg_init(as->as_segs[i], vaddr, npages, writeable);
             
+            // Update base of the heap
             vaddr_t seg_top = vaddr + npages * PAGE_SIZE;
-            
-            // Increment the starting location of the heap to above region
-            if (as->as_heap < seg_top)
-                as->as_heap = seg_top;
+            if (as->AS_HEAP->seg_base < seg_top)
+                as->AS_HEAP->seg_base = seg_top;
             
             return 0;
         }
@@ -167,12 +159,18 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/* Initial user-level stack pointer */
-	*stackptr = USERSTACK;
-    as->as_stackbtm = USERSTACK - PAGE_SIZE * STACK_NPAGES;
+	vaddr_t stackbase = USERSTACK - PAGE_SIZE * STACK_NPAGES;
     
-    if (as->as_stackbtm < as->as_heaptop)
+    // check for overlap with the heap
+    vaddr_t heaptop = as->AS_HEAP->seg_base + as->AS_HEAP->seg_npages * PAGE_SIZE;
+    if (stackbase < heaptop)
         return ENOMEM;
+    
+    // seg up stack segment
+    seg_init(as->AS_STACK, stackbase, STACK_NPAGES, true);
+    
+    // Initial user-level stack pointer
+	*stackptr = USERSTACK;
     
 	return 0;
 }
@@ -180,37 +178,52 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 bool
 as_can_read(struct addrspace *as, vaddr_t vaddr)
 {
-    (void)as;
-    (void)vaddr;
-    
-    // see if vaddr is in a defined region
-    for (int i = 0; i < NSEGS; i++) {
-        if (in_segment(&as->as_segs[i], vaddr))
+    // see if vaddr is in a defined region (including stack and heap)
+    for (int i = 0; i < NSEGS + 2; i++) {
+        if (seg_contains(&as->as_segs[i], vaddr))
             return true;
     }
-    
-    // all memory is readable
-    return false;
 }
 
 bool
 as_can_write(struct addrspace *as, vaddr_t vaddr)
 {
-    // see if vaddr is in a defined region
-    for (int i = 0; i < NSEGS; i++) {
-        if (in_segment(&as->as_segs[i], vaddr)) {
+    // see if vaddr is in a defined region (including stack and heap)
+    for (int i = 0; i < NSEGS + 2; i++) {
+        if (seg_contains(&as->as_segs[i], vaddr)) {
             // turn off write protection when loading segments
             return as->as_loading? true : as->as_segs[i].seg_write;
         }
     }
-    // can always write to stack or heap
-    return (vaddr >= as->as_stackbtm || vaddr < as->as_heaptop);
 }
 
-bool in_segment(struct segment *seg, vaddr_t vaddr)
+bool
+seg_available(const struct segment *seg)
+{
+    return seg->seg_base == 0 && seg->seg_npages == 0;
+}
+
+bool
+seg_contains(const struct segment *seg, vaddr_t vaddr)
 {
     if (vaddr < seg->seg_base)
         return false;
     
     return (vaddr - seg->seg_base) / PAGE_SIZE < seg->seg_npages;
+}
+
+void
+seg_zero(struct segment *seg)
+{
+    seg->seg_base = 0;
+    seg->seg_npages = 0;
+    seg->seg_write = false;
+}
+
+void
+seg_init(struct segment *seg, vaddr_t base, size_t npages, bool write)
+{
+    seg->seg_base = base;
+    seg->seg_npages = npages;
+    seg->seg_write = write;
 }
