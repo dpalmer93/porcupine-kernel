@@ -76,7 +76,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             
         case VM_FAULT_READ:
         case VM_FAULT_WRITE:
-            if (pte == NULL)
+            if (pte == NULL && as_can_read(as, faultaddress))
                 return vm_unmapped_page_fault(faultaddress, pt);
             else if (!pte_try_access(pte)) {
                 // NOTE: this will unlock the PTE when it is done
