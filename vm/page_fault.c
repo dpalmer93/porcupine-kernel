@@ -27,7 +27,9 @@
  * SUCH DAMAGE.
  */
 
+#include <types.h>
 #include <kern/errno.h>
+#include <lib.h>
 #include <page_table.h>
 #include <coremem.h>
 #include <swap.h>
@@ -65,7 +67,7 @@ vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
     core_release_frame(frame);
     
     // zero the frame
-    bzero(PADDR_TO_KVADDR(frame), PAGE_SIZE);
+    bzero((void *)PADDR_TO_KVADDR(frame), PAGE_SIZE);
     
     // clean up
     pt_release_entry(pt, pte);
