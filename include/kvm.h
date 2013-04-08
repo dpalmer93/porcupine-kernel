@@ -43,7 +43,7 @@
  */
 vaddr_t kvm_alloc_contig(int npages);
 bool    kvm_is_kernel(vaddr_t vaddr);
-paddr_t kvm_fault(vaddr_t faultaddr);
+int     kvm_fault(vaddr_t faultaddr);
 
 
 #endif /* _KVM_H_ */

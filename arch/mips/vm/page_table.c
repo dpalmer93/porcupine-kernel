@@ -179,7 +179,7 @@ pte_try_lock(struct pt_entry *pte)
                    ".set mips32;"		// allow MIPS32 instructions
                    ".set volatile;"     // avoid unwanted optimization
                    "ll %0, 0(%2);"		//   x = *pte
-                   "ori %1, %0, %1;"    //   y = x; y.pte_busy = 1
+                   "or %1, %0, %1;"     //   y = x; y.pte_busy = 1
                    "sc %1, 0(%2);"		//   *pte = y; y = success?
                    ".set pop"           // restore assembler mode
                    : "=r" (x), "+r" (y) : "r" (pte));
