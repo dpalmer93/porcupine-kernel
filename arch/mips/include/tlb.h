@@ -65,6 +65,8 @@ int tlb_probe(uint32_t entryhi, uint32_t entrylo);
  *
  * tlb_dirty - atomically set the dirty bit on an *existing* TLB entry
  *
+ * tlb_load - atomically load a mapping into the TLB
+ *
  * tlb_load_pte - atomically load a page table mapping into the TLB.  The
  *              PTE lock should be held before calling this)
  *
@@ -79,6 +81,7 @@ int tlb_probe(uint32_t entryhi, uint32_t entrylo);
  *              context switch.
  */
 void tlb_dirty(vaddr_t vaddr);
+void tlb_load(vaddr_t vaddr, paddr_t paddr, bool write);
 void tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_clean(vaddr_t paddr, const struct pt_entry *pte);

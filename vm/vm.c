@@ -36,6 +36,7 @@
 #include <process.h>
 #include <addrspace.h>
 #include <coremem.h>
+#include <kvm.h>
 #include <vm.h>
 
 void
@@ -47,7 +48,20 @@ vm_bootstrap(void)
 int
 vm_fault(int faulttype, vaddr_t faultaddress)
 {
-    /* User address fault */
+    /* Kernel TLB fault */
+    if (curthread->t_proc == NULL) {
+        paddr_t frame = kvm_getframe(faultaddress);
+        if (kte == 0) {
+            // Kernel page fault
+            return EFAULT;
+        }
+        
+        // load the mapping into the TLB
+        tlb_load(faultaddress, frame, true);
+        return 0;
+    }
+    
+    /* User TLB fault */
     struct addrspace *as = curthread->t_proc->ps_addrspace;
     struct page_table *pt = as->as_pgtbl;
     struct pt_entry *pte = pt_acquire_entry(pt, faultaddress);
@@ -119,8 +133,10 @@ vm_tlbshootdown(const struct tlbshootdown *ts)
 vaddr_t
 alloc_kpages(int npages)
 {
-    // this interface is strictly to be used for single pages
-    KASSERT(npages == 1);
+    if (npages > 1) {
+        // get contiguous pages from the kernel VM system
+        return kvm_alloc_contig(npages);
+    }
     
     // get a physical page.
     paddr_t frame = core_acquire_frame();

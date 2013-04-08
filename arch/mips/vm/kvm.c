@@ -47,16 +47,16 @@ struct kvm_pte {
 // we use the bottom two bits for additional state.
 static kvm_pte  kvm_pt[KHEAP_MAXPAGES];
 static spinlock kvm_lock = SPINLOCK_INITIALIZER;
-static size_t   kvm_top = MIPS_KSEG2; // kernel heap upper bound
+static size_t   kvm_top = 0; // kernel heap upper bound
 
 vaddr_t
 kvm_alloc_contig(int npages)
 {
-    vaddr_t block;
+    size_t block;
     
     // get a contiguous block of pages in KSEG2
     spinlock_acquire(&kvm_lock);
-    block = kvm_top * PAGE_SIZE;
+    block = kvm_top;
     kvm_top += npages;
     if (kvm_top > KHEAP_MAXPAGES) {
         spinlock_release(&kvm_lock);
@@ -83,23 +83,15 @@ kvm_alloc_contig(int npages)
     kvm_pt[block + npages - 1].kte_term = 1;
     
     // return the block
-    return block;
+    return block * PAGE_SIZE + MIPS_KSEG2;
 }
 
 paddr_t
-kvm_translate(vaddr_t vaddr)
+kvm_getframe(vaddr_t vaddr)
 {
-    paddr_t paddr;
-    
-    spinlock_acquire(&kvm_lock);
-    
     struct kvm_pte *kte = &kvm_pt[PAGE_NUM(vaddr)];
-    if (!kte->mapped) {
-        spinlock_release(&kvm_lock);
+    if (!kte->mapped)
         return 0;
-    }
     
-    paddr = MAKE_ADDR(entry->kte_frame, PAGE_OFFSET(vaddr));
-    spinlock_release(&kvm_lock);
-    return paddr;
+    return MAKE_ADDR(kte->kte_frame, 0);
 }

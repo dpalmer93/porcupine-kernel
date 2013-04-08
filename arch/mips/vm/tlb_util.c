@@ -54,17 +54,17 @@ tlb_dirty(vaddr_t vaddr)
     splx(x);
 }
 
-// The PTE lock (pte_busy) should be held before calling this
+// Load a mapping
 void
-tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
+tlb_load(vaddr_t vaddr, paddr_t paddr, bool write)
 {
     // turn off interrupts to make this atomic w.r.t. this CPU
     int x = splhigh();
     
     uint32_t entryhi = (vaddr & TLBHI_VPAGE);
-    uint32_t entrylo = (pte->pte_frame << 12)
-    | (pte->pte_dirty << 10)
-    | TLBLO_VALID;
+    uint32_t entrylo = (paddr & TLBLO_PPAGE)
+                     | (write? TLBLO_DIRTY : 0)
+                     | TLBLO_VALID;
     
     // if the VPN is already in the TLB, replace it
     int index = tlb_probe(entryhi, 0);
@@ -74,6 +74,13 @@ tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
         tlb_random(entryhi, entrylo);
     
     splx(x);
+}
+
+// The PTE lock (pte_busy) should be held before calling this
+void
+tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
+{
+    tlb_load(vaddr, MAKE_ADDR(pte->pte_frame, 0), pte->pte_dirty);
 }
 
 // invalidate by virtual page number and physical page number
