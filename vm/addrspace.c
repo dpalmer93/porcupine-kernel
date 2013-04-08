@@ -57,10 +57,11 @@ as_create(void)
         return NULL;
     }
     
-    // Sets each region to uninitialized
-    for (int i = 0; i < NSEGS; i++)
+    // Start with empty segments
+    for (int i = 0; i < NSEGS + 2; i++)
         seg_zero(&as->as_segs[i]);
 
+    as->as_loading = false;    
 	return as;
 }
  
