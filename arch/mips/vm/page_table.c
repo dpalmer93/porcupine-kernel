@@ -86,7 +86,7 @@ pt_destroy(struct page_table *pt)
                     // free the page frame and/or swap space
                     struct pt_entry *pte = pt->pt_index[i][j];
                     if (pte->pte_inmem)
-                        core_free_frame(pte->pte_frame);
+                        core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
                     else
                         swap_free(pte->pte_swapblk);
                     

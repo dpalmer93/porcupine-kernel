@@ -99,7 +99,7 @@ kvm_free_contig(vaddr_t vaddr)
     while (true)
     {
         // free the frame
-        core_free_frame(kvm_pt[index].kte_frame);
+        core_free_frame(MAKE_ADDR(kvm_pt[index].kte_frame, 0));
         
         // clear the kernel page table entry
         kvm_pt[index].kte_frame = 0;
