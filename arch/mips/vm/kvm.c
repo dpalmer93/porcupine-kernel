@@ -43,7 +43,7 @@ struct kvm_pte {
     unsigned kte_frame:20;      // physical page number
     unsigned kte_reserved:10;   // unused for now
     unsigned kte_term:1;        // end of an extent?
-    unsigned kte_mapped:1;      // currently used
+    unsigned kte_used:1;        // currently used
 };
 
 // The kernel page table is very simple.  It is just an array
@@ -68,20 +68,14 @@ kvm_alloc_contig(int npages)
     }
     spinlock_release(&kvm_lock);
     
-    // map the pages
+    // mark the pages as in use
     for (int i = 0; i < npages; i++)
     {
-        // get a physical page
-        paddr_t frame = core_acquire_frame();
-        
         // initialize the kernel page table entry
-        kvm_pt[block + i].kte_frame = PAGE_NUM(frame);
+        kvm_pt[block + i].kte_frame = 0;
         kvm_pt[block + i].kte_reserved = 0;
         kvm_pt[block + i].kte_term = 0;
-        kvm_pt[block + i].kte_mapped = 1;
-        
-        // reserve the frame for the kernel
-        core_reserve_frame(frame);
+        kvm_pt[block + i].kte_used = 1;
     }
     
     kvm_pt[block + npages - 1].kte_term = 1;
@@ -98,16 +92,20 @@ kvm_free_contig(vaddr_t vaddr)
     
     while (true)
     {
-        // free the frame
-        core_free_frame(MAKE_ADDR(kvm_pt[index].kte_frame, 0));
+        if (kvm_pt[index].kte_frame) {
+            // free the frame
+            core_free_frame(MAKE_ADDR(kvm_pt[index].kte_frame, 0));
+        }
         
         // clear the kernel page table entry
         kvm_pt[index].kte_frame = 0;
         kvm_pt[index].kte_reserved = 0;
-        kvm_pt[index].kte_mapped = 0;
+        kvm_pt[index].kte_used = 0;
         
-        if(kvm_pt[index].kte_term)
+        if(kvm_pt[index].kte_term) {
+            kvm_pt[index].kte_term = 0;
             return;
+        }
         
         index++;
     }
@@ -119,13 +117,30 @@ kvm_managed(vaddr_t vaddr)
     return vaddr >= MIPS_KSEG2;
 }
 
+static
+int
+kvm_page_fault(struct kvm_pte *kte)
+{
+    paddr_t frame = core_acquire_frame();
+    if (frame == 0)
+        return ENOMEM;
+    
+    kte->kte_frame = PAGE_NUM(frame);
+    core_reserve_frame(frame);
+    core_release_frame(frame);
+}
+
 int
 kvm_fault(vaddr_t faultaddress)
 {
     struct kvm_pte *kte = &kvm_pt[PAGE_NUM(faultaddress - MIPS_KSEG2)];
-    if (!kte->kte_mapped) {
-        // Kernel page fault
+    
+    if (!kte->kte_used)
         return EFAULT;
+    
+    if (!kte->kte_frame) {
+        // Kernel page fault
+        return kvm_page_fault(kte);
     }
     
     // load the mapping into the TLB
