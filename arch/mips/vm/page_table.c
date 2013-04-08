@@ -167,7 +167,7 @@ pte_try_lock(struct pt_entry *pte)
 {
     // registers to perform the test-and-set
     uint32_t x;
-    uint32_t y;
+    uint32_t y = 0x80000000;
     
     // test first to reduce contention
     if (pte->pte_busy)
@@ -179,8 +179,8 @@ pte_try_lock(struct pt_entry *pte)
                    ".set mips32;"		// allow MIPS32 instructions
                    ".set volatile;"     // avoid unwanted optimization
                    "ll %0, 0(%2);"		//   x = *pte
-                   "ori %1, %0, 0x1;"   //   x.pte_busy = 1
-                   "sc %1, 0(%2);"		//   *pte = x; x = success?
+                   "ori %1, %0, %1;"    //   y = x; y.pte_busy = 1
+                   "sc %1, 0(%2);"		//   *pte = y; y = success?
                    ".set pop"           // restore assembler mode
                    : "=r" (x), "+r" (y) : "r" (pte));
     
@@ -189,7 +189,7 @@ pte_try_lock(struct pt_entry *pte)
         return false;
     
     // otherwise, return true if the PTE was not previously busy
-    return !(x & 1);
+    return !(x & 0x80000000);
 }
 
 void
