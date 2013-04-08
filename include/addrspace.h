@@ -41,6 +41,7 @@
 
 struct vnode;
 
+#if !(OPT_DUMBVM)
 /*
  * VM Segment - data structure representing a block of memory with
  * common permissions.
@@ -62,6 +63,8 @@ void seg_init(struct segment *seg, vaddr_t base, size_t npages, bool write);
 
 // stack size
 #define STACK_NPAGES 256
+
+#endif // !(OPT_DUMBVM)
 
 /*
  * Address space - data structure associated with the virtual memory
