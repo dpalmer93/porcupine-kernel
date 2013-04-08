@@ -32,6 +32,7 @@
 #include <mips/vm.h>
 #include <mips/tlb.h>
 #include <kern/errno.h>
+#include <lib.h>
 #include <spinlock.h>
 #include <coremem.h>
 #include <kvm.h>
