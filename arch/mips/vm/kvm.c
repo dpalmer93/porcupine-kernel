@@ -32,6 +32,7 @@
 #include <mips/vm.h>
 #include <spinlock.h>
 #include <coremem.h>
+#include <kvm.h>
 
 #define KHEAP_MAXPAGES 1024
 
@@ -45,9 +46,9 @@ struct kvm_pte {
 // The kernel page table is very simple.  It is just an array
 // of physical addresses.  Since these are always aligned,
 // we use the bottom two bits for additional state.
-static kvm_pte  kvm_pt[KHEAP_MAXPAGES];
-static spinlock kvm_lock = SPINLOCK_INITIALIZER;
-static size_t   kvm_top = 0; // kernel heap upper bound
+static struct kvm_pte   kvm_pt[KHEAP_MAXPAGES];
+static struct spinlock  kvm_lock = SPINLOCK_INITIALIZER;
+static size_t           kvm_top = 0; // kernel heap upper bound
 
 vaddr_t
 kvm_alloc_contig(int npages)
@@ -89,8 +90,8 @@ kvm_alloc_contig(int npages)
 paddr_t
 kvm_getframe(vaddr_t vaddr)
 {
-    struct kvm_pte *kte = &kvm_pt[PAGE_NUM(vaddr)];
-    if (!kte->mapped)
+    struct kvm_pte *kte = &kvm_pt[PAGE_NUM(vaddr - MIPS_KSEG2)];
+    if (!kte->kte_mapped)
         return 0;
     
     return MAKE_ADDR(kte->kte_frame, 0);
