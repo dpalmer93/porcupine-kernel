@@ -33,39 +33,73 @@
 #include <spinlock.h>
 #include <coremem.h>
 
-#if 0
 #define KHEAP_MAXPAGES 1024
 
+struct kvm_pte {
+    unsigned kte_frame:20;      // physical page number
+    unsigned kte_reserved:10;   // unused for now
+    unsigned kte_term:1;        // end of an extent?
+    unsigned kte_mapped:1;      // currently used
+};
+
 // The kernel page table is very simple.  It is just an array
-// of physical addresses.  So kvm_pt[vpn] = frame_paddr
-static paddr_t kvm_pt[KHEAP_MAXPAGES];
+// of physical addresses.  Since these are always aligned,
+// we use the bottom two bits for additional state.
+static kvm_pte  kvm_pt[KHEAP_MAXPAGES];
 static spinlock kvm_lock = SPINLOCK_INITIALIZER;
-// Number of pages used so far: for synchronizing
-// kernel allocations.
-static size_t kvm_heaptop;
+static size_t   kvm_top = MIPS_KSEG2; // kernel heap upper bound
+
+vaddr_t
+kvm_alloc_contig(int npages)
+{
+    vaddr_t block;
+    
+    // get a contiguous block of pages in KSEG2
+    spinlock_acquire(&kvm_lock);
+    block = kvm_top * PAGE_SIZE;
+    kvm_top += npages;
+    if (kvm_top > KHEAP_MAXPAGES) {
+        spinlock_release(&kvm_lock);
+        return 0;
+    }
+    spinlock_release(&kvm_lock);
+    
+    // map the pages
+    for (int i = 0; i < npages; i++)
+    {
+        // get a physical page
+        paddr_t frame = core_acquire_frame();
+        
+        // initialize the kernel page table entry
+        kvm_pt[block + i].kte_frame = PAGE_NUM(frame);
+        kvm_pt[block + i].kte_reserved = 0;
+        kvm_pt[block + i].kte_term = 0;
+        kvm_pt[block + i].kte_mapped = 1;
+        
+        // reserve the frame for the kernel
+        core_reserve_frame(frame);
+    }
+    
+    kvm_pt[block + npages - 1].kte_term = 1;
+    
+    // return the block
+    return block;
+}
 
 paddr_t
 kvm_translate(vaddr_t vaddr)
 {
-    spinlock_acquire(kvm_lock);
-    paddr_t frame = kvm_pt[PAGE_NUM(vaddr)];
-    spinlock_release(kvm_lock);
+    paddr_t paddr;
     
-    if (frame == 0)
+    spinlock_acquire(&kvm_lock);
+    
+    struct kvm_pte *kte = &kvm_pt[PAGE_NUM(vaddr)];
+    if (!kte->mapped) {
+        spinlock_release(&kvm_lock);
         return 0;
+    }
     
-    return frame + PAGE_OFFSET(vaddr);
+    paddr = MAKE_ADDR(entry->kte_frame, PAGE_OFFSET(vaddr));
+    spinlock_release(&kvm_lock);
+    return paddr;
 }
-
-bool
-kvm_validate(vaddr_t vaddr)
-{
-    bool valid;
-    
-    spinlock_acquire(kvm_lock);
-    valid = ((vaddr - MIPS_KSEG2) / PAGE_SIZE) < kvm_heaptop;
-    spinlock_release(kvm_lock);
-    
-    return valid;
-}
-#endif
