@@ -30,6 +30,9 @@
 #ifndef _COREMEM_H_
 #define _COREMEM_H_
 
+#include <swap.h>
+#include <page_table.h>
+
 /*
  * Physical memory management operations:
  *
@@ -56,7 +59,8 @@ void    core_bootstrap(void);
 paddr_t core_acquire_random(void);  // random page allocation
 paddr_t core_acquire_frame(void);   // single hand lru clock 
 void    core_release_frame(paddr_t frame);
-void    core_map_frame(paddr_t frame, struct pt_entry *pte, swapidx_t swapblk);
+void    core_map_frame(paddr_t frame, vaddr_t vaddr,
+                       struct pt_entry *pte, swapidx_t swapblk);
 void    core_reserve_frame(paddr_t frame);
 void    core_free_frame(paddr_t frame);
 

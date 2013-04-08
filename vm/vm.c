@@ -28,6 +28,12 @@
  */
 
 #include <machine/vm.h>
+#include <machine/tlb.h>
+#include <kern/errno.h>
+#include <lib.h>
+#include <current.h>
+#include <thread.h>
+#include <process.h>
 #include <addrspace.h>
 #include <coremem.h>
 #include <vm.h>
@@ -53,7 +59,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             // the corresponding PTE must exist.
             KASSERT(pte);
             if (as_can_write(as, faultaddress) && pte_try_dirty(pte)) {
-                tlb_dirty(faultaddress, pte);
+                tlb_dirty(faultaddress);
                 pt_release_entry(pt, pte);
                 return 0;
             }
@@ -96,8 +102,8 @@ void
 vm_tlbshootdown(const struct tlbshootdown *ts)
 {
     switch (ts->ts_type) {
-        case TS_DIRTY:
-            tlb_dirty(ts->ts_vaddr, ts->ts_pte);
+        case TS_CLEAN:
+            tlb_clean(ts->ts_vaddr, ts->ts_pte);
             break;
             
         case TS_INVAL:

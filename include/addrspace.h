@@ -51,7 +51,7 @@ struct segment {
     vaddr_t seg_base;
     size_t  seg_npages;
     bool    seg_write; // write permission
-}
+};
 
 bool seg_available(const struct segment *seg);
 bool seg_contains(const struct segment *seg, vaddr_t vaddr);
@@ -80,18 +80,20 @@ struct addrspace {
 	paddr_t as_pbase2;
 	size_t as_npages2;
 	paddr_t as_stackpbase;
+};
 #else
 	struct page_table  *as_pgtbl;
     // NSEGS + the stack and heap
     struct segment      as_segs[NSEGS + 2];
     // turn off write protection while loading segments
     bool                as_loading;
-#endif
 };
 
 // Macros for the stack and heap
-#define AS_HEAP     (as_segs[NSEGS])
-#define AS_STACK    (as_segs[NSEGS + 1])
+#define AS_HEAP     as_segs[NSEGS]
+#define AS_STACK    as_segs[NSEGS + 1]
+
+#endif // OPT_DUMBVM
 
 /*
  * Functions in addrspace.c:

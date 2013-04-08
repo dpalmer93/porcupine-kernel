@@ -36,6 +36,7 @@
 
 
 #include <machine/vm.h>
+#include <page_table.h>
 
 /* Fault-type arguments to vm_fault() */
 #define VM_FAULT_READ        0    /* A read was attempted */
@@ -51,10 +52,10 @@ void vm_bootstrap(void);
  */
 int vm_fault(int faulttype, vaddr_t faultaddress);
 
-/* Page fault handling function called by vm_fault()
- * to handle a page fault.
+/* Page fault handling functions called by vm_fault()
  */
-int vm_page_fault(vaddr_t faultaddress, struct pt_entry *pte);
+int vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt);
+int vm_swapin_page_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte);
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) 
  * alloc_kpages() currently only allows allocation of single

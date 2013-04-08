@@ -31,6 +31,7 @@
 #include <machine/vm.h>
 #include <machine/tlb.h>
 #include <lib.h>
+#include <thread.h>
 #include <swap.h>
 #include <addrspace.h>
 #include <coremem.h>
@@ -40,8 +41,8 @@
 #define MAX_CLOCKTICKS 16
 
 // Macro to go from coremap entry to physical address
-#define CORE_TO_PADDR(i) (core_btmaddr + i * PAGE_SIZE)
-#define PADDR_TO_CORE(paddr) ((paddr - core_btmaddr) / PAGE_SIZE)
+#define CORE_TO_PADDR(i) (core_frame0 + i * PAGE_SIZE)
+#define PADDR_TO_CORE(paddr) ((paddr - core_frame0) / PAGE_SIZE)
 
 
 struct cm_entry {
@@ -56,48 +57,51 @@ static struct cm_entry *coremap;
 static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
 static size_t           core_lruclock;
 static size_t           core_len;
-paddr_t                 core_btmaddr;
+paddr_t                 core_frame0;
 
 
 /**************** BASIC PRIMITIVES ****************/
 
 // increment clock; return old value
+static
 size_t
 core_clocktick()
 {
-    spinlock_acquire(core_lock);
+    spinlock_acquire(&core_lock);
     size_t lruclock = core_lruclock;
     core_lruclock++;
-    spinlock_release(core_lock);
+    spinlock_release(&core_lock);
     return lruclock;
 }
 
 // helper function for cleaner daemon only
 // not exported in coremem.h
+static
 bool
 core_try_lock(size_t index)
 {
-    struct cm_entry *cme = coremap[index];
+    struct cm_entry *cme = &coremap[index];
     
-    spinlock_acquire(core_lock);
+    spinlock_acquire(&core_lock);
     if (cme->cme_busy) {
-        spinlock_release(core_lock);
+        spinlock_release(&core_lock);
         return false;
     }
     
     cme->cme_busy = 1;
-    spinlock_release(core_lock);
+    spinlock_release(&core_lock);
     return true;
 }
 
+static
 void
 core_unlock(size_t index)
 {
     // frame must be locked before it can be unlocked
     KASSERT(coremap[index].cme_busy);
-    spinlock_acquire(core_lock);
-    coremap[index].cme_busy == 0;
-    spinlock_release(core_lock);
+    spinlock_acquire(&core_lock);
+    coremap[index].cme_busy = 0;
+    spinlock_release(&core_lock);
 }
 
 /**************************************************/
@@ -111,9 +115,8 @@ core_bootstrap(void)
     ram_getsize(&lo, &hi);
     
     // page align lo to the next free page
-    KASSERT(lo != 0);
-    lo = PAGE_FRAME(lo + PAGE_SIZE - 1);
-    core_btmaddr = lo;
+    KASSERT(lo == (lo & PAGE_FRAME));
+    core_frame0 = lo;
     
     // calculate size of coremap
     core_len = (hi - lo) / PAGE_SIZE;
@@ -131,13 +134,13 @@ core_bootstrap(void)
     bzero(coremap, cmsize);
     
     // reserve kernel pages for coremap
-    for (int i = 0; i < cm_npages; i++)
+    for (size_t i = 0; i < cm_npages; i++)
     {
-        coremap[i] = {
+        coremap[i] = (struct cm_entry) {
             .cme_kernel = 1,
             .cme_busy = 0,
             .cme_swapblk = 0,
-            .cme_vaddr = NULL,
+            .cme_vaddr = 0,
             .cme_resident = NULL
         };
     }
@@ -150,21 +153,22 @@ paddr_t
 core_acquire_random(void)
 {
     // get an index uniformly distributed over the core map
-    int i = i0 = random() % core_len;
+    int i, i0;
+    i = i0 = random() % core_len;
     
     // look for a free frame
-    spinlock_acquire(core_lock);
+    spinlock_acquire(&core_lock);
     while (coremap[i].cme_kernel || coremap[i].cme_busy || coremap[i].cme_resident) {
         i = (i + 1) % core_len;
         if (i == i0) {
             // FAILED...
-            spinlock_release(core_lock);
+            spinlock_release(&core_lock);
             return 0;
         }
             
     }
     coremap[i].cme_busy = 1;
-    spinlock_release(core_lock);
+    spinlock_release(&core_lock);
     return CORE_TO_PADDR(i);
 }
 
@@ -245,7 +249,7 @@ core_map_frame(paddr_t frame, vaddr_t vaddr, struct pt_entry *pte, swapidx_t swa
     // should hold the frame's lock first
     KASSERT(coremap[PADDR_TO_CORE(frame)].cme_busy);
     
-    coremap[PADDR_TO_CORE(frame)] = {
+    coremap[PADDR_TO_CORE(frame)] = (struct cm_entry) {
         .cme_kernel = 0,
         .cme_busy = 1,
         .cme_swapblk = swapblk,
@@ -260,7 +264,7 @@ core_reserve_frame(paddr_t frame)
     // should hold the frame's lock first
     KASSERT(coremap[PADDR_TO_CORE(frame)].cme_busy);
     
-    coremap[PADDR_TO_CORE(frame)] = {
+    coremap[PADDR_TO_CORE(frame)] = (struct cm_entry) {
         .cme_kernel = 1,
         .cme_busy = 1,
         .cme_swapblk = 0,
@@ -272,12 +276,12 @@ core_reserve_frame(paddr_t frame)
 void
 core_free_frame(paddr_t frame)
 {
-    spinlock_acquire(core_lock);
+    spinlock_acquire(&core_lock);
     
-    struct cm_entry *cme = coremap[PADDR_TO_CORE(frame)];
+    struct cm_entry *cme = &coremap[PADDR_TO_CORE(frame)];
     
     // free the associated swap space
-    if (!cme.cme_kernel)
+    if (!cme->cme_kernel)
         swap_free(cme->cme_swapblk);
     
     // clear the CME
@@ -287,11 +291,12 @@ core_free_frame(paddr_t frame)
     cme->cme_vaddr = 0;
     cme->cme_resident = NULL;
     
-    spinlock_release(core_lock);
+    spinlock_release(&core_lock);
 }
 
 // Does not wait on PTE
 // Does this by test and setting once
+static
 void
 core_clean(void *data1, unsigned long data2)
 {
@@ -314,7 +319,7 @@ core_clean(void *data1, unsigned long data2)
             // if dirty, then start cleaning
             if(pte_is_dirty(pte)) {
                 // set the cleaning bit, clean the TLBs, and unlock
-                pte_start_cleaning(pte); // this cleans TLBs
+                pte_start_cleaning(vaddr, pte); // this cleans TLBs too
                 pte_unlock(pte);
                 
                 swap_out(CORE_TO_PADDR(index), coremap[index].cme_swapblk);
@@ -323,7 +328,7 @@ core_clean(void *data1, unsigned long data2)
                 // if it is intact, no writes to this page have intervened
                 // in our cleaning. The clean was successful, and we can clear
                 // the dirty bit
-                if (pte_try_lock(pte))) {
+                if (pte_try_lock(pte)) {
                     pte_finish_cleaning(pte);
                     pte_unlock(pte);
                 }
@@ -334,6 +339,11 @@ core_clean(void *data1, unsigned long data2)
         core_unlock(index);
         index = (index + 1) % core_len;
     }
+}
+
+void core_cleaner_bootstrap(void)
+{
+    thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
 }
 
 

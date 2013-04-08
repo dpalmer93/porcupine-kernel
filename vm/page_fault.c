@@ -27,7 +27,11 @@
  * SUCH DAMAGE.
  */
 
+#include <kern/errno.h>
 #include <page_table.h>
+#include <coremem.h>
+#include <swap.h>
+#include <vm.h>
 
 // Handle a page fault in the case in which the virtual
 // page is unmapped
@@ -42,7 +46,7 @@ vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
         return ENOMEM;
     
     // create a page table entry
-    struct pt_entry *pte = pt_create_entry(pt, vaddr, paddr);
+    struct pt_entry *pte = pt_create_entry(pt, vaddr, frame);
     if (pte == NULL) {
         core_release_frame(frame);
         return ENOMEM;
@@ -50,7 +54,7 @@ vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
     
     // get a swap block
     swapidx_t swapblk;
-    err = swap_get_free(swapblk);
+    err = swap_get_free(&swapblk);
     if (err) {
         core_release_frame(frame);
         return err;

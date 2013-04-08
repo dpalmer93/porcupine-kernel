@@ -27,8 +27,11 @@
  * SUCH DAMAGE.
  */
 
+#include <types.h>
 #include <machine/vm.h>
 #include <kern/fcntl.h>
+#include <uio.h>
+#include <vnode.h>
 #include <vfs.h>
 #include <stat.h>
 #include <swap.h>
@@ -43,15 +46,16 @@ swap_bootstrap(void)
     int err;
     
     // use lhd0 (RAW) for swap
-    err = vfs_open("lhd0raw:", O_RDWR, 0, swap_vnode)
+    char swapnode_path[9] = "lhd0raw:";
+    err = vfs_open(swapnode_path, O_RDWR, 0, &swap_vnode);
     if (err)
-        panic("swap_bootstrap: %s\n", strerr(err));
+        panic("swap_bootstrap: %s\n", strerror(err));
     
     // determine size of disk
     struct stat swap_stat;
-    err = VOP_STAT(swap_vnode, &swap_stat)
+    err = VOP_STAT(swap_vnode, &swap_stat);
     if (err)
-        panic("swap_bootstrap: %s\n", strerr(err));
+        panic("swap_bootstrap: %s\n", strerror(err));
     
     swap_map = bitmap_create(swap_stat.st_size / PAGE_SIZE);
     if (swap_map == NULL)
@@ -87,42 +91,42 @@ int
 swap_in(swapidx_t src, paddr_t dst)
 {
     // set up UIO
-    struct iovec swapin_iov = {
-        .iov_ubase = PADDR_TO_KVADDR(dst),
-        .iov_len = PAGE_SIZE
-    };
-    struct uio swapin_uio = {
-        .uio_iov = &swap_iov,
-        .uio_iovcnt = 1,
-        .uio_offset = (off_t)src * PAGE_SIZE,
-        .uio_resid = PAGE_SIZE,
-        .uio_segflg = UIO_SYSSPACE,
-        .uio_rw = UIO_READ,
-        .uio_space = NULL
-    }
+    struct iovec swapin_iov;
+    struct uio swapin_uio;
     
-    return VOP_READ(swap_vnode, swapin_uio);
+    swapin_iov.iov_kbase = (void *)PADDR_TO_KVADDR(dst);
+    swapin_iov.iov_len = PAGE_SIZE;
+    
+    swapin_uio.uio_iov = &swapin_iov;
+    swapin_uio.uio_iovcnt = 1;
+    swapin_uio.uio_offset = (off_t)src * PAGE_SIZE;
+    swapin_uio.uio_resid = PAGE_SIZE;
+    swapin_uio.uio_segflg = UIO_SYSSPACE;
+    swapin_uio.uio_rw = UIO_READ;
+    swapin_uio.uio_space = NULL;
+    
+    return VOP_READ(swap_vnode, &swapin_uio);
 }
 
 int
 swap_out(paddr_t src, swapidx_t dst)
 {
     // set up UIO
-    struct iovec swapout_iov = {
-        .iov_ubase = PADDR_TO_KVADDR(src),
-        .iov_len = PAGE_SIZE
-    };
-    struct uio swapout_uio = {
-        .uio_iov = &swap_iov,
-        .uio_iovcnt = 1,
-        .uio_offset = (off_t)dst * PAGE_SIZE,
-        .uio_resid = PAGE_SIZE,
-        .uio_segflg = UIO_SYSSPACE,
-        .uio_rw = UIO_WRITE,
-        .uio_space = NULL
-    }
+    struct iovec swapout_iov;
+    struct uio swapout_uio;
     
-    return VOP_READ(swap_vnode, swapout_uio);
+    swapout_iov.iov_kbase = (void *)PADDR_TO_KVADDR(src);
+    swapout_iov.iov_len = PAGE_SIZE;
+        
+    swapout_uio.uio_iov = &swapout_iov;
+    swapout_uio.uio_iovcnt = 1;
+    swapout_uio.uio_offset = (off_t)dst * PAGE_SIZE;
+    swapout_uio.uio_resid = PAGE_SIZE;
+    swapout_uio.uio_segflg = UIO_SYSSPACE;
+    swapout_uio.uio_rw = UIO_WRITE;
+    swapout_uio.uio_space = NULL;
+    
+    return VOP_WRITE(swap_vnode, &swapout_uio);
 }
 
 int
@@ -131,11 +135,14 @@ swap_copy(swapidx_t src, swapidx_t dst)
     // buffer to hold page to be copied
     char buf[PAGE_SIZE];
     int err;
-    err = swap_in(src, KVADDR_TO_PADDR(&buf));
+    
+    err = swap_in(src, KVADDR_TO_PADDR((vaddr_t)&buf));
     if (err)
         return err;
-    err = swap_out(KVADDR_TO_PADDR(&buf), dst);
+        
+    err = swap_out(KVADDR_TO_PADDR((vaddr_t)&buf), dst);
     if (err)
         return err;
+    
     return 0;
 }

@@ -30,6 +30,8 @@
 #ifndef _PAGE_TABLE_H_
 #define _PAGE_TABLE_H_
 
+#include <swap.h>
+
 struct pt_entry;
 struct page_table;
 
@@ -56,13 +58,13 @@ void                pt_destroy(struct page_table *pt);
  */
 struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
 struct pt_entry    *pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
-void                pt_release_entry(struct page_table *pt, pt_entry *pte);
-bool                pte_try_lock(pt_entry *pte);
-void                pte_unlock(pt_entry *pte);
+void                pt_release_entry(struct page_table *pt, struct pt_entry *pte);
+bool                pte_try_lock(struct pt_entry *pte);
+void                pte_unlock(struct pt_entry *pte);
 
 /**** Must hold PTE lock (via pt_acquire_entry() or pte_trylock()) to use these: ***/
 
-void pte_try_access(struct pt_entry *pte);  // try to access the page
+bool pte_try_access(struct pt_entry *pte);  // try to access the page
 bool pte_try_dirty(struct pt_entry *pte);   // try to dirty the page
 bool pte_resident(struct pt_entry *pte);    // check whether in memory
 bool pte_is_dirty(struct pt_entry *pte);    // check whether dirty

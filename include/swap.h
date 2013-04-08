@@ -35,7 +35,7 @@
 #include <bitmap.h>
 #include <synch.h>
 
-typedef int32_t swapidx_t
+typedef uint32_t swapidx_t;
 
 // must be called after ram_bootstrap(), core_bootstrap(), and vfs_bootstrap()
 void swap_bootstrap(void);

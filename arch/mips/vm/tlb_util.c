@@ -28,8 +28,9 @@
  */
 
 #include <vm.h>
-#include <tlb.h>
 #include <spl.h>
+#include <lib.h>
+#include <machine/tlb.h>
 
 void
 tlb_dirty(vaddr_t vaddr)
@@ -40,7 +41,7 @@ tlb_dirty(vaddr_t vaddr)
     // get the index of the existing entry
     uint32_t entryhi = (vaddr & TLBHI_VPAGE);
     uint32_t entrylo = 0;
-    uint32_t index = tlb_probe(entryhi, entrylo);
+    int index = tlb_probe(entryhi, entrylo);
     KASSERT(index >= 0);
     
     // get the entry
@@ -61,12 +62,12 @@ tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
     int x = splhigh();
     
     uint32_t entryhi = (vaddr & TLBHI_VPAGE);
-    uint32_t entrylo = (pte.pte_frame << 12)
-    | (pte.pte_dirty << 10)
+    uint32_t entrylo = (pte->pte_frame << 12)
+    | (pte->pte_dirty << 10)
     | TLBLO_VALID;
     
     // if the VPN is already in the TLB, replace it
-    uint32_t index = tlb_probe(entryhi, 0);
+    int index = tlb_probe(entryhi, 0);
     if (index >= 0)
         tlb_write(entryhi, entrylo, index);
     else // otherwise, use a random slot
@@ -85,7 +86,7 @@ tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte)
     // check whether there is a corresponding entry
     uint32_t entryhi = (vaddr & TLBHI_VPAGE);
     uint32_t entrylo = 0;
-    uint32_t index = tlb_probe(entryhi, entrylo);
+    int index = tlb_probe(entryhi, entrylo);
     if (index >= 0) {
         // get the entry and check the PPN
         tlb_read(&entryhi, &entrylo, index);
@@ -109,7 +110,7 @@ tlb_clean(vaddr_t vaddr, const struct pt_entry *pte)
     // check whether there is a corresponding entry
     uint32_t entryhi = (vaddr & TLBHI_VPAGE);
     uint32_t entrylo = 0;
-    uint32_t index = tlb_probe(entryhi, entrylo);
+    int index = tlb_probe(entryhi, entrylo);
     if (index >= 0) {
         // get the entry and check the PPN
         tlb_read(&entryhi, &entrylo, index);
@@ -133,7 +134,7 @@ tlb_flush(void)
     int x = splhigh();
     
     for (int i = 0; i < NUM_TLB; i++) {
-        tlb_write(TLBHI_INVALID(i), TLBLO_INVALID, i);
+        tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
     }
     
     splx(x);

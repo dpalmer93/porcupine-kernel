@@ -59,7 +59,7 @@ as_create(void)
     
     // Sets each region to uninitialized
     for (int i = 0; i < NSEGS; i++)
-        seg_zero(as->as_segs[i])
+        seg_zero(&as->as_segs[i]);
 
 	return as;
 }
@@ -85,7 +85,7 @@ as_copy(struct addrspace *old_as, struct addrspace **ret)
     
     new_as->as_loading = false;
     
-	*ret = new;
+	*ret = new_as;
     return 0;
 }
 
@@ -132,13 +132,13 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
     // Find an empty region and fill it
     // Temporarily allow writes until load is complete
     for (int i = 0; i < NSEGS; i++) {
-        if (seg_available(as->as_segs[i])) {
-            seg_init(as->as_segs[i], vaddr, npages, writeable);
+        if (seg_available(&as->as_segs[i])) {
+            seg_init(&as->as_segs[i], vaddr, npages, writeable);
             
             // Update base of the heap
             vaddr_t seg_top = vaddr + npages * PAGE_SIZE;
-            if (as->AS_HEAP->seg_base < seg_top)
-                as->AS_HEAP->seg_base = seg_top;
+            if (as->AS_HEAP.seg_base < seg_top)
+                as->AS_HEAP.seg_base = seg_top;
             
             return 0;
         }
@@ -167,12 +167,12 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	vaddr_t stackbase = USERSTACK - PAGE_SIZE * STACK_NPAGES;
     
     // check for overlap with the heap
-    vaddr_t heaptop = as->AS_HEAP->seg_base + as->AS_HEAP->seg_npages * PAGE_SIZE;
+    vaddr_t heaptop = as->AS_HEAP.seg_base + as->AS_HEAP.seg_npages * PAGE_SIZE;
     if (stackbase < heaptop)
         return ENOMEM;
     
     // seg up stack segment
-    seg_init(as->AS_STACK, stackbase, STACK_NPAGES, true);
+    seg_init(&as->AS_STACK, stackbase, STACK_NPAGES, true);
     
     // Initial user-level stack pointer
 	*stackptr = USERSTACK;
@@ -188,6 +188,7 @@ as_can_read(struct addrspace *as, vaddr_t vaddr)
         if (seg_contains(&as->as_segs[i], vaddr))
             return true;
     }
+    return false;
 }
 
 bool
@@ -200,6 +201,7 @@ as_can_write(struct addrspace *as, vaddr_t vaddr)
             return as->as_loading? true : as->as_segs[i].seg_write;
         }
     }
+    return false;
 }
 
 bool
