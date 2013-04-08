@@ -37,12 +37,15 @@
  *
  * kvm_alloc_contig - allocate a contiguous region of npages
  *
- * kvm_is_kernel - check whether a vaddr is in kernel space
+ * kvm_free_contig - free a region allocated with kvm_alloc_contig()
+ *
+ * kvm_managed - check whether a vaddr is in kernel VM space
  *
  * kvm_fault - process a TLB fault in kernel space
  */
 vaddr_t kvm_alloc_contig(int npages);
-bool    kvm_is_kernel(vaddr_t vaddr);
+void    kvm_free_contig(vaddr_t vaddr);
+bool    kvm_managed(vaddr_t vaddr);
 int     kvm_fault(vaddr_t faultaddr);
 
 

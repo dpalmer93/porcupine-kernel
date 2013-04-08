@@ -89,10 +89,33 @@ kvm_alloc_contig(int npages)
     return block * PAGE_SIZE + MIPS_KSEG2;
 }
 
-bool
-kvm_is_kernel(vaddr_t vaddr)
+void
+kvm_free_contig(vaddr_t vaddr)
 {
-    return vaddr >= MIPS_KSEG0;
+    KASSERT(vaddr >= MIPS_KSEG2);
+    size_t index = (vaddr - MIPS_KSEG2) / PAGE_SIZE;
+    
+    while (true)
+    {
+        // free the frame
+        core_free_frame(kvm_pt[index].kte_frame);
+        
+        // clear the kernel page table entry
+        kvm_pt[index].kte_frame = 0;
+        kvm_pt[index].kte_reserved = 0;
+        kvm_pt[index].kte_mapped = 0;
+        
+        if(kvm_pt[index].kte_term)
+            return;
+        
+        index++;
+    }
+}
+
+bool
+kvm_managed(vaddr_t vaddr)
+{
+    return vaddr >= MIPS_KSEG2;
 }
 
 int

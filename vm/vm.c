@@ -49,7 +49,7 @@ int
 vm_fault(int faulttype, vaddr_t faultaddress)
 {
     /* Kernel TLB fault */
-    if (kvm_is_kernel(faultaddress)) {
+    if (kvm_managed(faultaddress)) {
         return kvm_fault(faultaddress);
     }
     
@@ -145,5 +145,9 @@ alloc_kpages(int npages)
 void
 free_kpages(vaddr_t vaddr)
 {
+    if (kvm_managed(vaddr)) {
+        kvm_free_contig(vaddr);
+    }
+    
     core_free_frame(KVADDR_TO_PADDR(vaddr));
 }
