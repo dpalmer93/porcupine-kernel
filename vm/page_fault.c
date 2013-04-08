@@ -60,9 +60,14 @@ vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
         return err;
     }
     
-    // clean up
+    // update the core map
     core_map_frame(frame, vaddr & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
+    
+    // zero the frame
+    bzero(PADDR_TO_KVADDR(frame), PAGE_SIZE);
+    
+    // clean up
     pt_release_entry(pt, pte);
     return 0;
 }
