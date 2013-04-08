@@ -133,16 +133,21 @@ int
 swap_copy(swapidx_t src, swapidx_t dst)
 {
     // buffer to hold page to be copied
-    char buf[PAGE_SIZE];
+    void *buf = kmalloc(PAGE_SIZE);
     int err;
     
-    err = swap_in(src, KVADDR_TO_PADDR((vaddr_t)&buf));
-    if (err)
+    err = swap_in(src, KVADDR_TO_PADDR((vaddr_t)buf));
+    if (err) {
+        kfree(buf);
         return err;
-        
-    err = swap_out(KVADDR_TO_PADDR((vaddr_t)&buf), dst);
-    if (err)
-        return err;
+    }
     
+    err = swap_out(KVADDR_TO_PADDR((vaddr_t)buf), dst);
+    if (err) {
+        kfree(buf);
+        return err;
+    }
+    
+    kfree(buf);
     return 0;
 }
