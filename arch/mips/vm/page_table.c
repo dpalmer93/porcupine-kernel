@@ -218,8 +218,10 @@ pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
     }
     
     // wait for the PTE to become available
-    while (!pte_try_lock(pte))
-        cv_wait(pt->pt_cv, pt->pt_lock);
+    while (!pte_try_lock(pte)) {
+        lock_release(pt->pt_lock);
+        lock_acquire(pt->pt_lock);
+    }
     
     lock_release(pt->pt_lock);
     return pte;

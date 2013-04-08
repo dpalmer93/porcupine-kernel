@@ -128,6 +128,7 @@ kvm_page_fault(struct kvm_pte *kte)
     kte->kte_frame = PAGE_NUM(frame);
     core_reserve_frame(frame);
     core_release_frame(frame);
+    return 0;
 }
 
 int
