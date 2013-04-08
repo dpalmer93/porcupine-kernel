@@ -51,7 +51,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     /* Kernel TLB fault */
     if (curthread->t_proc == NULL) {
         paddr_t frame = kvm_getframe(faultaddress);
-        if (kte == 0) {
+        if (frame == 0) {
             // Kernel page fault
             return EFAULT;
         }
