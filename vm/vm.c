@@ -49,16 +49,8 @@ int
 vm_fault(int faulttype, vaddr_t faultaddress)
 {
     /* Kernel TLB fault */
-    if (curthread->t_proc == NULL) {
-        paddr_t frame = kvm_getframe(faultaddress);
-        if (frame == 0) {
-            // Kernel page fault
-            return EFAULT;
-        }
-        
-        // load the mapping into the TLB
-        tlb_load(faultaddress, frame, true);
-        return 0;
+    if (kvm_is_kernel(faultaddress)) {
+        kvm_fault(faultaddress);
     }
     
     /* User TLB fault */

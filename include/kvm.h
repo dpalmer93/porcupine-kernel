@@ -37,10 +37,13 @@
  *
  * kvm_alloc_contig - allocate a contiguous region of npages
  *
- * kvm_getframe - return the page frame corresponding to the kernel vaddr
+ * kvm_is_kernel - check whether a vaddr is in kernel space
+ *
+ * kvm_fault - process a TLB fault in kernel space
  */
 vaddr_t kvm_alloc_contig(int npages);
-paddr_t kvm_getframe(vaddr_t vaddr);
+bool    kvm_is_kernel(vaddr_t vaddr);
+paddr_t kvm_fault(vaddr_t faultaddr);
 
 
 #endif /* _KVM_H_ */

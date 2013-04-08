@@ -30,6 +30,7 @@
  */
 
 #include <mips/vm.h>
+#include <mips/tlb.h>
 #include <spinlock.h>
 #include <coremem.h>
 #include <kvm.h>
@@ -87,12 +88,22 @@ kvm_alloc_contig(int npages)
     return block * PAGE_SIZE + MIPS_KSEG2;
 }
 
-paddr_t
-kvm_getframe(vaddr_t vaddr)
+bool
+kvm_is_kernel(vaddr_t vaddr)
 {
-    struct kvm_pte *kte = &kvm_pt[PAGE_NUM(vaddr - MIPS_KSEG2)];
-    if (!kte->kte_mapped)
-        return 0;
+    return vaddr >= MIPS_KSEG0;
+}
+
+int
+kvm_fault(vaddr_t faultaddress)
+{
+    struct kvm_pte *kte = &kvm_pt[PAGE_NUM(faultaddress - MIPS_KSEG2)];
+    if (!kte->kte_mapped) {
+        // Kernel page fault
+        return EFAULT;
+    }
     
-    return MAKE_ADDR(kte->kte_frame, 0);
+    // load the mapping into the TLB
+    tlb_load(faultaddress, MAKE_ADDR(kte->kte_frame, 0), true);
+    return 0;
 }
