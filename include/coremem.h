@@ -37,6 +37,9 @@
  *
  * core_acquire_frame - find and lock a free page frame for manipulation.
  *
+ * core_acquire_random - find and lock a free page frame for manipulation
+ *                  using random eviction.
+ *
  * core_release_frame - release a locked page frame after manipulating it.
  *
  * core_map_frame - map a page frame to a PTE and swap block
@@ -50,8 +53,8 @@
  * core_free_frame - indicate that a page frame is no longer being used
  */
 void    core_bootstrap(void);
-paddr_t core_acquire_frame_random(void); // gets an index if there is an empty one, can fail
-paddr_t core_acquire_frame(void); // single hand lru clock 
+paddr_t core_acquire_random(void);  // random page allocation
+paddr_t core_acquire_frame(void);   // single hand lru clock 
 void    core_release_frame(paddr_t frame);
 void    core_map_frame(paddr_t frame, struct pt_entry *pte, swapidx_t swapblk);
 void    core_reserve_frame(paddr_t frame);

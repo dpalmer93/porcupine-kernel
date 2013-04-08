@@ -302,14 +302,6 @@ pte_try_access(struct pt_entry *pte)
     return false;
 }
 
-void
-pte_clear_access(struct pt_entry *pte)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    pte->pte_accessed = 0;
-}
-
 bool
 pte_try_dirty(struct pt_entry *pte)
 {
@@ -318,13 +310,42 @@ pte_try_dirty(struct pt_entry *pte)
     if (pte->pte_inmem) {
         pte->pte_accessed = 1;
         pte->pte_dirty = 1;
+        
+        // if the page is currently being cleaned,
+        // nullify the cleaning
+        pte->pte_cleaning = 0;
         return true;
     }
     return false;
 }
 
 bool
-pte_is_inmem(struct pt_entry *pte)
+pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    
+    // reset the accesssed bit to 0 and return
+    // the old one
+    bool accessed = pte->pte_accessed;
+    pte->pte_accessed = 0;
+    
+    // invalidate TLBs if necessary
+    if (accessed) {
+        tlb_invalidate(vaddr, pte);
+        struct tlbshootdown ts = {
+            .ts_type = TS_INVAL,
+            .ts_vaddr = vaddr,
+            .ts_pte = pte
+        }
+        ipi_tlbbroadcast(&ts);
+    }
+    
+    return accessed;
+}
+
+bool
+pte_resident(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
@@ -337,6 +358,38 @@ pte_is_dirty(struct pt_entry *pte)
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
     return pte->pte_dirty;
+}
+
+void
+pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    KASSERT(pte->pte_inmem);
+    
+    // set the cleaning bit
+    pte->pte_cleaning = 1;
+    
+    // clean TLBs
+    tlb_clean(vaddr, pte);
+    struct tlbshootdown ts = {
+        .ts_type = TS_CLEAN,
+        .ts_vaddr = vaddr,
+        .ts_pte = pte
+    }
+    ipi_tlbbroadcast(&ts);
+}
+
+void
+pte_finish_cleaning(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    KASSERT(pte->pte_inmem);
+    
+    // clear dirty bit only if cleaning was uninterrupted
+    if (pte->pte_cleaning)
+        pte->pte_dirty = 0;
 }
 
 void

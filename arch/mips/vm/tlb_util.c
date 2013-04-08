@@ -75,9 +75,9 @@ tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
     splx(x);
 }
 
-// invalidate by virtual page number
+// invalidate by virtual page number and physical page number
 void
-tlb_invalidate(vaddr_t vaddr)
+tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte)
 {
     // turn off interrupts to make this atomic w.r.t. this CPU
     int x = splhigh();
@@ -87,35 +87,40 @@ tlb_invalidate(vaddr_t vaddr)
     uint32_t entrylo = 0;
     uint32_t index = tlb_probe(entryhi, entrylo);
     if (index >= 0) {
-        // get the entry
+        // get the entry and check the PPN
         tlb_read(&entryhi, &entrylo, index);
-        
-        // clear the valid bit
-        entrylo &= ~TLBLO_VALID;
-        tlb_write(entryhi, entrylo, index);
+        if (entrylo >> 12 == pte->pte_frame) {
+            // clear the valid bit
+            entrylo &= ~TLBLO_VALID;
+            tlb_write(entryhi, entrylo, index);
+        }
     }
     
     splx(x);
 }
 
-// invalidate by physical page number
+// un-dirty by virtual page number and physical page number
 void
-tlb_invalidate_p(paddr_t paddr)
+tlb_clean(vaddr_t vaddr, const struct pt_entry *pte)
 {
+    // turn off interrupts to make this atomic w.r.t. this CPU
     int x = splhigh();
     
-    uint32_t entryhi, entrylo;
-    // loop through the TLB looking for paddr
-    for (int i = 0; i < NUM_TLB; i++) {
-        tlb_read(&entryhi, &entrylo, i);
-        
-        if ((TLBLO_PPAGE & entrylo) == PAGE_FRAME(paddr)) {
-            entrylo &= ~TLBLO_VALID;
-            tlb_write(entryhi, entrylo, i);
+    // check whether there is a corresponding entry
+    uint32_t entryhi = (vaddr & TLBHI_VPAGE);
+    uint32_t entrylo = 0;
+    uint32_t index = tlb_probe(entryhi, entrylo);
+    if (index >= 0) {
+        // get the entry and check the PPN
+        tlb_read(&entryhi, &entrylo, index);
+        if (entrylo >> 12 == pte->pte_frame) {
+            // clear the dirty bit
+            entrylo &= ~TLBLO_DIRTY;
+            tlb_write(entryhi, entrylo, index);
         }
     }
-
-    splx(x)
+    
+    splx(x);
 }
 
 /*

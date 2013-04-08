@@ -154,6 +154,7 @@ void cpu_halt(void);
  * ipi_send sends an IPI to one CPU.
  * ipi_broadcast sends an IPI to all CPUs except the current one.
  * ipi_tlbshootdown is like ipi_send but carries TLB shootdown data.
+ * ipi_tlbbroadcast is like ipi_broadcast but carries TLB shootdown data.
  *
  * interprocessor_interrupt is called on the target CPU when an IPI is
  * received.
@@ -168,6 +169,7 @@ void cpu_halt(void);
 void ipi_send(struct cpu *target, int code);
 void ipi_broadcast(int code);
 void ipi_tlbshootdown(struct cpu *target, const struct tlbshootdown *mapping);
+void ipi_tlbbroadcast(const struct tlbshootdown *mapping)
 
 void interprocessor_interrupt(void);
 

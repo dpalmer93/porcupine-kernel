@@ -60,13 +60,21 @@ void                pt_release_entry(struct page_table *pt, pt_entry *pte);
 bool                pte_try_lock(pt_entry *pte);
 void                pte_unlock(pt_entry *pte);
 
-// Must hold pte (via pt_acquire_entry() or pte_trylock()) to use these:
-void pte_try_access(struct pt_entry *pte);
-bool pte_try_dirty(struct pt_entry *pte);
-void pte_clear_access(struct pt_entry *pte);
-bool pte_is_inmem(struct pt_entry *pte);
-bool pte_is_dirty(struct pt_entry *pte);
-void pte_evict(struct pt_entry *pte, swapidx_t swapblk);
+/**** Must hold PTE lock (via pt_acquire_entry() or pte_trylock()) to use these: ***/
+
+void pte_try_access(struct pt_entry *pte);  // try to access the page
+bool pte_try_dirty(struct pt_entry *pte);   // try to dirty the page
+bool pte_resident(struct pt_entry *pte);    // check whether in memory
+bool pte_is_dirty(struct pt_entry *pte);    // check whether dirty
+void pte_evict(struct pt_entry *pte,        // evict the page to the swap block
+               swapidx_t swapblk);
+
+// reset & return the accessed bit; invalidate TLBs if necessary
+bool pte_refresh(vaddr_t vaddr, struct pt_entry *pte);
+
+// non-blocking cleaning
+void pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte);
+void pte_finish_cleaning(struct pt_entry *pte);
 
 // Deep copy of the page table and all the page table entries
 struct page_table *pt_copy_deep(struct page_table *pt);

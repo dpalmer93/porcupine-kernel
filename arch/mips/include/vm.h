@@ -111,22 +111,6 @@ paddr_t ram_stealmem(unsigned long npages);
 void ram_getsize(paddr_t *lo, paddr_t *hi);
 
 /*
- * TLB shootdown bits.
- *
- * We'll take up to 16 invalidations before just flushing the whole TLB.
- */
-
-struct tlbshootdown {
-	/*
-	 * Change this to what you need for your VM design.
-	 */
-	struct addrspace *ts_addrspace;
-	vaddr_t ts_vaddr;
-};
-
-#define TLBSHOOTDOWN_MAX 16
-
-/*
  * Page Table Entry Declaration
  * MIPS-Specific
  */
@@ -146,5 +130,22 @@ struct pt_entry {
     unsigned            pte_inmem:1;    // In memory?
     volatile unsigned   pte_busy:1;     // For synchronization
 };
+
+/*
+ * TLB shootdown bits.
+ *
+ * We'll take up to 16 invalidations before just flushing the whole TLB.
+ */
+
+#define TS_CLEAN 0 // Clean the TLB entry
+#define TS_INVAL 1 // Invalidate the TLB entry
+
+struct tlbshootdown {
+    int              ts_type;
+	vaddr_t          ts_vaddr;
+	struct pt_entry *ts_pte;
+};
+
+#define TLBSHOOTDOWN_MAX 16
 
 #endif /* _MIPS_VM_H_ */

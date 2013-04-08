@@ -84,6 +84,28 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     }
 }
 
+
+void
+vm_tlbshootdown_all(void)
+{
+    // empty the entire TLB
+    tlb_flush();
+}
+
+void
+vm_tlbshootdown(const struct tlbshootdown *ts)
+{
+    switch (ts->ts_type) {
+        case TS_DIRTY:
+            tlb_dirty(ts->ts_vaddr, ts->ts_pte);
+            break;
+            
+        case TS_INVAL:
+            tlb_invalidate(ts->ts_vaddr, ts->ts_pte);
+            break;
+    }
+}
+
 /*
  * Kernel Memory Management functions
  */

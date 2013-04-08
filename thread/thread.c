@@ -1206,6 +1206,20 @@ ipi_tlbshootdown(struct cpu *target, const struct tlbshootdown *mapping)
 }
 
 void
+ipi_tlbbroadcast(const struct tlbshootdown *mapping)
+{
+    unsigned i;
+	struct cpu *c;
+    
+	for (i=0; i < cpuarray_num(&allcpus); i++) {
+		c = cpuarray_get(&allcpus, i);
+		if (c != curcpu->c_self) {
+			ipi_tlbshootdown(c, mapping);
+		}
+	}
+}
+
+void
 interprocessor_interrupt(void)
 {
 	uint32_t bits;

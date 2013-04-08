@@ -68,19 +68,20 @@ int tlb_probe(uint32_t entryhi, uint32_t entrylo);
  * tlb_load_pte - atomically load a page table mapping into the TLB.  The
  *              PTE lock should be held before calling this)
  *
- * tlb_invalidate - atomically invalidate a specific entry in the TLB
- *              corresponding to a virtual address, if such an entry exists.
- *              This is useful for simulating a hardware-managed page access bit.
+ * tlb_invalidate - atomically invalidate a specific entry in the TLB if such
+ *              an entry exists.  This is useful for simulating a
+ *              hardware-managed page access bit.
  *
- * tlb_invalidate_p - same thing as above, except using the paddr instead of vaddr
+ * tlb_clean - atomically clear the dirty bit of a specific TLB entry if it
+ *              exists.
  *
  * tlb_flush - atomically empty the entire TLB.  This can be used on a
  *              context switch.
  */
 void tlb_dirty(vaddr_t vaddr);
 void tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte);
-void tlb_invalidate(vaddr_t vaddr);
-void tlb_invalidate_p(paddr_t paddr);
+void tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte);
+void tlb_clean(vaddr_t paddr, const struct pt_entry *pte);
 void tlb_flush(void);
 
 
