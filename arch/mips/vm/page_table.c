@@ -396,6 +396,7 @@ pte_finish_cleaning(struct pt_entry *pte)
         pte->pte_dirty = 0;
 }
 
+// redirect the PTE to its swap block
 void
 pte_evict(struct pt_entry *pte, swapidx_t swapblk)
 {
@@ -404,5 +405,17 @@ pte_evict(struct pt_entry *pte, swapidx_t swapblk)
     
     pte->pte_inmem = 0;
     pte->pte_swapblk = swapblk;
+}
+
+// call this after paging in
+void
+pte_map(struct pt_entry *pte, paddr_t frame)
+{
+    pte->pte_inmem = 1;
+    pte->pte_accessed = 0;
+    pte->pte_dirty = 0;
+    pte->pte_cleaning = 0;
+    pte->pte_reserved = 0;
+    pte->pte_frame = PAGE_NUM(frame);
 }
 

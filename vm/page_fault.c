@@ -89,6 +89,7 @@ vm_swapin_page_fault(vaddr_t vaddr, struct page_table *pt, struct pt_entry *pte)
     // clean up...
     core_map_frame(frame, vaddr & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
+    pte_map(pte, frame);
     pt_release_entry(pt, pte);
     return 0;
 }
