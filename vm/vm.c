@@ -147,6 +147,7 @@ free_kpages(vaddr_t vaddr)
 {
     if (kvm_managed(vaddr)) {
         kvm_free_contig(vaddr);
+        return;
     }
     
     core_free_frame(KVADDR_TO_PADDR(vaddr));
