@@ -125,10 +125,12 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 	(void)executable;
     (void)readable;
 
-    // vaddr must be page aligned
-    KASSERT(PAGE_OFFSET(vaddr) == 0);
+    /* Align the region. First, the base... */
+	sz += PAGE_OFFSET(vaddr);
+	vaddr &= PAGE_FRAME;
     
-    size_t npages = (sz + PAGE_SIZE - 1) / PAGE_SIZE;
+	/* ...and now the length. */
+	size_t npages = (sz + PAGE_SIZE - 1) / PAGE_SIZE;
     
     // Find an empty region and fill it
     // Temporarily allow writes until load is complete
