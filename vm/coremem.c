@@ -35,8 +35,9 @@
 #include <addrspace.h>
 #include <coremem.h>
 
-// Number of access bits the lru_clock will clear before it just evicts the not busy next page
-#define MAX_CLOCKSTEPS 16
+// Number of clock ticks before we just evict the next
+// clean page
+#define MAX_CLOCKTICKS 16
 
 // Macro to go from coremap entry to physical address
 #define CORE_TO_PADDR(i) (core_btmaddr + i * PAGE_SIZE)
@@ -168,7 +169,8 @@ core_acquire_random(void)
 }
 
 // looks for empty frame with eviction
-// one LRU clock hand that tries MAX_CLOCKSTEPS times to get an unaccessed frame
+// one LRU clock hand that tries MAX_CLOCKTICKS times to
+// get a "recently unused" frame
 paddr_t
 core_acquire_frame(void)
 {
@@ -204,12 +206,12 @@ core_acquire_frame(void)
                     continue;
                 }
                 
-                // If we have reached MAX_CLOCKSTEPS,
+                // If we have reached MAX_CLOCKTICKS,
                 // just take the page regardless of how recently it has
                 // been used. Otherwise, refresh the access bit and
                 // invalidate TLBs to simulate hardware-managed accessed bit
                 // (pte_refresh() does both)
-                if (clock_steps < MAX_CLOCKSTEPS && pte_refresh(vaddr, pte)) {
+                if (clock_steps < MAX_CLOCKTICKS && pte_refresh(vaddr, pte)) {
                     clock_steps++;
                     
                     // move on...
