@@ -50,7 +50,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 {
     /* Kernel TLB fault */
     if (kvm_is_kernel(faultaddress)) {
-        kvm_fault(faultaddress);
+        return kvm_fault(faultaddress);
     }
     
     /* User TLB fault */
