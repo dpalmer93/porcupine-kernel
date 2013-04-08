@@ -77,7 +77,7 @@ struct addrspace {
 	paddr_t as_pbase2;
 	size_t as_npages2;
 	paddr_t as_stackpbase;
-#elif OPT_PORCUPINEVM
+#else
 	struct page_table  *as_pgtbl;
     // NSEGS + the stack and heap
     struct segment      as_segs[NSEGS + 2];
@@ -150,7 +150,7 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
  *                  virtual address
  */
  
-#if OPT_PORCUPINEVM
+#if !(OPT_DUMBVM)
 bool as_can_read(struct addrspace *as, vaddr_t vaddr);
 bool as_can_write(struct addrspace *as, vaddr_t vaddr);
 #endif

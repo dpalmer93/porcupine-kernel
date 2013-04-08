@@ -346,6 +346,10 @@ defoption roundrobin
 file      vm/kmalloc.c
 
 optofffile dumbvm   vm/addrspace.c
+optofffile dumbvm   vm/coremem.c
+optofffile dumbvm   vm/vm.c
+optofffile dumbvm   vm/page_fault.c
+optofffile dumbvm   vm/swap.c
 
 #
 # Network
