@@ -30,7 +30,7 @@
 #include <vm.h>
 #include <spl.h>
 #include <lib.h>
-#include <machine/tlb.h>
+#include <mips/tlb.h>
 
 void
 tlb_dirty(vaddr_t vaddr)

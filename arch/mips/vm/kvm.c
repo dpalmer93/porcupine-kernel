@@ -29,7 +29,7 @@
  * Kernel Virtual Memory
  */
 
-#include <machine/vm.h>
+#include <mips/vm.h>
 #include <spinlock.h>
 #include <coremem.h>
 

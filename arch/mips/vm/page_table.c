@@ -28,8 +28,8 @@
  */
 
 #include <types.h>
-#include <machine/vm.h>
-#include <machine/tlb.h>
+#include <mips/vm.h>
+#include <mips/tlb.h>
 #include <kern/errno.h>
 #include <cpu.h>
 #include <lib.h>
