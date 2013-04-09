@@ -203,6 +203,18 @@ pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
     return pte;
 }
 
+void
+pt_release_entry(struct page_table *pt, struct pt_entry *pte)
+{
+    // unused (for now)
+    (void)pt;
+    
+    KASSERT(pte->pte_busy);
+    pte_unlock(pte);
+}
+
+// The created entry is locked.  It must be unlocked with
+// pt_release_entry() when the operations on it are complete
 struct pt_entry *
 pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
 {
@@ -250,13 +262,20 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
 }
 
 void
-pt_release_entry(struct page_table *pt, struct pt_entry *pte)
+pt_destroy_entry(struct page_table *pt, vaddr_t vaddr)
 {
-    // unused (for now)
-    (void)pt;
+    unsigned long l1_idx = L1_INDEX(vaddr);
+    unsigned long l2_idx = L2_INDEX(vaddr);
     
-    KASSERT(pte->pte_busy);
-    pte_unlock(pte);
+    if (pt->pt_index[l1_idx] == NULL)
+        return;
+    
+    struct pt_entry *pte = pt->pt_index[l1_idx][l2_idx];
+    if (pte == NULL)
+        return;
+    
+    pte_destroy(pte);
+    pt->pt_index[l1_idx][l2_idx] = NULL;
 }
 
 /************ Page Table Entry Helper Functions ************/
@@ -265,6 +284,8 @@ static
 void
 pte_destroy(struct pt_entry *pte)
 {
+    KASSERT(pte != NULL);
+    
     // free the page frame and/or swap space
     if (pte->pte_inmem)
         core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
@@ -276,9 +297,7 @@ pte_destroy(struct pt_entry *pte)
 }
 
 
-/******** Must be called with the pt_entry locked ********/
-
-
+// Must be called with the PTE locked
 bool
 pte_try_access(struct pt_entry *pte)
 {
@@ -291,6 +310,7 @@ pte_try_access(struct pt_entry *pte)
     return false;
 }
 
+// Must be called with the PTE locked
 bool
 pte_try_dirty(struct pt_entry *pte)
 {
@@ -308,6 +328,7 @@ pte_try_dirty(struct pt_entry *pte)
     return false;
 }
 
+// Must be called with the PTE locked
 bool
 pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
 {
@@ -333,6 +354,7 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
     return accessed;
 }
 
+// Must be called with the PTE locked
 bool
 pte_resident(struct pt_entry *pte)
 {
@@ -341,6 +363,7 @@ pte_resident(struct pt_entry *pte)
     return pte->pte_inmem;
 }
 
+// Must be called with the PTE locked
 bool
 pte_is_dirty(struct pt_entry *pte)
 {
@@ -349,6 +372,7 @@ pte_is_dirty(struct pt_entry *pte)
     return pte->pte_dirty;
 }
 
+// Must be called with the PTE locked
 void
 pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte)
 {
@@ -369,6 +393,7 @@ pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte)
     ipi_tlbbroadcast(&ts);
 }
 
+// Must be called with the PTE locked
 void
 pte_finish_cleaning(struct pt_entry *pte)
 {
@@ -382,6 +407,7 @@ pte_finish_cleaning(struct pt_entry *pte)
 }
 
 // redirect the PTE to its swap block
+// Must be called with the PTE locked
 void
 pte_evict(struct pt_entry *pte, swapidx_t swapblk)
 {
@@ -393,6 +419,7 @@ pte_evict(struct pt_entry *pte, swapidx_t swapblk)
 }
 
 // call this after paging in
+// Must be called with the PTE locked
 void
 pte_map(struct pt_entry *pte, paddr_t frame)
 {

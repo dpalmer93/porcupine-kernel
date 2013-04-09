@@ -48,6 +48,9 @@ void                pt_destroy(struct page_table *pt);
  * pt_create_entry - create and lock a page table entry for the page containing the
  *              specified virtual address.
  *
+ * pt_destroy_entry - destroy a page table entry previously created with pt_create_entry().
+ *              This should only be called on an error immediately after pt_create_entry().
+ *
  * pt_release_entry - release the lock on a page table entry acquired via
  *              one of the above functions.
  *
@@ -58,6 +61,7 @@ void                pt_destroy(struct page_table *pt);
  */
 struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
 struct pt_entry    *pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
+void                pt_destroy_entry(struct page_table *pt, vaddr_t vaddr);
 void                pt_release_entry(struct page_table *pt, struct pt_entry *pte);
 bool                pte_try_lock(struct pt_entry *pte);
 void                pte_unlock(struct pt_entry *pte);

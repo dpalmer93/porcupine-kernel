@@ -58,16 +58,17 @@ vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
     swapidx_t swapblk;
     err = swap_get_free(&swapblk);
     if (err) {
+        pt_destroy_entry(pt, vaddr);
         core_release_frame(frame);
         return err;
     }
     
+    // zero the frame
+    bzero((void *)PADDR_TO_KVADDR(frame), PAGE_SIZE);
+    
     // update the core map
     core_map_frame(frame, vaddr & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
-    
-    // zero the frame
-    bzero((void *)PADDR_TO_KVADDR(frame), PAGE_SIZE);
     
     // clean up
     pt_release_entry(pt, pte);
