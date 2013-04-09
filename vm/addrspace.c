@@ -58,8 +58,12 @@ as_create(void)
     }
     
     // Start with empty segments
-    for (int i = 0; i < NSEGS + 2; i++)
+    for (int i = 0; i < NSEGS; i++)
         seg_zero(&as->as_segs[i]);
+    
+    // set up the stack and heap to be writeable
+    seg_init(&as->AS_STACK, 0, 0, true);
+    seg_init(&as->AS_HEAP, 0, 0, true);
 
     as->as_loading = false;    
 	return as;
@@ -257,9 +261,7 @@ seg_contains(const struct segment *seg, vaddr_t vaddr)
 void
 seg_zero(struct segment *seg)
 {
-    seg->seg_base = 0;
-    seg->seg_npages = 0;
-    seg->seg_write = false;
+    seg_init(seg, 0, 0, 0);
 }
 
 void
