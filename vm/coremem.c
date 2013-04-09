@@ -301,7 +301,7 @@ core_free_frame(paddr_t frame)
 }
 
 // Does not wait on PTE
-// Does this by test and setting once
+// Does not hold PTE for long periods
 static
 void
 core_clean(void *data1, unsigned long data2)
@@ -344,6 +344,7 @@ core_clean(void *data1, unsigned long data2)
         }
         core_unlock(index);
         index = (index + 1) % core_len;
+        thread_yield();
     }
 }
 
