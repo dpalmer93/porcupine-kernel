@@ -43,6 +43,8 @@
 #define L1_INDEX(va) (PAGE_NUM(va) >> 10) // index into the level 1 table
 #define L2_INDEX(va) (PAGE_NUM(va) & (LEVEL_SIZE - 1)) // index into the level 2 table
 
+static void pte_destroy(struct pt_entry *pte);
+
 struct page_table
 {
     struct pt_entry **pt_index[LEVEL_SIZE];
@@ -257,8 +259,9 @@ pt_release_entry(struct page_table *pt, struct pt_entry *pte)
     pte_unlock(pte);
 }
 
-/***********************************************************/
+/************ Page Table Entry Helper Functions ************/
 
+static
 void
 pte_destroy(struct pt_entry *pte)
 {
