@@ -68,8 +68,14 @@ size_t
 core_clocktick()
 {
     spinlock_acquire(&core_lock);
+    
     size_t lruclock = core_lruclock;
+    
+    // increment and wrap around
     core_lruclock++;
+    if (core_lruclock == core_len)
+        core_lruclock = 0;
+    
     spinlock_release(&core_lock);
     return lruclock;
 }
