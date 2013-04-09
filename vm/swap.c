@@ -48,6 +48,7 @@ swap_bootstrap(void)
     
     // use lhd0 (RAW) for swap
     char swapnode_path[9] = "lhd0raw:";
+    kprintf("Swap disk: %s\n", swapnode_path);
     err = vfs_open(swapnode_path, O_RDWR, 0, &swap_vnode);
     if (err)
         panic("swap_bootstrap: %s\n", strerror(err));
