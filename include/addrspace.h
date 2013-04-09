@@ -44,19 +44,19 @@ struct vnode;
 #if !(OPT_DUMBVM)
 /*
  * VM Segment - data structure representing a block of memory with
- * common permissions.
+ * common permissions.  These do not have to be page-aligned.
  */
 
 struct segment {
     vaddr_t seg_base;
-    size_t  seg_npages;
+    size_t  seg_size;
     bool    seg_write; // write permission
 };
 
 bool seg_available(const struct segment *seg);
 bool seg_contains(const struct segment *seg, vaddr_t vaddr);
 void seg_zero(struct segment *seg);
-void seg_init(struct segment *seg, vaddr_t base, size_t npages, bool write);
+void seg_init(struct segment *seg, vaddr_t base, size_t size, bool write);
 
 // number of segments (other than stack and heap)
 #define NSEGS 4

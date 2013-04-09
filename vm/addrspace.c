@@ -128,24 +128,17 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
     // unused
 	(void)executable;
     (void)readable;
-
-    /* Align the region. First, the base... */
-	sz += PAGE_OFFSET(vaddr);
-	vaddr &= PAGE_FRAME;
-    
-	/* ...and now the length. */
-	size_t npages = (sz + PAGE_SIZE - 1) / PAGE_SIZE;
     
     // Find an empty region and fill it
     // Temporarily allow writes until load is complete
     for (int i = 0; i < NSEGS; i++) {
         if (seg_available(&as->as_segs[i])) {
-            seg_init(&as->as_segs[i], vaddr, npages, writeable);
+            seg_init(&as->as_segs[i], vaddr, sz, writeable);
             
             // Update base of the heap
-            vaddr_t seg_top = vaddr + npages * PAGE_SIZE;
-            if (as->AS_HEAP.seg_base < seg_top)
-                as->AS_HEAP.seg_base = seg_top;
+            vaddr_t seg_top_aligned = (vaddr + sz + PAGE_SIZE - 1) & PAGE_FRAME;
+            if (as->AS_HEAP.seg_base < seg_top_aligned)
+                as->AS_HEAP.seg_base = seg_top_aligned;
             
             return 0;
         }
@@ -174,12 +167,12 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	vaddr_t stackbase = USERSTACK - PAGE_SIZE * STACK_NPAGES;
     
     // check for overlap with the heap
-    vaddr_t heaptop = as->AS_HEAP.seg_base + as->AS_HEAP.seg_npages * PAGE_SIZE;
+    vaddr_t heaptop = as->AS_HEAP.seg_base + as->AS_HEAP.seg_size;
     if (stackbase < heaptop)
         return ENOMEM;
     
     // seg up stack segment
-    seg_init(&as->AS_STACK, stackbase, STACK_NPAGES, true);
+    seg_init(&as->AS_STACK, stackbase, STACK_NPAGES * PAGE_SIZE, true);
     
     // Initial user-level stack pointer
 	*stackptr = USERSTACK;
@@ -215,7 +208,7 @@ int
 as_sbrk(struct addrspace *as, intptr_t amount, vaddr_t *old_heaptop)
 {
     // get the old heap top
-    vaddr_t heaptop = as->AS_HEAP.seg_base + as->AS_HEAP.seg_npages * PAGE_SIZE;
+    vaddr_t heaptop = as->AS_HEAP.seg_base + as->AS_HEAP.seg_size;
     
     if (amount == 0) {
         *old_heaptop = heaptop;
@@ -229,16 +222,13 @@ as_sbrk(struct addrspace *as, intptr_t amount, vaddr_t *old_heaptop)
     if (new_heaptop < as->AS_HEAP.seg_base)
         return EINVAL;
     
-    // round up
-    new_heaptop = (new_heaptop + PAGE_SIZE - 1) & PAGE_FRAME;
-    
     // check for overlap with the stack
     vaddr_t stackbase = as->AS_STACK.seg_base;
     if (new_heaptop > stackbase)
         return ENOMEM;
     
     // update the heap segment and return
-    as->AS_HEAP.seg_npages += (new_heaptop - heaptop) / PAGE_SIZE;
+    as->AS_HEAP.seg_size += amount;
     *old_heaptop = heaptop;
     return 0;
 }
@@ -246,7 +236,7 @@ as_sbrk(struct addrspace *as, intptr_t amount, vaddr_t *old_heaptop)
 bool
 seg_available(const struct segment *seg)
 {
-    return seg->seg_base == 0 && seg->seg_npages == 0;
+    return seg->seg_base == 0 && seg->seg_size == 0;
 }
 
 bool
@@ -255,7 +245,7 @@ seg_contains(const struct segment *seg, vaddr_t vaddr)
     if (vaddr < seg->seg_base)
         return false;
     
-    return (vaddr - seg->seg_base) / PAGE_SIZE < seg->seg_npages;
+    return vaddr - seg->seg_base < seg->seg_size;
 }
 
 void
@@ -265,9 +255,9 @@ seg_zero(struct segment *seg)
 }
 
 void
-seg_init(struct segment *seg, vaddr_t base, size_t npages, bool write)
+seg_init(struct segment *seg, vaddr_t base, size_t size, bool write)
 {
     seg->seg_base = base;
-    seg->seg_npages = npages;
+    seg->seg_size = size;
     seg->seg_write = write;
 }
