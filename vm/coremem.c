@@ -369,6 +369,7 @@ core_clean(void *data1, unsigned long data2)
             core_unlock(index);
         }
         index = (index + 1) % core_len;
+        thread_yield();
     }
 }
 
