@@ -86,7 +86,7 @@ core_clocktick()
 // and core_unlock(), which synchronize the freeing
 static
 void
-core_do_free(struct cm_entry *cme)
+cme_do_free(struct cm_entry *cme)
 {
     
     // free the associated swap space
