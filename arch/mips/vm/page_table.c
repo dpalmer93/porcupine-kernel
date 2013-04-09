@@ -274,7 +274,10 @@ pt_destroy_entry(struct page_table *pt, vaddr_t vaddr)
     if (pte == NULL)
         return;
     
-    pte_destroy(pte);
+    // just free the PTE.  We assume the caller will deal
+    // with associated swap/core, as the caller might still
+    // have these locked
+    kfree(pte);
     pt->pt_index[l1_idx][l2_idx] = NULL;
 }
 

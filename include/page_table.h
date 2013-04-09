@@ -50,6 +50,8 @@ void                pt_destroy(struct page_table *pt);
  *
  * pt_destroy_entry - destroy a page table entry previously created with pt_create_entry().
  *              This should only be called on an error immediately after pt_create_entry().
+ *              It does not free associated swap or core space, as the caller might
+ *              still hold locks on these 
  *
  * pt_release_entry - release the lock on a page table entry acquired via
  *              one of the above functions.
