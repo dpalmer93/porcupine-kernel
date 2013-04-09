@@ -70,7 +70,8 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             // the corresponding PTE must exist.
             KASSERT(pte);
             if (as_can_write(as, faultaddress) && pte_try_dirty(pte)) {
-                tlb_dirty(faultaddress);
+                // reload the TLB with the dirtied PTE
+                tlb_load_pte(faultaddress, pte);
                 pt_release_entry(pt, pte);
                 return 0;
             }
