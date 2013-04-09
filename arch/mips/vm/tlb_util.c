@@ -32,28 +32,6 @@
 #include <lib.h>
 #include <mips/tlb.h>
 
-void
-tlb_dirty(vaddr_t vaddr)
-{
-    // turn off interrupts to make this atomic w.r.t. this CPU
-    int x = splhigh();
-    
-    // get the index of the existing entry
-    uint32_t entryhi = (vaddr & TLBHI_VPAGE);
-    uint32_t entrylo = 0;
-    int index = tlb_probe(entryhi, entrylo);
-    KASSERT(index >= 0);
-    
-    // get the entry
-    tlb_read(&entryhi, &entrylo, index);
-    
-    // set the dirty bit
-    entrylo |= TLBLO_DIRTY;
-    tlb_write(entryhi, entrylo, index);
-    
-    splx(x);
-}
-
 // Load a mapping
 void
 tlb_load(vaddr_t vaddr, paddr_t paddr, bool write)
