@@ -211,7 +211,7 @@ int
 as_sbrk(struct addrspace *as, intptr_t amount, vaddr_t *old_heaptop)
 {
     // amount should be page-aligned
-    if (amount != amount & PAGE_FRAME)
+    if (PAGE_OFFSET(amount) != 0)
         return EINVAL;
     
     vaddr_t heaptop = as->AS_HEAP.seg_base + as->AS_HEAP.seg_npages * PAGE_SIZE;

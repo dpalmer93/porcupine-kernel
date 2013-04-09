@@ -27,6 +27,7 @@
  * SUCH DAMAGE.
  */
 
+#include <types.h>
 #include <current.h>
 #include <thread.h>
 #include <process.h>
