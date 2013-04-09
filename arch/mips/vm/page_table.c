@@ -46,8 +46,6 @@
 struct page_table
 {
     struct pt_entry **pt_index[LEVEL_SIZE];
-    struct lock      *pt_lock;
-    struct cv        *pt_cv;
 };
 
 struct page_table *
@@ -57,18 +55,8 @@ pt_create(void)
     if (pt == NULL)
         return NULL;
     
-    pt->pt_lock = lock_create("page table lock");
-    if (pt->pt_lock == NULL) {
-        kfree(pt);
-        return NULL;
-    }
-    pt->pt_cv = cv_create("page table CV");
-    if (pt->pt_cv == NULL) {
-        lock_destroy(pt->pt_lock);
-        kfree(pt);
-        return NULL;
-    }
-    bzero(pt->pt_index, LEVEL_SIZE * sizeof(struct pt_entry **)); // zero the index
+    // zero the index
+    bzero(pt->pt_index, LEVEL_SIZE * sizeof(struct pt_entry **));
     
     return pt;
 }
@@ -76,22 +64,11 @@ pt_create(void)
 void
 pt_destroy(struct page_table *pt)
 {
-    cv_destroy(pt->pt_cv);
-    lock_destroy(pt->pt_lock);
-    
     for (int i = 0; i < LEVEL_SIZE; i++) {
         if (pt->pt_index[i] != NULL) {
             for (int j = 0; j < LEVEL_SIZE; j++) {
                 if (pt->pt_index[i][j] != NULL) {
-                    // free the page frame and/or swap space
-                    struct pt_entry *pte = pt->pt_index[i][j];
-                    if (pte->pte_inmem)
-                        core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
-                    else
-                        swap_free(pte->pte_swapblk);
-                    
-                    // free the PTE
-                    kfree(pte);
+                    pte_destroy(pt->pt_index[i][j]);
                 }
             }
             kfree(pt->pt_index[i]);
@@ -205,25 +182,22 @@ pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
     unsigned long l1_idx = L1_INDEX(vaddr);
     unsigned long l2_idx = L2_INDEX(vaddr);
     
-    lock_acquire(pt->pt_lock);
-    if (pt->pt_index[l1_idx] == NULL) {
-        lock_release(pt->pt_lock);
+    /*
+     * We will only be acquiring our own entries.  Since
+     * there are no multithreaded processes in this system,
+     * we do not need to worry about partially created PTEs
+     */
+    if (pt->pt_index[l1_idx] == NULL)
         return NULL;
-    }
     
     struct pt_entry *pte = pt->pt_index[l1_idx][l2_idx];
-    if (pte == NULL) {
-        lock_release(pt->pt_lock);
+    if (pte == NULL)
         return NULL;
-    }
     
-    // wait for the PTE to become available
-    while (!pte_try_lock(pte)) {
-        lock_release(pt->pt_lock);
-        lock_acquire(pt->pt_lock);
-    }
+    // spin until the PTE becomes available
+    // PTEs are only held for short times
+    while (!pte_try_lock(pte));
     
-    lock_release(pt->pt_lock);
     return pte;
 }
 
@@ -233,39 +207,31 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
     unsigned long l1_idx = L1_INDEX(vaddr);
     unsigned long l2_idx = L2_INDEX(vaddr);
     
-    lock_acquire(pt->pt_lock);
-    
-    bool new_l2 = false;
-    if (pt->pt_index[l1_idx] == NULL) {
+    struct pt_entry **l2_tbl = pt->pt_index[l1_idx];
+    if (l2_tbl == NULL) {
         // create a new level 2 table
-        pt->pt_index[l1_idx] = kmalloc(LEVEL_SIZE * sizeof(struct pt_entry *));
-        if (pt->pt_index[l1_idx] == NULL) {
-            lock_release(pt->pt_lock);
+        l2_tbl = kmalloc(LEVEL_SIZE * sizeof(struct pt_entry *));
+        if (l2_tbl == NULL)
             return NULL;
-        }
+        
         // zero all its entries
-        bzero(pt->pt_index[l1_idx], LEVEL_SIZE * sizeof(struct pt_entry *));
-        // remember that we created a new level 2 table
-        new_l2 = true;
+        bzero(l2_tbl, LEVEL_SIZE * sizeof(struct pt_entry *));
     }
     
-    if (pt->pt_index[l1_idx][l2_idx] == NULL) {
+    struct pt_entry *pte = l2_tbl[l2_idx];
+    if (pte == NULL) {
         // allocate a new PTE
-        pt->pt_index[l1_idx][l2_idx] = kmalloc(sizeof(struct pt_entry));
-        if (pt->pt_index[l1_idx][l2_idx] == NULL) {
+        pte = kmalloc(sizeof(struct pt_entry));
+        if (pte == NULL) {
             // if we allocated a new L2 table earlier, free it
-            if (new_l2) kfree(pt->pt_index[l1_idx]);
-            lock_release(pt->pt_lock);
+            if (l2_tbl != pt->pt_index[l1_idx]) kfree(l2_tbl);
             return NULL;
         }
     }
-    else { // entry already exists
-        lock_release(pt->pt_lock);
+    else // entry already exists
         return NULL;
-    }
     
     // initialize and lock entry
-    struct pt_entry *pte = pt->pt_index[l1_idx][l2_idx];
     pte->pte_busy = 1;
     pte->pte_inmem = 1;
     pte->pte_accessed = 0;
@@ -274,28 +240,42 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
     pte->pte_reserved = 0;
     pte->pte_frame = PAGE_NUM(paddr);
     
-    lock_release(pt->pt_lock);
+    // save our new structures
+    l2_tbl[l2_idx] = pte;
+    pt->pt_index[l1_idx] = l2_tbl;
+    
     return pte;
 }
 
 void
 pt_release_entry(struct page_table *pt, struct pt_entry *pte)
 {
-    lock_acquire(pt->pt_lock);
+    // unused (for now)
+    (void)pt;
+    
     KASSERT(pte->pte_busy);
     pte_unlock(pte);
-    cv_signal(pt->pt_cv, pt->pt_lock);
-    lock_release(pt->pt_lock);
 }
 
 /***********************************************************/
 
-
+void
+pte_destroy(struct pt_entry *pte)
+{
+    // free the page frame and/or swap space
+    if (pte->pte_inmem)
+        core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
+    else
+        swap_free(pte->pte_swapblk);
+    
+    // free the PTE
+    kfree(pte);
+}
 
 
 /******** Must be called with the pt_entry locked ********/
 
- 
+
 bool
 pte_try_access(struct pt_entry *pte)
 {
