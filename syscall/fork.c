@@ -38,7 +38,7 @@
 // defined in process.c
 void process_cleanup(struct process *p);
 
-int
+pid_t
 sys_fork(const struct trapframe *parent_tf, int *err)
 {
     struct process *parent = curthread->t_proc;

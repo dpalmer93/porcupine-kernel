@@ -63,7 +63,7 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
 // sys_fork() uses trapframe to set up the child
 // on error, returns error code in err
-int sys_fork(const struct trapframe *tf, int *err);
+pid_t sys_fork(const struct trapframe *tf, int *err);
 int sys_execv(const_userptr_t path, const_userptr_t argv);
 int sys__exit(int code);
 int sys_waitpid(pid_t pid, userptr_t stat_loc, int options, int *err);
@@ -82,5 +82,9 @@ int sys_fstat(int fd, userptr_t statbuf);
 
 int sys___getcwd(userptr_t buf, size_t buflen, int *err);
 int sys_chdir(const_userptr_t pathname, int *err);
+
+// Added in Assignment 3:
+
+int sys_sbrk(intptr_t amount, userptr_t *result);
 
 #endif /* _SYSCALL_H_ */

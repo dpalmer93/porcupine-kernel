@@ -153,11 +153,15 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
  *
  *    as_can_write - tests whether the process can write to the specified
  *                  virtual address
+ *
+ *    as_sbrk - extends the heap by <amount> and returns the vaddr
+ *                  of the previous heap top.
  */
  
 #if !(OPT_DUMBVM)
 bool as_can_read(struct addrspace *as, vaddr_t vaddr);
 bool as_can_write(struct addrspace *as, vaddr_t vaddr);
+int as_sbrk(struct addrspace *as, intptr_t amount, vaddr_t *old_heaptop);
 #endif
 
 

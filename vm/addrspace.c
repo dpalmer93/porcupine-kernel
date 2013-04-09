@@ -207,6 +207,37 @@ as_can_write(struct addrspace *as, vaddr_t vaddr)
     return false;
 }
 
+int
+as_sbrk(struct addrspace *as, intptr_t amount, vaddr_t *old_heaptop)
+{
+    // amount should be page-aligned
+    if (amount != amount & PAGE_FRAME)
+        return EINVAL;
+    
+    vaddr_t heaptop = as->AS_HEAP.seg_base + as->AS_HEAP.seg_npages * PAGE_SIZE;
+    if (amount == 0) {
+        *old_heaptop = heaptop;
+        return 0;
+    }
+    
+    // compute the new heap top
+    vaddr_t new_heaptop = heaptop + amount;
+    
+    // check whether the heap top is less than the heap base
+    if (new_heaptop < as->AS_HEAP.seg_base)
+        return EINVAL;
+    
+    // check for overlap with the stack
+    vaddr_t stackbase = as->AS_STACK.seg_base;
+    if (new_heaptop > stackbase)
+        return ENOMEM;
+    
+    // update the heap segment and return
+    as->AS_HEAP.seg_npages += amount / PAGE_SIZE;
+    *old_heaptop = heaptop;
+    return 0;
+}
+
 bool
 seg_available(const struct segment *seg)
 {
