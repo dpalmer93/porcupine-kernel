@@ -62,7 +62,7 @@ swap_bootstrap(void)
     if (swap_map == NULL)
         panic("swap_bootstrap: Out of memory.\n");
     
-    spinlock_init(swap_lock);
+    spinlock_init(&swap_lock);
 }
 
 int
