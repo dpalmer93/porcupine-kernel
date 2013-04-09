@@ -122,9 +122,9 @@ boot(void)
 	kprintf("\n");
 
 	/* Late phase of initialization. */
-	vm_bootstrap();
 	kprintf_bootstrap();
 	thread_start_cpus();
+	vm_bootstrap();
     process_bootstrap();
 
 	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
