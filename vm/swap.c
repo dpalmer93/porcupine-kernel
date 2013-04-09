@@ -30,6 +30,7 @@
 #include <types.h>
 #include <machine/vm.h>
 #include <kern/fcntl.h>
+#include <spinlock.h>
 #include <uio.h>
 #include <vnode.h>
 #include <vfs.h>
@@ -38,7 +39,7 @@
 
 static struct vnode     *swap_vnode;
 static struct bitmap    *swap_map;
-static struct lock      *swap_lock;
+static struct spinlock   swap_lock;
 
 void
 swap_bootstrap(void)
@@ -61,9 +62,7 @@ swap_bootstrap(void)
     if (swap_map == NULL)
         panic("swap_bootstrap: Out of memory.\n");
     
-    swap_lock = lock_create("Swap Lock");
-    if (swap_lock == NULL)
-        panic("swap_bootstrap: Out of memory.\n");
+    spinlock_init(swap_lock);
 }
 
 int
@@ -72,9 +71,12 @@ swap_get_free(swapidx_t *freeblk)
     int err;
     
     // use the bitmap to find a free block
-    lock_acquire(swap_lock);
+    // we need a spinlock here: since this gets
+    // called while holding the core map spinlock,
+    // it cannot block
+    spinlock_acquire(&swap_lock);
     err = bitmap_alloc(swap_map, freeblk);
-    lock_release(swap_lock);
+    spinlock_release(&swap_lock);
     
     return err;
 }
@@ -82,9 +84,9 @@ swap_get_free(swapidx_t *freeblk)
 void
 swap_free(swapidx_t to_free)
 {
-    lock_acquire(swap_lock);
+    spinlock_acquire(&swap_lock);
     bitmap_unmark(swap_map, to_free);
-    lock_release(swap_lock);
+    spinlock_release(&swap_lock);
 }
 
 int
