@@ -43,6 +43,7 @@ void
 vm_bootstrap(void)
 {
     swap_bootstrap();
+    core_cleaner_bootstrap();
 }
 
 int
