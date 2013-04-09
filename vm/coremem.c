@@ -193,8 +193,10 @@ core_acquire_frame(void)
         // try to lock the coremap entry
         if (core_try_lock(index)) {
             // ignore kernel-reserved pages
-            if (coremap[index].cme_kernel)
+            if (coremap[index].cme_kernel) {
+                core_unlock(index);
                 continue;
+            }
             
             struct pt_entry *pte = coremap[index].cme_resident;
             vaddr_t vaddr = coremap[index].cme_vaddr;
@@ -314,35 +316,36 @@ core_clean(void *data1, unsigned long data2)
     {
         // try to lock both the CME and PTE
         // if it fails, go to the next cme
-        if (core_try_lock(index)
-            && !(coremap[index].cme_kernel)
-            && coremap[index].cme_resident
-            && pte_try_lock(coremap[index].cme_resident))
-        {
-            struct pt_entry *pte = coremap[index].cme_resident;
-            vaddr_t vaddr = coremap[index].cme_vaddr;
-            
-            // if dirty, then start cleaning
-            if(pte_is_dirty(pte)) {
-                // set the cleaning bit, clean the TLBs, and unlock
-                pte_start_cleaning(vaddr, pte); // this cleans TLBs too
-                pte_unlock(pte);
-                
-                swap_out(CORE_TO_PADDR(index), coremap[index].cme_swapblk);
-                
-                // once done writing, lock the PTE and check the cleaning bit
-                // if it is intact, no writes to this page have intervened
-                // in our cleaning. The clean was successful, and we can clear
-                // the dirty bit
-                if (pte_try_lock(pte)) {
-                    pte_finish_cleaning(pte);
-                    pte_unlock(pte);
+        if (core_try_lock(index)) {
+            if(!(coremap[index].cme_kernel) && coremap[index].cme_resident) {
+                if (pte_try_lock(coremap[index].cme_resident)) {
+                    
+                    struct pt_entry *pte = coremap[index].cme_resident;
+                    vaddr_t vaddr = coremap[index].cme_vaddr;
+                    
+                    // if dirty, then start cleaning
+                    if(pte_is_dirty(pte)) {
+                        // set the cleaning bit, clean the TLBs, and unlock
+                        pte_start_cleaning(vaddr, pte); // this cleans TLBs too
+                        pte_unlock(pte);
+                        
+                        swap_out(CORE_TO_PADDR(index), coremap[index].cme_swapblk);
+                        
+                        // once done writing, lock the PTE and check the cleaning bit
+                        // if it is intact, no writes to this page have intervened
+                        // in our cleaning: the clean was successful, and we can clear
+                        // the dirty bit
+                        if (pte_try_lock(pte)) {
+                            pte_finish_cleaning(pte);
+                            pte_unlock(pte);
+                        }
+                    }
+                    else
+                        pte_unlock(pte);
                 }
             }
-            else
-                pte_unlock(pte);
+            core_unlock(index);
         }
-        core_unlock(index);
         index = (index + 1) % core_len;
         thread_yield();
     }
