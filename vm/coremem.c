@@ -48,7 +48,8 @@
 struct cm_entry {
     unsigned         cme_kernel:1;   // In use by kernel?
     unsigned         cme_busy:1;     // For synchronization
-    unsigned         cme_swapblk:30; // Swap backing block
+    unsigned         cme_to_free:1;  // Defer freeing a busy block
+    unsigned         cme_swapblk:29; // Swap backing block
     vaddr_t          cme_vaddr;      // Resident virtual address
     struct pt_entry *cme_resident;   // Resident virtual page mapping
 };
@@ -80,6 +81,26 @@ core_clocktick()
     return lruclock;
 }
 
+// actually frees a CME/frame.
+// this only gets called from core_free_frame()
+// and core_unlock(), which synchronize the freeing
+static
+void
+core_do_free(struct cm_entry *cme)
+{
+    
+    // free the associated swap space
+    if (!cme->cme_kernel)
+        swap_free(cme->cme_swapblk);
+    
+    // clear the CME
+    cme->cme_kernel = 0;
+    cme->cme_to_free = 0;
+    cme->cme_swapblk = 0;
+    cme->cme_vaddr = 0;
+    cme->cme_resident = NULL;
+}
+
 // helper function for cleaner daemon only
 // not exported in coremem.h
 static
@@ -105,7 +126,13 @@ core_unlock(size_t index)
 {
     // frame must be locked before it can be unlocked
     KASSERT(coremap[index].cme_busy);
+    
     spinlock_acquire(&core_lock);
+    
+    // if the deferred free bit is set, free the frame now
+    if (coremap[index].cme_to_free)
+        cme_do_free(&coremap[index]);
+    
     coremap[index].cme_busy = 0;
     spinlock_release(&core_lock);
 }
@@ -142,13 +169,7 @@ core_bootstrap(void)
     // reserve kernel pages for coremap
     for (size_t i = 0; i < cm_npages; i++)
     {
-        coremap[i] = (struct cm_entry) {
-            .cme_kernel = 1,
-            .cme_busy = 0,
-            .cme_swapblk = 0,
-            .cme_vaddr = 0,
-            .cme_resident = NULL
-        };
+        coremap[i].cme_kernel = 1;
     }
     
     // start LRU clock
@@ -254,31 +275,33 @@ core_release_frame(paddr_t frame)
 void
 core_map_frame(paddr_t frame, vaddr_t vaddr, struct pt_entry *pte, swapidx_t swapblk)
 {
-    // should hold the frame's lock first
-    KASSERT(coremap[PADDR_TO_CORE(frame)].cme_busy);
+    // get the CME
+    struct cm_entry *cme = &coremap[PADDR_TO_CORE(frame)];
     
-    coremap[PADDR_TO_CORE(frame)] = (struct cm_entry) {
-        .cme_kernel = 0,
-        .cme_busy = 1,
-        .cme_swapblk = swapblk,
-        .cme_vaddr = vaddr,
-        .cme_resident = pte
-    };
+    // should hold the frame's lock first
+    KASSERT(cme->cme_busy);
+    
+    cme->cme_kernel = 0;
+    cme->cme_busy = 1;
+    cme->cme_swapblk = swapblk;
+    cme->cme_vaddr = vaddr;
+    cme->cme_resident = pte;
 }
 
 void
 core_reserve_frame(paddr_t frame)
 {
-    // should hold the frame's lock first
-    KASSERT(coremap[PADDR_TO_CORE(frame)].cme_busy);
+    // get the CME
+    struct cm_entry *cme = &coremap[PADDR_TO_CORE(frame)];
     
-    coremap[PADDR_TO_CORE(frame)] = (struct cm_entry) {
-        .cme_kernel = 1,
-        .cme_busy = 1,
-        .cme_swapblk = 0,
-        .cme_vaddr = 0,
-        .cme_resident = NULL
-    };
+    // should hold the frame's lock first
+    KASSERT(cme->cme_busy);
+    
+    cme->cme_kernel = 1;
+    cme->cme_busy = 1;
+    cme->cme_swapblk = 0;
+    cme->cme_vaddr = 0;
+    cme->cme_resident = NULL;
 }
 
 void
@@ -288,16 +311,15 @@ core_free_frame(paddr_t frame)
     
     struct cm_entry *cme = &coremap[PADDR_TO_CORE(frame)];
     
-    // free the associated swap space
-    if (!cme->cme_kernel)
-        swap_free(cme->cme_swapblk);
+    // if the CME is busy, defer freeing until core_unlock()
+    if (cme->cme_busy) {
+        cme->cme_to_free = 1;
+        spinlock_release(&core_lock);
+        return;
+    }
     
-    // clear the CME
-    cme->cme_kernel = 0;
-    cme->cme_busy = 0;
-    cme->cme_swapblk = 0;
-    cme->cme_vaddr = 0;
-    cme->cme_resident = NULL;
+    // Otherwise, just free the frame
+    cme_do_free(cme);
     
     spinlock_release(&core_lock);
 }
@@ -311,7 +333,7 @@ core_clean(void *data1, unsigned long data2)
     (void)data1;
     (void)data2;
     
-    size_t index;
+    size_t index = 0;
     while (true)
     {
         // try to lock both the CME and PTE
