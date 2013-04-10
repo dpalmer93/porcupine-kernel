@@ -362,7 +362,7 @@ core_clean(void *data1, unsigned long data2)
     size_t index = 0;
     while (true)
     {
-        cm_entry *cme = coremap[index];
+        struct cm_entry *cme = &coremap[index];
         // check the CME first to reduce contention and increase throughput
         if(!(cme->cme_busy) && !(cme->cme_kernel) && cme->cme_resident) {
             // try to lock both the CME and PTE
