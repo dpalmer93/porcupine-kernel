@@ -109,6 +109,8 @@ int
 vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte)
 {
     struct pt_entry *new_pte = pt_copyonwrite(pt, faultaddress);
+    // Old pte is now unlocked
+    
     if (new_pte == NULL) {
         // could not find any more physical
         // memory into which to copy the page

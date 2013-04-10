@@ -89,58 +89,37 @@ pt_copy_deep(struct page_table *old_pt)
     struct page_table *new_pt = pt_create();
     if (new_pt == NULL)
         return NULL;
-        
-    // Loop through the old page table and copy entries
+    
     for (int i = 0; i < LEVEL_SIZE; i++) {
         if (old_pt->pt_index[i] == NULL)
             continue;
+        
+        // Create second level page table
+        new_pt->pt_index[i] = kmalloc(LEVEL_SIZE * sizeof(struct pt_entry *));
+        if (new_pt->pt_index[i] == NULL) {
+            pt_destroy(new_pt);
+            return NULL;
+        }
+        bzero(new_pt->pt_index[i], LEVEL_SIZE * sizeof(struct pt_entry *));
         
         for (int j = 0; j < LEVEL_SIZE; j++) {
             if (old_pt->pt_index[i][j] == NULL)
                 continue;
             
+            // Deeply copy every page table entry
             struct pt_entry *old_pte = pt_acquire_entry(old_pt, INDEX_TO_VADDR(i, j));
-            struct pt_entry *new_pte = pt_create_entry(new_pt, INDEX_TO_VADDR(i, j), 0);
-            
+            struct pt_entry *new_pte = pte_copy_deep(INDEX_TO_VADDR(i, j), old_pte);
             if (new_pte == NULL) {
-                pte_unlock(old_pte);
                 pt_destroy(new_pt);
                 return NULL;
             }
             
-            // Copy the new_pte's page to a new place in swap
-            swapidx_t freeblk;
-            if(swap_get_free(&freeblk)) {
-                pte_unlock(old_pte);
-                pt_destroy(new_pt);
-                return NULL;
-            }    
-            if (old_pte->pte_inmem) {
-                if(swap_out(MAKE_ADDR(old_pte->pte_frame, 0), freeblk)) {
-                    swap_free(freeblk);
-                    pte_unlock(old_pte);
-                    pt_destroy(new_pt);
-                    return NULL;
-                }
-            }
-            else {
-                if(swap_copy(old_pte->pte_swapblk, freeblk)) {
-                    swap_free(freeblk);
-                    pte_unlock(old_pte);
-                    pt_destroy(new_pt);
-                    return NULL;
-                }
-            }
+            new_pt->pt_index[i][j] = new_pte;
             
-            // put the correct info into new_pte
-            new_pte->pte_busy = 0;
-            new_pte->pte_inmem = 0;
-            new_pte->pte_swapblk = freeblk;
-            
-            pte_unlock(old_pte);
+            // unlock the new PTE (pte_copy() unlocked the old one if necessary)
+            pte_unlock(new_pte);
         }
-    }       
-            
+    }
     return new_pt;
 }
 
@@ -169,15 +148,16 @@ pt_copy_shallow(struct page_table *old_pt)
             
             // Shallowly copy every page table entry
             struct pt_entry *old_pte = pt_acquire_entry(old_pt, INDEX_TO_VADDR(i, j));
-            new_pt->pt_index[i][j] = pte_copy(INDEX_TO_VADDR(i, j), old_pte);
-            if (new_pt->pt_index[i][j] == NULL) {
-                pte_unlock(old_pte);
+            struct pt_entry *new_pte = pte_copy(INDEX_TO_VADDR(i, j), old_pte);
+            if (new_pte == NULL) {
                 pt_destroy(new_pt);
                 return NULL;
             }
             
+            new_pt->pt_index[i][j] = new_pte;
+            
             // unlock the new PTE (pte_copy() unlocked the old one if necessary)
-            pte_unlock(new_pt->pt_index[i][j]);
+            pte_unlock(new_pte);
         }
     }
     return new_pt;
@@ -406,6 +386,7 @@ pte_copy(vaddr_t vaddr, struct pt_entry *old_pte)
 // Copies PTE and copies the corresponding data into
 // a new physical page
 // Returns a locked PTE and unlocks the old one
+// On failure, returns NULL.
 static
 struct pt_entry *
 pte_copy_deep(vaddr_t vaddr, struct pt_entry *old_pte)
@@ -417,16 +398,29 @@ pte_copy_deep(vaddr_t vaddr, struct pt_entry *old_pte)
     if (new_pte == NULL)
         return NULL;
     
-    // acquire a page frame and copy the old_pte's page
+    // acquire a page frame
     paddr_t frame = core_acquire_frame();
-    memcpy((void *)PADDR_TO_KVADDR(frame),
-           (void *)PADDR_TO_KVADDR(MAKE_ADDR(old_pte->pte_frame, 0)),
-           PAGE_SIZE);
+    
+    // copy the old page's data
+    if (old_pte->pte_inmem) {
+        paddr_t old_frame = MAKE_ADDR(old_pte->pte_frame, 0);
+        memcpy((void *)PADDR_TO_KVADDR(frame),
+               (void *)PADDR_TO_KVADDR(old_frame), PAGE_SIZE);
+    }
+    else {
+        if (swap_in(old_pte->pte_swapblk, frame)) {
+            core_release_frame(frame);
+            pte_unlock(old_pte);
+            kfree(new_pte);
+            return NULL;
+        }
+    }
     
     // get a new swap block
     swapblk_t swapblk;
     if (swap_get_free(&swapblk)) {
         core_release_frame(frame);
+        pte_unlock(old_pte);
         kfree(new_pte);
         return NULL;
     }
