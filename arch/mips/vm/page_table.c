@@ -317,7 +317,7 @@ pte_destroy(struct pt_entry *pte)
         kfree(pte);
     }
 }
-/*
+
 // Must be called with the PTE locked
 static bool
 pte_incr_ref(struct pt_entry *pte)
@@ -330,7 +330,7 @@ pte_incr_ref(struct pt_entry *pte)
     }
     return false;
 }
-
+/*
 // Must be called with the PTE locked
 static bool
 pte_decr_ref(struct pt_entry *pte)
@@ -355,7 +355,7 @@ pte_need_copyonwrite(struct pt_entry *pte)
 }
 
 // Must be called with old PTE locked
-// Copies PTE and also copies the backing swap block
+// Copies PTE and also the data into physical memory
 struct pt_entry *
 pte_copy_deep(struct pt_entry *old_pte)
 {
@@ -368,6 +368,22 @@ pte_copy_deep(struct pt_entry *old_pte)
     
     return NULL;
 
+}
+
+// Must be called with old PTE locked
+// Increments refcount in old PTE and returns pointer to old_pte
+// If refcount is too high, makes a deep copy
+struct pt_entry *
+pte_copy_shallow(struct pt_entry *old_pte)
+{
+    KASSERT(old_pte != NULL);
+    KASSERT(old_pte->pte_busy);
+    
+    if (pte_incr_ref(old_pte)) {
+        return old_pte;
+    }
+    else
+        return pte_copy_deep(old_pte);
 }
 
 // Must be called with the PTE locked
