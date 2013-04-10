@@ -34,7 +34,6 @@
 #include <cdefs.h>
 #include <kern/vmstat.h>
 #include <spinlock.h>
-#include "opt-vmstat.h"
 
 // inline to reduce overhead
 #ifndef VMSTAT_INLINE
@@ -42,9 +41,7 @@
 #endif
 
 // global record of VM statistics
-#if OPT_VMSTAT
 struct vmstat vs_global;
-#endif
 
 // atomic increment and decrement functions
 
@@ -53,7 +50,6 @@ struct vmstat vs_global;
     VMSTAT_INLINE void vs_decr_##STAT(void);    \
     VMSTAT_INLINE size_t vs_get_##STAT(void);
 
-#if OPT_VMSTAT
 #define VS_IMPL(STAT) \
 struct spinlock vs_##STAT##_lock = SPINLOCK_INITIALIZER; \
                                                 \
@@ -78,16 +74,6 @@ struct spinlock vs_##STAT##_lock = SPINLOCK_INITIALIZER; \
         spinlock_release(&vs_##STAT##_lock);    \
         return ret;                             \
     }
-
-#else
-#define VS_IMPL(STAT)       \
-    VMSTAT_INLINE void          \
-    vs_incr_##STAT(void) {}     \
-    VMSTAT_INLINE void          \
-    vs_decr_##STAT(void) {}     \
-    VMSTAT_INLINE size_t        \
-    vs_get_##STAT(void) {return 0;}
-#endif
 
 
 void vs_init_ram(size_t npages, size_t nwired);

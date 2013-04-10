@@ -37,7 +37,6 @@
 #include <addrspace.h>
 #include <vmstat.h>
 #include <coremem.h>
-#include "opt-vmstat.h"
 
 // Number of dirty pages at which we wake the cleaner thread
 #define MAX_DIRTY (core_len/2)
@@ -215,12 +214,10 @@ core_acquire_random(void)
 paddr_t
 core_acquire_frame(void)
 {
-#if OPT_VMSTAT
     // wake up the cleaner thread if necessary
     if (vs_get_ram_dirty() >= MAX_DIRTY) {
         wchan_wakeone(core_cleaner_wchan);
     }
-#endif
     
     while(true) {
         // get current clock hand and increment clock
@@ -365,14 +362,16 @@ core_clean(void *data1, unsigned long data2)
     size_t index = 0;
     while (true)
     {
-        // try to lock both the CME and PTE
-        // if it fails, go to the next cme
-        if (core_try_lock(index)) {
-            if(!(coremap[index].cme_kernel) && coremap[index].cme_resident) {
-                if (pte_try_lock(coremap[index].cme_resident)) {
+        cm_entry *cme = coremap[index];
+        // check the CME first to reduce contention and increase throughput
+        if(!(cme->cme_busy) && !(cme->cme_kernel) && cme->cme_resident) {
+            // try to lock both the CME and PTE
+            // if it fails, go to the next cme
+            if (core_try_lock(index)) {
+                if (pte_try_lock(cme->cme_resident)) {
                     
-                    struct pt_entry *pte = coremap[index].cme_resident;
-                    vaddr_t vaddr = coremap[index].cme_vaddr;
+                    struct pt_entry *pte = cme->cme_resident;
+                    vaddr_t vaddr = cme->cme_vaddr;
                     
                     // if dirty, then start cleaning
                     if(pte_is_dirty(pte)) {
@@ -380,7 +379,7 @@ core_clean(void *data1, unsigned long data2)
                         pte_start_cleaning(vaddr, pte); // this cleans TLBs too
                         pte_unlock(pte);
                         
-                        swap_out(CORE_TO_PADDR(index), coremap[index].cme_swapblk);
+                        swap_out(CORE_TO_PADDR(index), cme->cme_swapblk);
                         
                         // once done writing, lock the PTE and check the cleaning bit
                         // if it is intact, no writes to this page have intervened
@@ -394,26 +393,21 @@ core_clean(void *data1, unsigned long data2)
                     else
                         pte_unlock(pte);
                 }
+                core_unlock(index);
             }
-            core_unlock(index);
         }
         index = (index + 1) % core_len;
-#if OPT_VMSTAT
+
         if (vs_get_ram_dirty() <= MIN_DIRTY) {
             wchan_lock(core_cleaner_wchan);
             wchan_sleep(core_cleaner_wchan);
         }
-#else
-        thread_yield();
-#endif
     }
 }
 
 void core_cleaner_bootstrap(void)
 {
-#if OPT_VMSTAT
     core_cleaner_wchan = wchan_create("Core Cleaner Wait Channel");
-#endif
     thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
 }
 
