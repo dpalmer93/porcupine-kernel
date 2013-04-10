@@ -37,6 +37,7 @@
 #include <addrspace.h>
 #include <vmstat.h>
 #include <coremem.h>
+#include "opt-vmstat.h"
 
 // Maximum dirty pages before we wake the cleaner thread
 #define MAX_DIRTY 16
@@ -214,10 +215,12 @@ core_acquire_random(void)
 paddr_t
 core_acquire_frame(void)
 {
+#if OPT_VMSTAT
     // wake up the cleaner thread if necessary
     if (vs_get_ram_dirty() > MAX_DIRTY) {
         wchan_wakeone(core_cleaner_wchan);
     }
+#endif
     
     while(true) {
         // get current clock hand and increment clock
@@ -395,16 +398,22 @@ core_clean(void *data1, unsigned long data2)
             core_unlock(index);
         }
         index = (index + 1) % core_len;
+#if OPT_VMSTAT
         if (vs_get_ram_dirty() < MIN_DIRTY) {
             wchan_lock(core_cleaner_wchan);
             wchan_sleep(core_cleaner_wchan);
         }
+#else
+        thread_yield();
+#endif
     }
 }
 
 void core_cleaner_bootstrap(void)
 {
+#if OPT_VMSTAT
     core_cleaner_wchan = wchan_create("Core Cleaner Wait Channel");
+#endif
     thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
 }
 

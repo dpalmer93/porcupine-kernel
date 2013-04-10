@@ -86,5 +86,6 @@ int sys_chdir(const_userptr_t pathname, int *err);
 // Added in Assignment 3:
 
 vaddr_t sys_sbrk(intptr_t amount, int *err);
+int sys_vmstat(userptr_t buf); // get VM system statistics
 
 #endif /* _SYSCALL_H_ */
