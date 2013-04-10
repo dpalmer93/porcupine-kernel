@@ -35,6 +35,7 @@
 #include <vnode.h>
 #include <vfs.h>
 #include <stat.h>
+#include <vmstat.h>
 #include <swap.h>
 
 static struct vnode     *swap_vnode;
@@ -64,6 +65,9 @@ swap_bootstrap(void)
         panic("swap_bootstrap: Out of memory.\n");
     
     spinlock_init(&swap_lock);
+    
+    // set up statistics
+    vs_init_swap(swap_stat.st_size / PAGE_SIZE);
 }
 
 int
@@ -79,6 +83,10 @@ swap_get_free(swapidx_t *freeblk)
     err = bitmap_alloc(swap_map, freeblk);
     spinlock_release(&swap_lock);
     
+    // update statistics
+    if (!err)
+        vs_decr_swap_free();
+    
     return err;
 }
 
@@ -88,11 +96,17 @@ swap_free(swapidx_t to_free)
     spinlock_acquire(&swap_lock);
     bitmap_unmark(swap_map, to_free);
     spinlock_release(&swap_lock);
+    
+    // update statistics
+    vs_incr_swap_free();
 }
 
 int
 swap_in(swapidx_t src, paddr_t dst)
 {
+    // update statistics
+    vs_incr_swap_ins();
+    
     // set up UIO
     struct iovec swapin_iov;
     struct uio swapin_uio;
@@ -114,6 +128,9 @@ swap_in(swapidx_t src, paddr_t dst)
 int
 swap_out(paddr_t src, swapidx_t dst)
 {
+    // update statistics
+    vs_incr_swap_outs();
+    
     // set up UIO
     struct iovec swapout_iov;
     struct uio swapout_uio;

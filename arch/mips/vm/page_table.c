@@ -36,6 +36,7 @@
 #include <synch.h>
 #include <addrspace.h>
 #include <coremem.h>
+#include <vmstat.h>
 #include <page_table.h>
 
 #define LEVEL_SIZE 1024
@@ -290,8 +291,15 @@ pte_destroy(struct pt_entry *pte)
     KASSERT(pte != NULL);
     
     // free the page frame and/or swap space
-    if (pte->pte_inmem)
+    if (pte->pte_inmem) {
         core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
+        
+        // update stats
+        if (pte->pte_accessed)
+            vs_decr_ram_active();
+        else
+            vs_decr_ram_inactive();
+    }
     else
         swap_free(pte->pte_swapblk);
     
@@ -307,6 +315,12 @@ pte_try_access(struct pt_entry *pte)
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
     if (pte->pte_inmem) {
+        // update stats
+        if (!pte->pte_accessed) {
+            vs_decr_ram_inactive();
+            vs_incr_ram_active();
+        }
+        
         pte->pte_accessed = 1;
         return true;
     }
@@ -319,9 +333,13 @@ pte_try_dirty(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
+    KASSERT(!pte->pte_dirty);
     if (pte->pte_inmem) {
         pte->pte_accessed = 1;
         pte->pte_dirty = 1;
+        
+        // update statistics
+        vs_incr_ram_dirty();
         
         // if the page is currently being cleaned,
         // nullify the cleaning
@@ -405,8 +423,11 @@ pte_finish_cleaning(struct pt_entry *pte)
     KASSERT(pte->pte_inmem);
     
     // clear dirty bit only if cleaning was uninterrupted
-    if (pte->pte_cleaning)
+    if (pte->pte_cleaning) {
         pte->pte_dirty = 0;
+        // update statistics
+        vs_decr_ram_dirty();
+    }
 }
 
 // redirect the PTE to its swap block

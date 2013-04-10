@@ -36,6 +36,7 @@
 #include <process.h>
 #include <addrspace.h>
 #include <coremem.h>
+#include <vmstat.h>
 #include <kvm.h>
 #include <vm.h>
 
@@ -49,6 +50,9 @@ vm_bootstrap(void)
 int
 vm_fault(int faulttype, vaddr_t faultaddress)
 {
+    // update statistics
+    vs_incr_faults();
+    
     /* Kernel TLB fault */
     if (kvm_managed(faultaddress)) {
         return kvm_fault(faultaddress);

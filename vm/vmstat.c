@@ -27,30 +27,26 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _KERN_VMSTAT_H_
-#define _KERN_VMSTAT_H_
+#define VMSTAT_INLINE // <empty>
+#include <vmstat.h>
+#include "opt-vmstat.h"
 
-/*
- * The vmstat structure, for returning VM statistics via vmstat().
- */
-struct vmstat {
-    // Physical memory statistics
-    size_t vs_ram;          // # of physical pages
-    size_t vs_ram_free;     // # of free pages
-    size_t vs_ram_active;   // # of pages in use
-    size_t vs_ram_inactive; // # of pages recently unused
-    size_t vs_ram_wired;    // # of pages that cannot be evicted
-    size_t vs_ram_dirty;    // # of dirty pages
-    
-    // Swap statistics
-    size_t vs_swap;         // # of swap blocks
-    size_t vs_swap_free;    // # of available swap blocks
-    size_t vs_swap_ins;     // # of page-ins since boot
-    size_t vs_swap_outs;    // # of page-outs since boot
-    
-    // VM system statistics
-    size_t vs_faults;       // # of times vm_fault() was called
-    size_t vs_cow_faults;   // # of faults requiring copy-on-write
-};
+void
+vs_init_ram(size_t npages, size_t nwired)
+{
+    vs_global.vs_ram = npages;
+    vs_global.vs_ram_free = npages - nwired;
+    vs_global.vs_ram_active = 0;
+    vs_global.vs_ram_inactive = 0;
+    vs_global.vs_ram_wired = nwired;
+    vs_global.vs_ram_dirty = 0;
+}
 
-#endif /* _KERN_VMSTAT_H_ */
+void
+vs_init_swap(size_t nblocks)
+{
+    vs_global.vs_swap = nblocks;
+    vs_global.vs_swap_free = nblocks;
+    vs_global.vs_swap_ins = 0;
+    vs_global.vs_swap_outs = 0;
+}

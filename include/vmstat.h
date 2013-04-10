@@ -73,9 +73,13 @@ vs_decr_##STAT##(void) {}   \
 #endif
 
 
+void vs_init_ram(size_t npages, size_t nwired);
+void vs_init_swap(size_t npages);
+
 // Physical memory statistics
 VS_DEF(ram_free);
 VS_DEF(ram_active);
+VS_DEF(ram_inactive);
 VS_DEF(ram_wired);
 VS_DEF(ram_dirty);
 

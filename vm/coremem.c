@@ -99,6 +99,9 @@ cme_do_free(struct cm_entry *cme)
     cme->cme_swapblk = 0;
     cme->cme_vaddr = 0;
     cme->cme_resident = NULL;
+    
+    // update stats
+    vs_incr_ram_free();
 }
 
 // helper function for cleaner daemon only
@@ -174,6 +177,9 @@ core_bootstrap(void)
     
     // start LRU clock
     core_lruclock = 0;
+    
+    // set up stats
+    vs_init_ram(hi / PAGE_SIZE, cm_npages + lo / PAGE_SIZE);
 }
 
 paddr_t
@@ -224,7 +230,7 @@ core_acquire_frame(void)
             
             // found a free frame.  Take it and return
             if (pte == NULL)
-                break;
+                return CORE_TO_PADDR(index);
             
             // otherwise, try to lock the page table entry, skip if cannot acquire
             if (pte_try_lock(pte)) {
@@ -239,13 +245,12 @@ core_acquire_frame(void)
                     continue;
                 }
                 
-                // If we have reached MAX_CLOCKTICKS,
-                // just take the page regardless of how recently it has
-                // been used. Otherwise, refresh the access bit and
-                // invalidate TLBs to simulate hardware-managed accessed bit
-                // (pte_refresh() does both)
-                if (clock_steps < MAX_CLOCKTICKS && pte_refresh(vaddr, pte)) {
-                    clock_steps++;
+                // Refresh the access bit and invalidate TLBs to simulate
+                // hardware-managed accessed bit (pte_refresh() does both)
+                if (pte_refresh(vaddr, pte)) {
+                    // update stats
+                    vs_decr_ram_active();
+                    ps_incr_ram_inactive();
                     
                     // move on...
                     pte_unlock(pte);
@@ -256,14 +261,17 @@ core_acquire_frame(void)
                     // evict the PTE to its swap block
                     pte_evict(pte, coremap[index].cme_swapblk);
                     pte_unlock(pte);
-                    break;
+                    
+                    // mark the CME as free and update stats
+                    vs_decr_ram_inactive();
+                    cme_do_free(&coremap[index]);
+                    
+                    return CORE_TO_PADDR(index);
                 }
             }
             core_unlock(index);
         }
     }
-    
-    return CORE_TO_PADDR(index);
 }
 
 void
@@ -286,6 +294,10 @@ core_map_frame(paddr_t frame, vaddr_t vaddr, struct pt_entry *pte, swapidx_t swa
     cme->cme_swapblk = swapblk;
     cme->cme_vaddr = vaddr;
     cme->cme_resident = pte;
+    
+    // update stats
+    vs_decr_ram_free();
+    vs_incr_ram_active();
 }
 
 void
@@ -302,6 +314,10 @@ core_reserve_frame(paddr_t frame)
     cme->cme_swapblk = 0;
     cme->cme_vaddr = 0;
     cme->cme_resident = NULL;
+    
+    // update stats
+    vs_decr_ram_free();
+    vs_incr_ram_wired();
 }
 
 void
