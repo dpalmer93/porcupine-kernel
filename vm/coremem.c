@@ -272,8 +272,11 @@ core_acquire_frame(void)
                     pte_unlock(pte);
                     
                     // mark the CME as free and update stats
+                    coremap[index].cme_swapblk = 0;
+                    coremap[index].cme_vaddr = 0;
+                    coremap[index].cme_resident = NULL;
                     vs_decr_ram_inactive();
-                    cme_do_free(&coremap[index]);
+                    vs_incr_ram_free();
                     
                     return CORE_TO_PADDR(index);
                 }
