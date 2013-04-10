@@ -402,8 +402,6 @@ pte_copy_deep(struct pt_entry *old_pte)
            (void *)PADDR_TO_KVADDR(MAKE_ADDR(old_pte->pte_frame, 0)),
            PAGE_SIZE);
     
-    
-    
     new_pte->pte_busy = 1;
     new_pte->pte_inmem = 1;
     new_pte->pte_refcount = 1;
@@ -456,19 +454,14 @@ pte_try_dirty(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    if (pte->pte_inmem && pte->pte_refcount == 1) {
+    if (pte->pte_inmem) {
         KASSERT(!pte->pte_dirty || pte->pte_cleaning);
-        
-        // update statistics
-        if (!pte->pte_active) {
-            vs_decr_ram_inactive();
-            vs_incr_ram_active();
-        }
-        if (!pte->pte_dirty)
-            vs_incr_ram_dirty();
         
         pte->pte_active = 1;
         pte->pte_dirty = 1;
+        
+        // update statistics
+        vs_incr_ram_dirty();
         
         // if the page is currently being cleaned,
         // nullify the cleaning
@@ -485,13 +478,13 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
     
-    // reset the active bit to 0 and return
+    // reset the accesssed bit to 0 and return
     // the old one
-    bool active = pte->pte_active;
+    bool accessed = pte->pte_active;
     pte->pte_active = 0;
     
     // invalidate TLBs if necessary
-    if (active) {
+    if (accessed) {
         tlb_invalidate(vaddr, pte);
         struct tlbshootdown ts = {
             .ts_type = TS_INVAL,
