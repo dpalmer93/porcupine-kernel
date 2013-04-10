@@ -39,9 +39,9 @@
 #include <coremem.h>
 
 // Number of dirty pages at which we wake the cleaner thread
-#define MAX_DIRTY (core_len/2)
+#define MAX_DIRTY (32 + vs_get_ram_active()/2)
 // Number of dirty pages at which the cleaner thread sleeps
-#define MIN_DIRTY (core_len/8)
+#define MIN_DIRTY (vs_get_ram_active()/8)
 
 // Macro to go from coremap entry to physical address
 #define CORE_TO_PADDR(i) (core_frame0 + i * PAGE_SIZE)

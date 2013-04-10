@@ -265,6 +265,7 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
     return pte;
 }
 
+// Assumes that there is only 1 reference to PTE
 void
 pt_destroy_entry(struct page_table *pt, vaddr_t vaddr)
 {
@@ -293,7 +294,7 @@ pte_destroy(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     
-    if (pte->pte_refcount > 0)
+    if (pte->pte_refcount > 1)
         pte->pte_refcount--;
     else {
         // free the page frame and/or swap space
@@ -315,6 +316,42 @@ pte_destroy(struct pt_entry *pte)
         // free the PTE
         kfree(pte);
     }
+}
+/*
+// Must be called with the PTE locked
+static bool
+pte_incr_ref(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    if (pte->pte_refcount < MAX_PTEREFCOUNT) {
+        pte->pte_refcount++;
+        return true;
+    }
+    return false;
+}
+
+// Must be called with the PTE locked
+static bool
+pte_decr_ref(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    if (pte->pte_refcount > 0) {
+        pte->pte_refcount--;
+        return true;
+    }
+    return false;
+}
+*/
+
+// Must be called with PTE locked
+bool
+pte_need_copyonwrite(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    return (pte->pte_refcount > 1);
 }
 
 // Must be called with old PTE locked
@@ -419,40 +456,7 @@ pte_is_dirty(struct pt_entry *pte)
     return pte->pte_dirty;
 }
 
-// Must be called with the PTE locked
-bool
-pte_incr_ref(struct pt_entry *pte)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    if (pte->pte_refcount < MAX_PTEREFCOUNT) {
-        pte->pte_refcount++;
-        return true;
-    }
-    return false;
-}
 
-// Must be called with the PTE locked
-bool
-pte_decr_ref(struct pt_entry *pte)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    if (pte->pte_refcount > 0) {
-        pte->pte_refcount--;
-        return true;
-    }
-    return false;
-}
-
-// Must be called with the PTE locked
-int
-pte_get_ref(struct pt_entry *pte)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    return pte->pte_refcount;
-}
 
 // Must be called with the PTE locked
 void
