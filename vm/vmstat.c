@@ -31,6 +31,7 @@
 #include <vmstat.h>
 #include "opt-vmstat.h"
 
+#if OPT_VMSTAT
 void
 vs_init_ram(size_t npages, size_t nwired)
 {
@@ -50,3 +51,10 @@ vs_init_swap(size_t nblocks)
     vs_global.vs_swap_ins = 0;
     vs_global.vs_swap_outs = 0;
 }
+#else
+void
+vs_init_ram(size_t npages, size_t nwired) {}
+
+void
+vs_init_swap(size_t nblocks) {}
+#endif
