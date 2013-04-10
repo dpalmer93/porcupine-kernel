@@ -56,7 +56,7 @@ int
 sys_vmstat(userptr_t buf)
 {
 #if OPT_VMSTAT
-    return copyout(vs_global, buf, sizeof(struct vmstat));
+    return copyout(&vs_global, buf, sizeof(struct vmstat));
 #else
     return EUNIMP;
 #endif
