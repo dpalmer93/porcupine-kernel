@@ -89,10 +89,12 @@ static
 void
 cme_do_free(struct cm_entry *cme)
 {
-    
     // free the associated swap space
     if (!cme->cme_kernel)
         swap_free(cme->cme_swapblk);
+    else // update stats
+        vs_decr_ram_wired();
+    vs_incr_ram_free();
     
     // clear the CME
     cme->cme_kernel = 0;
@@ -100,9 +102,6 @@ cme_do_free(struct cm_entry *cme)
     cme->cme_swapblk = 0;
     cme->cme_vaddr = 0;
     cme->cme_resident = NULL;
-    
-    // update stats
-    vs_incr_ram_free();
 }
 
 // helper function for cleaner daemon only

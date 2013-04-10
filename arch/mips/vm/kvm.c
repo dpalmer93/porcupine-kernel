@@ -96,9 +96,6 @@ kvm_free_contig(vaddr_t vaddr)
         if (kvm_pt[index].kte_frame) {
             // free the frame
             core_free_frame(MAKE_ADDR(kvm_pt[index].kte_frame, 0));
-            
-            // update statistics
-            vs_decr_ram_wired();
         }
         
         // clear the kernel page table entry
