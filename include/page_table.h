@@ -51,24 +51,25 @@ void                pt_destroy(struct page_table *pt);
  * pt_destroy_entry - destroy a page table entry previously created with pt_create_entry().
  *              This should only be called on an error immediately after pt_create_entry().
  *              It does not free associated swap or core space, as the caller might
- *              still hold locks on these 
- *
- * pt_release_entry - release the lock on a page table entry acquired via
- *              one of the above functions.
+ *              still hold locks on these
  *
  * pte_try_lock - atomically tries to lock page table entry,
  *              returns true if successful
  *
- * pte_unlock: unlocks a page table entry
+ * pte_unlock - unlock a page table entry
  */
 struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
 struct pt_entry    *pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
 void                pt_destroy_entry(struct page_table *pt, vaddr_t vaddr);
-void                pt_release_entry(struct page_table *pt, struct pt_entry *pte);
 bool                pte_try_lock(struct pt_entry *pte);
 void                pte_unlock(struct pt_entry *pte);
 
 /**** Must hold PTE lock (via pt_acquire_entry() or pte_trylock()) to use these: ***/
+
+// Used to deal with write faults that require copying
+// The PTE referred to by pt and vaddr must be locked
+// Makes a deep copy of the PTE and returns it, both PTE's are locked
+struct pt_entry *pt_copyonwrite(struct page_table* pt, vaddr_t vaddr);
 
 bool pte_try_access(struct pt_entry *pte);              // try to access the page
 bool pte_try_dirty(struct pt_entry *pte);               // try to dirty the page
@@ -78,8 +79,9 @@ bool pte_need_copyonwrite(struct pt_entry *pte);        // returns true if > 1 r
 void pte_evict(struct pt_entry *pte,                    // evict the page to the swap block
                swapidx_t swapblk);
 void pte_map(struct pt_entry *pte, paddr_t frame);      // map the page to a physical frame
-bool pte_refresh(vaddr_t vaddr, struct pt_entry *pte); // reset & return the "active" bit;
-                                                       // invalidate TLBs if necessary
+bool pte_refresh(vaddr_t vaddr, struct pt_entry *pte);  // reset & return the "active" bit;
+                                                        // invalidate TLBs if necessary
+void pte_start_swapin(struct pt_entry *pte);            // alert others to wait on swapin
 // non-blocking cleaning
 void pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte);
 void pte_finish_cleaning(struct pt_entry *pte);
@@ -90,10 +92,4 @@ struct page_table *pt_copy_deep(struct page_table *old_pt);
 // Copy of page table with shallow copies of page table entries
 struct page_table *pt_copy_shallow(struct page_table *old_pt);
 
-// Copies page table entry.  Copies page into physical memory
-struct pt_entry   *pte_copy_deep(struct pt_entry *old_pte);
-
-// Shallow copy of page table entry by number of references
-// If not possible, calls pte_copy_deep
-struct pt_entry   *pte_copy_shallow(struct pt_entry *old_pte);
 #endif /* _PAGE_TABLE_H_ */

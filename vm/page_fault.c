@@ -37,7 +37,7 @@
 #include <vm.h>
 
 // Handle a page fault in the case in which the virtual
-// page is unmapped
+// page is unmapped.  The PTE is already locked.
 int
 vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt)
 {
@@ -72,12 +72,12 @@ vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt)
     core_release_frame(frame);
     
     // clean up
-    pt_release_entry(pt, pte);
+    pte_unlock(pte);
     return 0;
 }
 
 // Handle a page fault in the case in which the page has
-// been swapped out.
+// been swapped out.  The PTE is already locked.
 int
 vm_swapin_page_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte)
 {
@@ -86,18 +86,25 @@ vm_swapin_page_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entr
     if (frame == 0)
         return ENOMEM;
     
+    // alert others that this PTE is being swapped in
+    pte_start_swapin(pte, frame);
+    
     // swap in the page
     swapidx_t swapblk = pte->pte_swapblk;
-    swap_in(swapblk, frame);
+    if (swap_in(swapblk, frame)) {
+        core_release_frame(frame);
+        pte_unlock(pte);
+    }
     
     // clean up...
     core_map_frame(frame, faultaddress & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
-    pte_map(pte, frame);
-    pt_release_entry(pt, pte);
+    pte_map(pte, frame); // this clears the swapin bit
+    pte_unlock(pte);
     return 0;
 }
 
+// Handle a copy-on-write fault.  The PTE is already locked.
 int
 vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte)
 {
@@ -113,7 +120,6 @@ vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entr
     // update statistics
     vs_incr_cow_faults();
     
-    pt_release_entry(pt, new_pte);
-    pte_unlock(pte);
+    pte_unlock(new_pte);
     return 0;
 }

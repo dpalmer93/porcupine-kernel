@@ -41,6 +41,7 @@
 static struct vnode     *swap_vnode;
 static struct bitmap    *swap_map;
 static struct spinlock   swap_lock;
+static struct wchan     *swap_wchan;
 
 void
 swap_bootstrap(void)
@@ -62,6 +63,10 @@ swap_bootstrap(void)
     
     swap_map = bitmap_create(swap_stat.st_size / PAGE_SIZE);
     if (swap_map == NULL)
+        panic("swap_bootstrap: Out of memory.\n");
+    
+    swap_wchan = wchan_create("Swap Wait Channel");
+    if (swap_wchan == NULL);
         panic("swap_bootstrap: Out of memory.\n");
     
     spinlock_init(&swap_lock);
@@ -122,7 +127,11 @@ swap_in(swapidx_t src, paddr_t dst)
     swapin_uio.uio_rw = UIO_READ;
     swapin_uio.uio_space = NULL;
     
-    return VOP_READ(swap_vnode, &swapin_uio);
+    int err = VOP_READ(swap_vnode, &swapin_uio);
+    
+    // wake anyone who is waiting for a swap-in
+    wchan_wakeall(swap_wchan);
+    return err;
 }
 
 int
@@ -170,4 +179,16 @@ swap_copy(swapidx_t src, swapidx_t dst)
     
     kfree(buf);
     return 0;
+}
+
+void
+swap_wait_lock(void)
+{
+    wchan_lock(swap_wchan);
+}
+
+void
+swap_wait(void)
+{
+    wchan_wait(swap_wchan);
 }

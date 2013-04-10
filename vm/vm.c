@@ -73,22 +73,24 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             // Either the page is read-only, or the page is read/write
             // but the dirty bit has been cleared.  In either case,
             // the corresponding PTE must exist.
-            // The PTE must also be in memory, as 
+            // The page must also be in memory, as TLB entries
+            // are never loaded for pages in swap.
             KASSERT(pte);
             
             if (!as_can_write(as, faultaddress)) {
                 // cannot write to this page
-                pt_release_entry(pt, pte);
+                pte_unlock(pte);
                 return EFAULT;
             }
             else if (pte_try_dirty(pte)) {
                 // page was previously clean
                 // reload the TLB with the dirtied PTE
                 tlb_load_pte(faultaddress, pte);
-                pt_release_entry(pt, pte);
+                pte_unlock(pte);
                 return 0;
             }
-            else // copy-on-write
+            else {
+                // copy-on-write
                 // NOTE: this will unlock the PTE when it is done
                 return vm_copyonwrite_fault(faultaddress, pt, pte);
             }
@@ -104,7 +106,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             else {
                 // Just load the TLB
                 tlb_load_pte(faultaddress, pte);
-                pt_release_entry(pt, pte);
+                pte_unlock(pte);
                 return 0;
             }
         
