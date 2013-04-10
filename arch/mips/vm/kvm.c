@@ -52,34 +52,52 @@ struct kvm_pte {
 // we use the bottom two bits for additional state.
 static struct kvm_pte   kvm_pt[KHEAP_MAXPAGES];
 static struct spinlock  kvm_lock = SPINLOCK_INITIALIZER;
-static size_t           kvm_top = 0; // kernel heap upper bound
+static size_t           kvm_index = 0; // search index
 
 vaddr_t
 kvm_alloc_contig(int npages)
 {
-    size_t block;
+    spinlock_acquire(&kvm_lock);
     
     // get a contiguous block of pages in KSEG2
-    spinlock_acquire(&kvm_lock);
-    block = kvm_top;
-    kvm_top += npages;
-    if (kvm_top > KHEAP_MAXPAGES) {
-        spinlock_release(&kvm_lock);
-        return 0;
+    size_t kvm_index0 = kvm_index;
+    size_t ncontig = 0;
+    while (ncontig < npages) {
+        if (kvm_pt[kvm_index].kte_used)
+            ncontig = 0;
+        else
+            ncontig++;
+        
+        kvm_index++;
+        if (kvm_index == KHEAP_MAXPAGES) {
+            kvm_index = 0;
+            ncontig = 0;
+        }
+        
+        // if we search the whole table without finding
+        // a contiguous block of npages, return 0
+        if (kvm_index == kvm_index0) {
+            spinlock_release(&kvm_lock);
+            return 0;
+        }
     }
-    spinlock_release(&kvm_lock);
+    
+    // get the start index of the contiguous block
+    size_t start = kvm_index - ncontig;
     
     // mark the pages as in use
-    for (int i = 0; i < npages; i++)
+    for (int i = start; i < kvm_index; i++)
     {
         // initialize the kernel page table entry
-        kvm_pt[block + i].kte_frame = 0;
-        kvm_pt[block + i].kte_reserved = 0;
-        kvm_pt[block + i].kte_term = 0;
-        kvm_pt[block + i].kte_used = 1;
+        kvm_pt[i].kte_frame = 0;
+        kvm_pt[i].kte_reserved = 0;
+        kvm_pt[i].kte_term = 0;
+        kvm_pt[i].kte_used = 1;
     }
     
-    kvm_pt[block + npages - 1].kte_term = 1;
+    kvm_pt[kvm_index - 1].kte_term = 1;
+    
+    spinlock_release(&kvm_lock);
     
     // return the block
     return block * PAGE_SIZE + MIPS_KSEG2;
