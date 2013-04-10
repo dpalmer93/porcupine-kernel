@@ -50,7 +50,8 @@ struct vmstat vs_global;
 
 #define VS_DECL(STAT) \
     VMSTAT_INLINE void vs_incr_##STAT(void);    \
-    VMSTAT_INLINE void vs_decr_##STAT(void);
+    VMSTAT_INLINE void vs_decr_##STAT(void);    \
+    VMSTAT_INLINE size_t vs_get_##STAT(void);
 
 #if OPT_VMSTAT
 #define VS_IMPL(STAT) \
@@ -68,6 +69,14 @@ struct spinlock vs_##STAT##_lock = SPINLOCK_INITIALIZER; \
         spinlock_acquire(&vs_##STAT##_lock);    \
         vs_global.vs_##STAT--;                  \
         spinlock_release(&vs_##STAT##_lock);    \
+    }                                           \
+                                                \
+    VMSTAT_INLINE size_t                        \
+    vs_get_##STAT(void) {                       \
+        spinlock_acquire(&vs_##STAT##_lock);    \
+        size_t ret = vs_global.vs_##STAT;       \
+        spinlock_release(&vs_##STAT##_lock);    \
+        return ret;                             \
     }
 
 #else
@@ -75,7 +84,9 @@ struct spinlock vs_##STAT##_lock = SPINLOCK_INITIALIZER; \
     VMSTAT_INLINE void          \
     vs_incr_##STAT(void) {}     \
     VMSTAT_INLINE void          \
-    vs_decr_##STAT(void) {}
+    vs_decr_##STAT(void) {}     \
+    VMSTAT_INLINE size_t        \
+    vs_get_##STAT(void) {return 0;}
 #endif
 
 

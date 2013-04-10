@@ -37,9 +37,10 @@
 #include <vmstat.h>
 #include <coremem.h>
 
-// Number of clock ticks before we just evict the next
-// clean page
-#define MAX_CLOCKTICKS 16
+// Maximum dirty pages before we wake the cleaner thread
+#define MAX_DIRTY 16
+// Number of dirty pages below which the cleaner thread sleeps
+#define MIN_DIRTY 2
 
 // Macro to go from coremap entry to physical address
 #define CORE_TO_PADDR(i) (core_frame0 + i * PAGE_SIZE)
@@ -57,6 +58,7 @@ struct cm_entry {
 
 static struct cm_entry *coremap;
 static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
+static struct wchan    *core_cleaner_wchan;
 static size_t           core_lruclock;
 static size_t           core_len;
 paddr_t                 core_frame0;
@@ -211,6 +213,11 @@ core_acquire_random(void)
 paddr_t
 core_acquire_frame(void)
 {
+    // wake up the cleaner thread if necessary
+    if (vs_get_ram_dirty() > MAX_DIRTY) {
+        wchan_wakeone(core_cleaner_wchan());
+    }
+    
     while(true) {
         // get current clock hand and increment clock
         size_t index = core_clocktick();
@@ -288,7 +295,6 @@ core_map_frame(paddr_t frame, vaddr_t vaddr, struct pt_entry *pte, swapidx_t swa
     KASSERT(cme->cme_busy);
     
     cme->cme_kernel = 0;
-    cme->cme_busy = 1;
     cme->cme_swapblk = swapblk;
     cme->cme_vaddr = vaddr;
     cme->cme_resident = pte;
@@ -308,7 +314,6 @@ core_reserve_frame(paddr_t frame)
     KASSERT(cme->cme_busy);
     
     cme->cme_kernel = 1;
-    cme->cme_busy = 1;
     cme->cme_swapblk = 0;
     cme->cme_vaddr = 0;
     cme->cme_resident = NULL;
@@ -383,12 +388,16 @@ core_clean(void *data1, unsigned long data2)
             core_unlock(index);
         }
         index = (index + 1) % core_len;
-        thread_yield();
+        if (vs_get_ram_dirty() < MIN_DIRTY) {
+            wchan_lock(core_cleaner_wchan);
+            wchan_sleep(core_cleaner_wchan);
+        }
     }
 }
 
 void core_cleaner_bootstrap(void)
 {
+    core_cleaner_wchan = wchan_create("Core Cleaner Wait Channel");
     thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
 }
 
