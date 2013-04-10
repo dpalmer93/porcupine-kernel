@@ -391,8 +391,8 @@ file      syscall/fork.c
 file      syscall/getpid.c
 file      syscall/loadelf.c
 file      syscall/runprogram.c
-file      syscall/sbrk.c
 file      syscall/time_syscalls.c
+file      syscall/vm_syscalls.c
 
 #
 # Startup and initialization

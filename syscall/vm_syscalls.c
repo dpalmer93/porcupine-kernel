@@ -28,11 +28,15 @@
  */
 
 #include <types.h>
+#include <kern/errno.h>
 #include <current.h>
 #include <thread.h>
 #include <process.h>
 #include <addrspace.h>
+#include <vmstat.h>
+#include <copyinout.h>
 #include <syscall.h>
+#include "opt-vmstat.h"
 
 vaddr_t
 sys_sbrk(intptr_t amount, int *err)
@@ -46,5 +50,15 @@ sys_sbrk(intptr_t amount, int *err)
         return 0;
     
     return new_heaptop;
+}
+
+int
+sys_vmstat(userptr_t buf)
+{
+#if OPT_VMSTAT
+    return copyout(vs_global, buf, sizeof(struct vmstat));
+#else
+    return EUNIMP;
+#endif
 }
 
