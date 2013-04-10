@@ -75,6 +75,8 @@ int tlb_probe(uint32_t entryhi, uint32_t entrylo);
  * tlb_clean - atomically clear the dirty bit of a specific TLB entry if it
  *              exists.
  *
+ * tlb_cleanall - clear the dirty bits on all TLB entries
+ *
  * tlb_flush - atomically empty the entire TLB.  This can be used on a
  *              context switch.
  */
@@ -83,6 +85,7 @@ void tlb_load(vaddr_t vaddr, paddr_t paddr, bool write);
 void tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_clean(vaddr_t paddr, const struct pt_entry *pte);
+void tlb_cleanall(void);
 void tlb_flush(void);
 
 

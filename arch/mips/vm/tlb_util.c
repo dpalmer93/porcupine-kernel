@@ -109,6 +109,23 @@ tlb_clean(vaddr_t vaddr, const struct pt_entry *pte)
     splx(x);
 }
 
+void
+tlb_cleanall(void)
+{
+    // turn off interrupts to make this atomic w.r.t. this CPU
+    int x = splhigh();
+    
+    for (int i = 0; i < NUM_TLB; i++) {
+        uint32_t entryhi;
+        uint32_t entrylo;
+        tlb_read(&entryhi, &entrylo, i);
+        entrylo &= ~TLBLO_DIRTY;
+        tlb_write(entryhi, entrylo, i);
+    }
+    
+    splx(x);
+}
+
 /*
  * This should do basically the same thing as tlb_reset().
  */

@@ -33,12 +33,13 @@
 #include <page_table.h>
 #include <coremem.h>
 #include <swap.h>
+#include <vmstat.h>
 #include <vm.h>
 
 // Handle a page fault in the case in which the virtual
 // page is unmapped
 int
-vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
+vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt)
 {
     int err;
     
@@ -48,7 +49,7 @@ vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
         return ENOMEM;
     
     // create a page table entry
-    struct pt_entry *pte = pt_create_entry(pt, vaddr, frame);
+    struct pt_entry *pte = pt_create_entry(pt, faultaddress, frame);
     if (pte == NULL) {
         core_release_frame(frame);
         return ENOMEM;
@@ -78,7 +79,7 @@ vm_unmapped_page_fault(vaddr_t vaddr, struct page_table *pt)
 // Handle a page fault in the case in which the page has
 // been swapped out.
 int
-vm_swapin_page_fault(vaddr_t vaddr, struct page_table *pt, struct pt_entry *pte)
+vm_swapin_page_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte)
 {
     // find a free page frame
     paddr_t frame = core_acquire_frame();
@@ -90,9 +91,29 @@ vm_swapin_page_fault(vaddr_t vaddr, struct page_table *pt, struct pt_entry *pte)
     swap_in(swapblk, frame);
     
     // clean up...
-    core_map_frame(frame, vaddr & PAGE_FRAME, pte, swapblk);
+    core_map_frame(frame, faultaddress & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
     pte_map(pte, frame);
     pt_release_entry(pt, pte);
+    return 0;
+}
+
+int
+vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte)
+{
+    struct pt_entry *new_pte = pt_copyonwrite(pt, faultaddress);
+    if (new_pte == NULL) {
+        // could not find any more physical
+        // memory into which to copy the page
+        return ENOMEM;
+    }
+    
+    tlb_load_pte(new_pte);
+    
+    // update statistics
+    vs_incr_cow_faults();
+    
+    pt_release_entry(pt, new_pte);
+    pte_unlock(pte);
     return 0;
 }

@@ -456,14 +456,19 @@ pte_try_dirty(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    if (pte->pte_inmem) {
+    if (pte->pte_inmem && pte->pte_refcount == 1) {
         KASSERT(!pte->pte_dirty || pte->pte_cleaning);
+        
+        // update statistics
+        if (!pte->pte_active) {
+            vs_decr_ram_inactive();
+            vs_incr_ram_active();
+        }
+        if (!pte->pte_dirty)
+            vs_incr_ram_dirty();
         
         pte->pte_active = 1;
         pte->pte_dirty = 1;
-        
-        // update statistics
-        vs_incr_ram_dirty();
         
         // if the page is currently being cleaned,
         // nullify the cleaning
@@ -480,13 +485,13 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
     
-    // reset the accesssed bit to 0 and return
+    // reset the active bit to 0 and return
     // the old one
-    bool accessed = pte->pte_active;
+    bool active = pte->pte_active;
     pte->pte_active = 0;
     
     // invalidate TLBs if necessary
-    if (accessed) {
+    if (active) {
         tlb_invalidate(vaddr, pte);
         struct tlbshootdown ts = {
             .ts_type = TS_INVAL,
