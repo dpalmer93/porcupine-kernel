@@ -343,8 +343,6 @@ defoption roundrobin
 # (you will probably want to add stuff here while doing the VM assignment)
 #
 
-defoption vmstat
-
 file      vm/kmalloc.c
 
 optofffile dumbvm   vm/addrspace.c
