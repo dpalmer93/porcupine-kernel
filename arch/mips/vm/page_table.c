@@ -140,6 +140,9 @@ pt_copy_deep(struct page_table *old_pt)
     return new_pt;
 }
 
+
+
+
 /**************** SYNCHRONIZATION FUNCTIONS ****************/
 
 bool
@@ -310,6 +313,16 @@ pte_destroy(struct pt_entry *pte)
     kfree(pte);
 }
 
+// Must be called with old PTE locked
+// Copies PTE and also copies the backing swap block
+int
+pte_copy_deep(struct pt_entry *old_pte, struct pt_entry *new_pte)
+{
+    KASSERT(old_pte != NULL);
+    KASSERT(old_pte->pte_busy);
+    
+
+}
 
 // Must be called with the PTE locked
 bool
@@ -433,6 +446,16 @@ pte_finish_cleaning(struct pt_entry *pte)
         vs_decr_ram_dirty();
     }
 }
+
+// Must be called with the PTE locked
+void
+pte_incr_ref(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    if (pte->
+}
+
 
 // redirect the PTE to its swap block
 // Must be called with the PTE locked
