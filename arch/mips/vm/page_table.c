@@ -249,7 +249,7 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
     // initialize and lock entry
     pte->pte_busy = 1;
     pte->pte_inmem = 1;
-    pte->pte_accessed = 0;
+    pte->pte_active = 0;
     pte->pte_dirty = 0;
     pte->pte_cleaning = 0;
     pte->pte_reserved = 0;
@@ -295,7 +295,7 @@ pte_destroy(struct pt_entry *pte)
         core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
         
         // update stats
-        if (pte->pte_accessed)
+        if (pte->pte_active)
             vs_decr_ram_active();
         else
             vs_decr_ram_inactive();
@@ -319,12 +319,12 @@ pte_try_access(struct pt_entry *pte)
     KASSERT(pte->pte_busy);
     if (pte->pte_inmem) {
         // update stats
-        if (!pte->pte_accessed) {
+        if (!pte->pte_active) {
             vs_decr_ram_inactive();
             vs_incr_ram_active();
         }
         
-        pte->pte_accessed = 1;
+        pte->pte_active = 1;
         return true;
     }
     return false;
@@ -339,7 +339,7 @@ pte_try_dirty(struct pt_entry *pte)
     if (pte->pte_inmem) {
         KASSERT(!pte->pte_dirty || pte->pte_cleaning);
         
-        pte->pte_accessed = 1;
+        pte->pte_active = 1;
         pte->pte_dirty = 1;
         
         // update statistics
@@ -362,8 +362,8 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
     
     // reset the accesssed bit to 0 and return
     // the old one
-    bool accessed = pte->pte_accessed;
-    pte->pte_accessed = 0;
+    bool accessed = pte->pte_active;
+    pte->pte_active = 0;
     
     // invalidate TLBs if necessary
     if (accessed) {
@@ -452,7 +452,7 @@ void
 pte_map(struct pt_entry *pte, paddr_t frame)
 {
     pte->pte_inmem = 1;
-    pte->pte_accessed = 0;
+    pte->pte_active = 0;
     pte->pte_dirty = 0;
     pte->pte_cleaning = 0;
     pte->pte_reserved = 0;

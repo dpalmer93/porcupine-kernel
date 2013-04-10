@@ -257,8 +257,8 @@ core_acquire_frame(void)
                     continue;
                 }
                 
-                // Refresh the access bit and invalidate TLBs to simulate
-                // hardware-managed accessed bit (pte_refresh() does both)
+                // Refresh the active bit and invalidate TLBs to simulate
+                // hardware-managed active bit (pte_refresh() does both)
                 if (pte_refresh(vaddr, pte)) {
                     // update stats
                     vs_decr_ram_active();
