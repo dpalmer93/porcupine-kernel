@@ -85,7 +85,10 @@ void pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte);
 void pte_finish_cleaning(struct pt_entry *pte);
 
 // Deep copy of the page table and all the page table entries
-struct page_table *pt_copy_deep(struct page_table *pt);
+struct page_table *pt_copy_deep(struct page_table *old_pt);
+
+// Copy of page table with shallow copies of page table entries
+struct page_table *pt_copy_shallow(struct page_table *old_pt);
 
 // Copies page table entry.  Copies page into physical memory
 struct pt_entry   *pte_copy_deep(struct pt_entry *old_pte);
