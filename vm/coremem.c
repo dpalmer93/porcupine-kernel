@@ -32,6 +32,7 @@
 #include <machine/tlb.h>
 #include <lib.h>
 #include <thread.h>
+#include <wchan.h>
 #include <swap.h>
 #include <addrspace.h>
 #include <vmstat.h>
@@ -215,7 +216,7 @@ core_acquire_frame(void)
 {
     // wake up the cleaner thread if necessary
     if (vs_get_ram_dirty() > MAX_DIRTY) {
-        wchan_wakeone(core_cleaner_wchan());
+        wchan_wakeone(core_cleaner_wchan);
     }
     
     while(true) {

@@ -200,10 +200,11 @@ threadlist_addtail(struct threadlist *tl, struct thread *t)
 struct thread *
 threadlist_remhead(struct threadlist *tl)
 {
-	struct threadlistnode *tln;
-
 	DEBUGASSERT(tl != NULL);
+	
+	struct threadlistnode *tln = tl->tl_head[0].tln_next;
 
+    DEBUGASSERT(tln != NULL);
     
     // iterate through all the queues and remove from the
     // head of the first nonempty queue
@@ -228,9 +229,11 @@ threadlist_remhead(struct threadlist *tl)
 struct thread *
 threadlist_remtail(struct threadlist *tl)
 {
-	struct threadlistnode *tln;
-
 	DEBUGASSERT(tl != NULL);
+	
+	struct threadlistnode *tln = tl->tl_tail[0].tln_prev;
+
+    DEBUGASSERT(tln != NULL);
     
     // iterate backwards through all the queues and
     // and remove the tail of the first nonempty queue
