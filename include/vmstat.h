@@ -30,6 +30,7 @@
 #ifndef _VMSTAT_H_
 #define _VMSTAT_H_
 
+#include <types.h>
 #include <cdefs.h>
 #include <kern/vmstat.h>
 #include <spinlock.h>
@@ -45,20 +46,25 @@
 struct vmstat vs_global;
 #endif
 
-// atomic increment and decrement
+// atomic increment and decrement functions
+
+#define VS_DECL(STAT) \
+    VMSTAT_INLINE void vs_incr_##STAT(void);    \
+    VMSTAT_INLINE void vs_decr_##STAT(void);
+
 #if OPT_VMSTAT
-#define VS_DEF(STAT) \
-    struct spinlock vs_##STAT##_lock = SPINLOCK_INITIALIZER; \
+#define VS_IMPL(STAT) \
+struct spinlock vs_##STAT##_lock = SPINLOCK_INITIALIZER; \
                                                 \
     VMSTAT_INLINE void                          \
-    vs_incr_##STAT##(void) {                    \
+    vs_incr_##STAT(void) {                      \
         spinlock_acquire(&vs_##STAT##_lock);    \
         vs_global.vs_##STAT++;                  \
         spinlock_release(&vs_##STAT##_lock);    \
     }                                           \
                                                 \
     VMSTAT_INLINE void                          \
-    vs_decr_##STAT##(void) {                    \
+    vs_decr_##STAT(void) {                      \
         spinlock_acquire(&vs_##STAT##_lock);    \
         vs_global.vs_##STAT--;                  \
         spinlock_release(&vs_##STAT##_lock);    \
@@ -66,10 +72,10 @@ struct vmstat vs_global;
 
 #else
 #define VS_IMPL(STAT)       \
-VMSTAT_INLINE void          \
-vs_incr_##STAT##(void) {}   \
-VMSTAT_INLINE void          \
-vs_decr_##STAT##(void) {}   \
+    VMSTAT_INLINE void          \
+    vs_incr_##STAT(void) {}     \
+    VMSTAT_INLINE void          \
+    vs_decr_##STAT(void) {}
 #endif
 
 
@@ -77,19 +83,19 @@ void vs_init_ram(size_t npages, size_t nwired);
 void vs_init_swap(size_t npages);
 
 // Physical memory statistics
-VS_DEF(ram_free);
-VS_DEF(ram_active);
-VS_DEF(ram_inactive);
-VS_DEF(ram_wired);
-VS_DEF(ram_dirty);
+VS_DECL(ram_free);
+VS_DECL(ram_active);
+VS_DECL(ram_inactive);
+VS_DECL(ram_wired);
+VS_DECL(ram_dirty);
 
 // Swap statistics
-VS_DEF(swap_free);
-VS_DEF(swap_ins);
-VS_DEF(swap_outs);
+VS_DECL(swap_free);
+VS_DECL(swap_ins);
+VS_DECL(swap_outs);
 
 // VM system statistics
-VS_DEF(faults);
-VS_DEF(cow_faults);
+VS_DECL(faults);
+VS_DECL(cow_faults);
 
-#endif /* _VMSTAT_H_
+#endif /* _VMSTAT_H_ */

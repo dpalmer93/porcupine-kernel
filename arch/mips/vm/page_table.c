@@ -299,6 +299,9 @@ pte_destroy(struct pt_entry *pte)
             vs_decr_ram_active();
         else
             vs_decr_ram_inactive();
+        
+        if (pte->pte_dirty)
+            vs_decr_ram_dirty();
     }
     else
         swap_free(pte->pte_swapblk);

@@ -34,6 +34,7 @@
 #include <thread.h>
 #include <swap.h>
 #include <addrspace.h>
+#include <vmstat.h>
 #include <coremem.h>
 
 // Number of clock ticks before we just evict the next
@@ -211,11 +212,9 @@ core_acquire_random(void)
 paddr_t
 core_acquire_frame(void)
 {
-    int clock_steps = 0;
-    size_t index;
     while(true) {
         // get current clock hand and increment clock
-        index = core_clocktick();
+        size_t index = core_clocktick();
         
         // try to lock the coremap entry
         if (core_try_lock(index)) {
@@ -250,7 +249,7 @@ core_acquire_frame(void)
                 if (pte_refresh(vaddr, pte)) {
                     // update stats
                     vs_decr_ram_active();
-                    ps_incr_ram_inactive();
+                    vs_incr_ram_inactive();
                     
                     // move on...
                     pte_unlock(pte);
@@ -297,7 +296,7 @@ core_map_frame(paddr_t frame, vaddr_t vaddr, struct pt_entry *pte, swapidx_t swa
     
     // update stats
     vs_decr_ram_free();
-    vs_incr_ram_active();
+    vs_incr_ram_inactive();
 }
 
 void

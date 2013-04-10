@@ -31,6 +31,22 @@
 #include <vmstat.h>
 #include "opt-vmstat.h"
 
+// Physical memory statistics
+VS_IMPL(ram_free);
+VS_IMPL(ram_active);
+VS_IMPL(ram_inactive);
+VS_IMPL(ram_wired);
+VS_IMPL(ram_dirty);
+
+// Swap statistics
+VS_IMPL(swap_free);
+VS_IMPL(swap_ins);
+VS_IMPL(swap_outs);
+
+// VM system statistics
+VS_IMPL(faults);
+VS_IMPL(cow_faults);
+
 #if OPT_VMSTAT
 void
 vs_init_ram(size_t npages, size_t nwired)
