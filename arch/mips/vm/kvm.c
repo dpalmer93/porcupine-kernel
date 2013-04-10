@@ -52,7 +52,7 @@ struct kvm_pte {
 // we use the bottom two bits for additional state.
 static struct kvm_pte   kvm_pt[KHEAP_MAXPAGES];
 static struct spinlock  kvm_lock = SPINLOCK_INITIALIZER;
-static size_t           kvm_index = 0; // search index
+static int              kvm_index = 0; // search index
 
 vaddr_t
 kvm_alloc_contig(int npages)
@@ -60,8 +60,8 @@ kvm_alloc_contig(int npages)
     spinlock_acquire(&kvm_lock);
     
     // get a contiguous block of pages in KSEG2
-    size_t kvm_index0 = kvm_index;
-    size_t ncontig = 0;
+    int kvm_index0 = kvm_index;
+    int ncontig = 0;
     while (ncontig < npages) {
         if (kvm_pt[kvm_index].kte_used)
             ncontig = 0;
@@ -83,7 +83,7 @@ kvm_alloc_contig(int npages)
     }
     
     // get the start index of the contiguous block
-    size_t start = kvm_index - ncontig;
+    int start = kvm_index - ncontig;
     
     // mark the pages as in use
     for (int i = start; i < kvm_index; i++)
@@ -100,14 +100,14 @@ kvm_alloc_contig(int npages)
     spinlock_release(&kvm_lock);
     
     // return the block
-    return block * PAGE_SIZE + MIPS_KSEG2;
+    return start * PAGE_SIZE + MIPS_KSEG2;
 }
 
 void
 kvm_free_contig(vaddr_t vaddr)
 {
     KASSERT(vaddr >= MIPS_KSEG2);
-    size_t index = (vaddr - MIPS_KSEG2) / PAGE_SIZE;
+    int index = (vaddr - MIPS_KSEG2) / PAGE_SIZE;
     
     while (true)
     {
