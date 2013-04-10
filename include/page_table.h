@@ -74,9 +74,6 @@ bool pte_try_access(struct pt_entry *pte);  // try to access the page
 bool pte_try_dirty(struct pt_entry *pte);   // try to dirty the page
 bool pte_resident(struct pt_entry *pte);    // check whether in memory
 bool pte_is_dirty(struct pt_entry *pte);    // check whether dirty
-bool pte_incr_ref(struct pt_entry *pte);    // increment refcount if possible
-bool pte_decr_ref(struct pt_entry *pte);    // decrement refcount if possible
-int  pte_get_ref(struct pt_entry *pte);      // get the refcount
 
 void pte_evict(struct pt_entry *pte,        // evict the page to the swap block
                swapidx_t swapblk);
