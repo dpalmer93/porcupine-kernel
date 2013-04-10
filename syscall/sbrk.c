@@ -34,18 +34,17 @@
 #include <addrspace.h>
 #include <syscall.h>
 
-int
-sys_sbrk(intptr_t amount, userptr_t *result)
+vaddr_t
+sys_sbrk(intptr_t amount, int *err)
 {
     vaddr_t new_heaptop;
     
     struct addrspace *as = curthread->t_proc->ps_addrspace;
     
-    int err = as_sbrk(as, amount, &new_heaptop);
-    if (err)
-        return err;
+    *err = as_sbrk(as, amount, &new_heaptop);
+    if (*err)
+        return 0;
     
-    *result = (userptr_t)new_heaptop;
-    return 0;
+    return new_heaptop;
 }
 
