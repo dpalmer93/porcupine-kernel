@@ -336,8 +336,8 @@ pte_try_dirty(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    KASSERT(!pte->pte_dirty);
     if (pte->pte_inmem) {
+        KASSERT(!pte->pte_dirty);
         pte->pte_accessed = 1;
         pte->pte_dirty = 1;
         
