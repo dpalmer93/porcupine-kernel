@@ -234,8 +234,11 @@ core_acquire_frame(void)
             vaddr_t vaddr = coremap[index].cme_vaddr;
             
             // found a free frame.  Take it and return
-            if (pte == NULL)
+            if (pte == NULL) {
+                KASSERT(vaddr == 0);
+                KASSERT(coremap[index].cme_swapblk == 0);
                 return CORE_TO_PADDR(index);
+            }
             
             // otherwise, try to lock the page table entry, skip if cannot acquire
             if (pte_try_lock(pte)) {
