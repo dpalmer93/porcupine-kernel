@@ -38,10 +38,10 @@
 #include <vmstat.h>
 #include <coremem.h>
 
-// Maximum dirty pages before we wake the cleaner thread
-#define MAX_DIRTY 16
-// Number of dirty pages below which the cleaner thread sleeps
-#define MIN_DIRTY 2
+// Number of dirty pages at which we wake the cleaner thread
+#define MAX_DIRTY (core_len/2)
+// Number of dirty pages at which the cleaner thread sleeps
+#define MIN_DIRTY (core_len/8)
 
 // Macro to go from coremap entry to physical address
 #define CORE_TO_PADDR(i) (core_frame0 + i * PAGE_SIZE)
@@ -215,7 +215,7 @@ paddr_t
 core_acquire_frame(void)
 {
     // wake up the cleaner thread if necessary
-    if (vs_get_ram_dirty() > MAX_DIRTY) {
+    if (vs_get_ram_dirty() >= MAX_DIRTY) {
         wchan_wakeone(core_cleaner_wchan);
     }
     
@@ -395,7 +395,7 @@ core_clean(void *data1, unsigned long data2)
             core_unlock(index);
         }
         index = (index + 1) % core_len;
-        if (vs_get_ram_dirty() < MIN_DIRTY) {
+        if (vs_get_ram_dirty() <= MIN_DIRTY) {
             wchan_lock(core_cleaner_wchan);
             wchan_sleep(core_cleaner_wchan);
         }
