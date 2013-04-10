@@ -111,6 +111,8 @@ void ram_bootstrap(void);
 paddr_t ram_stealmem(unsigned long npages);
 void ram_getsize(paddr_t *lo, paddr_t *hi);
 
+#define MAX_PTEREFCOUNT ((1 << 6) - 1)
+
 /*
  * Page Table Entry Declaration
  * MIPS-Specific
