@@ -89,58 +89,111 @@ pt_copy_deep(struct page_table *old_pt)
         
     // Loop through the old page table and copy entries
     for (int i = 0; i < LEVEL_SIZE; i++) {
-        if (old_pt->pt_index[i] != NULL) {
-            for (int j = 0; j < LEVEL_SIZE; j++) {
-                if (old_pt->pt_index[i][j] != NULL) {
-                
-                    struct pt_entry *old_pte = pt_acquire_entry(old_pt, INDEX_TO_VADDR(i, j));
-                    struct pt_entry *new_pte = pt_create_entry(new_pt, INDEX_TO_VADDR(i, j), 0);
-                    
-                    if (new_pte == NULL) {
-                        pt_release_entry(old_pt, old_pte);
-                        pt_destroy(new_pt);
-                        return NULL;
-                    }
-                    
-                    // Copy the new_pte's page to a new place in swap
-                    swapidx_t freeblk;
-                    if(swap_get_free(&freeblk)) {
-                        pt_release_entry(old_pt, old_pte);
-                        pt_destroy(new_pt);
-                        return NULL;
-                    }    
-                    if (old_pte->pte_inmem) {
-                        if(swap_out(MAKE_ADDR(old_pte->pte_frame, 0), freeblk)) {
-                            swap_free(freeblk);
-                            pt_release_entry(old_pt, old_pte);
-                            pt_destroy(new_pt);
-                            return NULL;
-                        }
-                    }
-                    else {
-                        if(swap_copy(old_pte->pte_swapblk, freeblk)) {
-                            swap_free(freeblk);
-                            pt_release_entry(old_pt, old_pte);
-                            pt_destroy(new_pt);
-                            return NULL;
-                        }
-                    }
-                    
-                    // put the correct info into new_pte
-                    new_pte->pte_busy = 0;
-                    new_pte->pte_inmem = 0;
-                    new_pte->pte_swapblk = freeblk;
-                    
+        if (old_pt->pt_index[i] == NULL)
+            continue;
+        
+        for (int j = 0; j < LEVEL_SIZE; j++) {
+            if (old_pt->pt_index[i][j] != NULL)
+                continue;
+            
+            struct pt_entry *old_pte = pt_acquire_entry(old_pt, INDEX_TO_VADDR(i, j));
+            struct pt_entry *new_pte = pt_create_entry(new_pt, INDEX_TO_VADDR(i, j), 0);
+            
+            if (new_pte == NULL) {
+                pt_release_entry(old_pt, old_pte);
+                pt_destroy(new_pt);
+                return NULL;
+            }
+            
+            // Copy the new_pte's page to a new place in swap
+            swapidx_t freeblk;
+            if(swap_get_free(&freeblk)) {
+                pt_release_entry(old_pt, old_pte);
+                pt_destroy(new_pt);
+                return NULL;
+            }    
+            if (old_pte->pte_inmem) {
+                if(swap_out(MAKE_ADDR(old_pte->pte_frame, 0), freeblk)) {
+                    swap_free(freeblk);
                     pt_release_entry(old_pt, old_pte);
+                    pt_destroy(new_pt);
+                    return NULL;
                 }
             }
+            else {
+                if(swap_copy(old_pte->pte_swapblk, freeblk)) {
+                    swap_free(freeblk);
+                    pt_release_entry(old_pt, old_pte);
+                    pt_destroy(new_pt);
+                    return NULL;
+                }
+            }
+            
+            // put the correct info into new_pte
+            new_pte->pte_busy = 0;
+            new_pte->pte_inmem = 0;
+            new_pte->pte_swapblk = freeblk;
+            
+            pt_release_entry(old_pt, old_pte);
         }
     }       
             
     return new_pt;
 }
 
+struct page_table *
+pt_copy_shallow(struct page_table *old_pt)
+{
+    struct page_table *new_pt = pt_create();
+    if (new_pt == NULL)
+        return NULL;
+        
+    for (int i = 0; i < LEVEL_SIZE; i++) {
+        if (old_pt->pt_index[i] == NULL)
+            continue;
+            
+        // Create second level page table
+        new_pt->pt_index[i] = kmalloc(LEVEL_SIZE * sizeof(struct pt_entry *));
+        if (new_pt->pt_index[i] == NULL) {
+            pt_destroy(new_pt);
+            return NULL;
+        }
+        bzero(new_pt->pt_index[i], LEVEL_SIZE * sizeof(struct pt_entry *));
+        
+        for (int j = 0; j < LEVEL_SIZE; j++) {
+            if (old_pt->pt_index[i][j] == NULL)
+                continue;    
+            
+            // Shallow copy of every page table entry
+            struct pt_entry *old_pte = pt_acquire_entry(old_pt, INDEX_TO_VADDR(i, j));
+            new_pt->pt_index[i][j] = pte_copy_shallow(old_pte);
+            if (new_pt->pt_index[i][j] == NULL) {
+                pt_destroy(new_pt);
+                return NULL;
+            }
+            
+        }
+    }
+    return new_pt;
+}
 
+// The PTE in the page table with that virtual address must be locked
+// Makes a deep copy of that PTE and returns it
+// Both the old and new PTE remain locked
+struct pt_entry *
+pt_copyonwrite(struct page_table* pt, vaddr_t vaddr)
+{
+    unsigned long l1_idx = L1_INDEX(vaddr);
+    unsigned long l2_idx = L2_INDEX(vaddr);
+    struct pt_entry *old_pte = pt->pt_index[l1_idx][l2_idx];
+    
+    KASSERT(old_pte != NULL);
+    KASSERT(old_pte->pte_busy);
+    KASSERT(old_pte->pte_refcount > 1);
+    
+    old_pte->pte_refcount--;    
+    return pte_copy_deep(old_pte);
+}
 
 
 /**************** SYNCHRONIZATION FUNCTIONS ****************/
@@ -330,29 +383,6 @@ pte_incr_ref(struct pt_entry *pte)
     }
     return false;
 }
-/*
-// Must be called with the PTE locked
-static bool
-pte_decr_ref(struct pt_entry *pte)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    if (pte->pte_refcount > 0) {
-        pte->pte_refcount--;
-        return true;
-    }
-    return false;
-}
-*/
-
-// Must be called with PTE locked
-bool
-pte_need_copyonwrite(struct pt_entry *pte)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    return (pte->pte_refcount > 1);
-}
 
 // Must be called with old PTE locked
 // Copies PTE and also the data into physical memory
@@ -366,12 +396,27 @@ pte_copy_deep(struct pt_entry *old_pte)
     if (new_pte == NULL)
         return NULL;
     
-    return NULL;
+    // acquire a page frame and copy the old_pte's page
+    paddr_t paddr = core_acquire_frame();
+    memcpy((void *)PADDR_TO_KVADDR(paddr), 
+           (void *)PADDR_TO_KVADDR(MAKE_ADDR(old_pte->pte_frame, 0)),
+           PAGE_SIZE);
+    
+    
+    
+    new_pte->pte_busy = 1;
+    new_pte->pte_inmem = 1;
+    new_pte->pte_refcount = 1;
+    new_pte->pte_active = 0;
+    new_pte->pte_dirty = 0;
+    new_pte->pte_cleaning = 0;
+    new_pte->pte_frame = PAGE_NUM(paddr);
 
+    return new_pte;
 }
 
 // Must be called with old PTE locked
-// Increments refcount in old PTE and returns pointer to old_pte
+// Increments refcount in old PTE and returns pointer to old PTE
 // If refcount is too high, makes a deep copy
 struct pt_entry *
 pte_copy_shallow(struct pt_entry *old_pte)
