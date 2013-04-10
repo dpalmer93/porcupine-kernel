@@ -54,6 +54,6 @@ sys_sbrk(intptr_t amount, int *err)
 int
 sys_vmstat(userptr_t buf)
 {
-    return copyout(vs_global, buf, sizeof(struct vmstat));
+    return copyout(&vs_global, buf, sizeof(struct vmstat));
 }
 

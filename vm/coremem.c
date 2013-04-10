@@ -52,7 +52,8 @@ struct cm_entry {
     unsigned         cme_kernel:1;   // In use by kernel?
     unsigned         cme_busy:1;     // For synchronization
     unsigned         cme_to_free:1;  // Defer freeing a busy block
-    unsigned         cme_swapblk:29; // Swap backing block
+    unsigned         cme_reserved:5; // Reserved for future use
+    unsigned         cme_swapblk:24; // Swap backing block
     vaddr_t          cme_vaddr;      // Resident virtual address
     struct pt_entry *cme_resident;   // Resident virtual page mapping
 };
@@ -362,7 +363,7 @@ core_clean(void *data1, unsigned long data2)
     size_t index = 0;
     while (true)
     {
-        cm_entry *cme = coremap[index];
+        struct cm_entry *cme = &coremap[index];
         // check the CME first to reduce contention and increase throughput
         if(!(cme->cme_busy) && !(cme->cme_kernel) && cme->cme_resident) {
             // try to lock both the CME and PTE
