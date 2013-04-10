@@ -76,6 +76,7 @@ bool pte_resident(struct pt_entry *pte);          // check whether in memory
 bool pte_is_dirty(struct pt_entry *pte);          // check whether dirty
 bool pte_need_copyonwrite(struct pt_entry *pte);  // returns true if > 1 references
 
+
 void pte_evict(struct pt_entry *pte,        // evict the page to the swap block
                swapidx_t swapblk);
 void pte_map(struct pt_entry *pte, paddr_t frame); // map the page to a physical frame

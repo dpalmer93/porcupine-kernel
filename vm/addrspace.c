@@ -72,9 +72,7 @@ as_create(void)
 int
 as_copy(struct addrspace *old_as, struct addrspace **ret)
 {
-	struct addrspace *new_as;
-
-	new_as = as_create();
+	struct addrspace *new_as = kmalloc(sizeof(struct addrspace));
 	if (new_as == NULL) {
 		return ENOMEM;
 	}
