@@ -294,7 +294,7 @@ pte_destroy(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     
-    if (pte->pte_refcount > 0)
+    if (pte->pte_refcount > 1)
         pte->pte_refcount--;
     else {
         // free the page frame and/or swap space
@@ -343,16 +343,17 @@ pte_decr_ref(struct pt_entry *pte)
     }
     return false;
 }
+*/
 
-// Must be called with the PTE locked
-static int
-pte_get_ref(struct pt_entry *pte)
+// Must be called with PTE locked
+bool
+pte_need_copyonwrite(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    return pte->pte_refcount;
+    return (pte->pte_refcount > 1);
 }
-*/
+
 // Must be called with old PTE locked
 // Copies PTE and also copies the backing swap block
 struct pt_entry *
