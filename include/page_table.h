@@ -74,6 +74,10 @@ bool pte_try_access(struct pt_entry *pte);  // try to access the page
 bool pte_try_dirty(struct pt_entry *pte);   // try to dirty the page
 bool pte_resident(struct pt_entry *pte);    // check whether in memory
 bool pte_is_dirty(struct pt_entry *pte);    // check whether dirty
+bool pte_incr_ref(struct pt_entry *pte);    // increment refcount if possible
+bool pte_decr_ref(struct pt_entry *pte);    // decrement refcount if possible
+int  pte_get_ref(struct pt_entry *pte);      // get the refcount
+
 void pte_evict(struct pt_entry *pte,        // evict the page to the swap block
                swapidx_t swapblk);
 void pte_map(struct pt_entry *pte, paddr_t frame); // map the page to a physical frame
@@ -87,5 +91,8 @@ void pte_finish_cleaning(struct pt_entry *pte);
 
 // Deep copy of the page table and all the page table entries
 struct page_table *pt_copy_deep(struct page_table *pt);
+
+// Copies page table entry and backing block on swap
+struct pt_entry   *pte_copy_deep(struct pt_entry *old_pte);
 
 #endif /* _PAGE_TABLE_H_ */

@@ -111,6 +111,8 @@ void ram_bootstrap(void);
 paddr_t ram_stealmem(unsigned long npages);
 void ram_getsize(paddr_t *lo, paddr_t *hi);
 
+#define MAX_PTEREFCOUNT ((1 << 6) - 1)
+
 /*
  * Page Table Entry Declaration
  * MIPS-Specific
@@ -118,17 +120,18 @@ void ram_getsize(paddr_t *lo, paddr_t *hi);
 struct pt_entry {
     volatile unsigned   pte_busy:1;     // For synchronization
     unsigned            pte_inmem:1;    // In memory?
+    unsigned            pte_refcount:6; // Number of page tables with this PTE
     union {
         // ---------------- In-memory fields ---------------- //
         struct {
             unsigned    pte_active:1;   // Recently accessed?
             unsigned    pte_dirty:1;    // Dirty page?
             unsigned    pte_cleaning:1; // Page currently being cleaned?
-            unsigned    pte_reserved:7; // Reserved for future use
+            unsigned    pte_swapin:1;   // Page being swapped in?
             unsigned    pte_frame:20;   // Page frame number
         };
         // ----------------- On-disk fields ----------------- //
-        unsigned        pte_swapblk:30; // Swap backing block
+        unsigned        pte_swapblk:24; // Swap backing block
     };
 };
 
