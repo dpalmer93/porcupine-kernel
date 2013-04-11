@@ -344,6 +344,7 @@ defoption roundrobin
 #
 
 defoption copyonwrite
+defoption asid
 
 file      vm/kmalloc.c
 

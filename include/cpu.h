@@ -61,6 +61,7 @@ struct cpu {
 	struct thread *c_curthread;	/* Current thread on cpu */
 	struct threadlist c_zombies;	/* List of exited threads */
     struct pid_set *c_orphans; /* List of exited processes */
+    struct asid_table *c_asids; /* Record of ASID assignments */
 	unsigned c_hardclocks;		/* Counter of hardclock() calls */
 
 	/*

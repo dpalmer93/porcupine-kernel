@@ -164,6 +164,6 @@ kvm_fault(vaddr_t faultaddress)
     }
     
     // load the mapping into the TLB
-    tlb_load(faultaddress, MAKE_ADDR(kte->kte_frame, 0), true);
+    tlb_load(faultaddress, MAKE_ADDR(kte->kte_frame, 0), true, true);
     return 0;
 }

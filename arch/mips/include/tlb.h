@@ -70,22 +70,29 @@ int tlb_probe(uint32_t entryhi, uint32_t entrylo);
  * tlb_load_pte - atomically load a page table mapping into the TLB.  The
  *              PTE lock should be held before calling this)
  *
- * tlb_invalidate - atomically invalidate a specific entry in the TLB if such
- *              an entry exists.  This is useful for simulating a
- *              hardware-managed page access bit.
+ * tlb_invalidate - atomically invalidate zero or more entries in the TLB
+ *              matching the specified vaddr/pte pair.  This is useful
+ *              for simulating a hardware-managed page access bit.
  *
- * tlb_clean - atomically clear the dirty bit of a specific TLB entry if it
- *              exists.
+ * tlb_clean - atomically clear the dirty bit of any TLB entry matching
+ *              the specified vaddr/pte mapping.
  *
  * tlb_flush - atomically empty the entire TLB.  This can be used on a
  *              context switch.
+ *
+ * tlb_activate_asid - activate an address space ID by placing it in
+ *              the c0_entryhi register
+ *
+ * tlb_flush_asid - invalidate an address space ID
  */
 
-void tlb_load(vaddr_t vaddr, paddr_t paddr, bool write);
+void tlb_load(vaddr_t vaddr, paddr_t paddr, bool write, bool global);
 void tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_clean(vaddr_t paddr, const struct pt_entry *pte);
 void tlb_flush(void);
+void tlb_activate_asid(int asid);
+void tlb_flush_asid(int asid);
 
 
 /*
@@ -106,14 +113,20 @@ void tlb_flush(void);
 
 /* Fields in the high-order word */
 #define TLBHI_VPAGE   0xfffff000
-/*      TLBHI_PID     0x00000fc0 */
+#define TLBHI_PID     0x00000fc0
 
 /* Fields in the low-order word */
 #define TLBLO_PPAGE   0xfffff000
 #define TLBLO_NOCACHE 0x00000800
 #define TLBLO_DIRTY   0x00000400
 #define TLBLO_VALID   0x00000200
-/*      TLBLO_GLOBAL  0x00000100 */
+#define TLBLO_GLOBAL  0x00000100
+
+#define TLBHI_PID_SHIFT 6
+#define TLBLO_PPAGE_SHIFT 12
+#define TLBLO_DIRTY_SHIFT 10
+#define TLBLO_VALID_SHIFT 9
+#define TLBLO_GLOBAL_SHIFT 8
 
 /*
  * Values for completely invalid TLB entries. The TLB entry index should

@@ -31,10 +31,12 @@
 #include <kern/errno.h>
 #include <lib.h>
 #include <addrspace.h>
+#include <asid.h>
 #include <vm.h>
 #include <page_table.h>
 #include <machine/tlb.h>
 #include "opt-copyonwrite.h"
+#include "opt-asid.h"
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -107,11 +109,15 @@ as_destroy(struct addrspace *as)
 void
 as_activate(struct addrspace *as)
 {
+#if OPT_ASID
+    tlb_activate_asid(asid_assign(as));
+#else
     // unused
     (void)as;
     
     // invalidate the entire tlb on a context switch
     tlb_flush();
+#endif
 }
 
 /*

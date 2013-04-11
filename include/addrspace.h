@@ -61,7 +61,7 @@ void seg_init(struct segment *seg, vaddr_t base, size_t size, bool write);
 // number of segments (other than stack and heap)
 #define NSEGS 4
 
-// stack size
+// user stack size
 #define STACK_NPAGES 256
 
 #endif // !(OPT_DUMBVM)
@@ -82,6 +82,7 @@ struct addrspace {
 	paddr_t as_stackpbase;
 };
 #else
+    int                 as_id;
 	struct page_table  *as_pgtbl;
     // NSEGS + the stack and heap
     struct segment      as_segs[NSEGS + 2];

@@ -52,6 +52,7 @@
 
 #include "opt-synchprobs.h"
 #include "opt-roundrobin.h"
+#include "opt-asid.h"
 
 /* Magic number used as a guard value on kernel thread stacks. */
 #define THREAD_STACK_MAGIC 0xbaadf00d
@@ -195,7 +196,17 @@ cpu_create(unsigned hardware_number)
 
 	c->c_curthread = NULL;
 	threadlist_init(&c->c_zombies, 1);
+    
     c->c_orphans = pid_set_create();
+    if (c->c_orphans == NULL)
+        panic("cpu_create: Out of memory\n");
+    
+#if OPT_ASID
+    c->c_asids = at_create();
+    if (c->c_asids == NULL)
+        panic("cpu_create: Out of memory\n");
+#endif
+    
 	c->c_hardclocks = 0;
 
 	c->c_isidle = false;
