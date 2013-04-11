@@ -39,9 +39,9 @@
 #include <coremem.h>
 
 // Number of dirty pages at which we wake the cleaner thread
-#define MAX_DIRTY (32 + vs_get_ram_active()/2)
+#define MAX_DIRTY (core_len/2)
 // Number of dirty pages at which the cleaner thread sleeps
-#define MIN_DIRTY (vs_get_ram_active()/8)
+#define MIN_DIRTY (core_len/8)
 
 // Macro to go from coremap entry to physical address
 #define CORE_TO_PADDR(i) (core_frame0 + i * PAGE_SIZE)
@@ -369,7 +369,10 @@ core_clean(void *data1, unsigned long data2)
         if(!(cme->cme_busy) && !(cme->cme_kernel) && cme->cme_resident) {
             // try to lock both the CME and PTE
             // if it fails, go to the next cme
-            if (core_try_lock(index)) {
+            if (core_try_lock(index)
+                && !(cme->cme_busy)         // check conditions again to
+                && !(cme->cme_kernel)       // ensure nothing changed while
+                && cme->cme_resident) {     // we were getting the locks
                 if (pte_try_lock(cme->cme_resident)) {
                     
                     struct pt_entry *pte = cme->cme_resident;
