@@ -58,7 +58,8 @@ tlb_load(vaddr_t vaddr, paddr_t paddr, bool write)
 void
 tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte)
 {
-    tlb_load(vaddr, MAKE_ADDR(pte->pte_frame, 0), pte->pte_dirty);
+    bool write = pte->pte_dirty && (pte->pte_refcount == 1);
+    tlb_load(vaddr, MAKE_ADDR(pte->pte_frame, 0), write);
 }
 
 // invalidate by virtual page number and physical page number

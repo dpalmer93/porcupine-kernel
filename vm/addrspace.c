@@ -77,7 +77,7 @@ as_copy(struct addrspace *old_as, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	new_as->as_pgtbl = pt_copy_deep(old_as->as_pgtbl);
+	new_as->as_pgtbl = pt_copy_shallow(old_as->as_pgtbl);
     if (new_as->as_pgtbl == NULL) {
         kfree(new_as);
         return ENOMEM;

@@ -75,6 +75,7 @@ pt_destroy(struct page_table *pt)
         if (pt->pt_index[i] != NULL) {
             for (int j = 0; j < LEVEL_SIZE; j++) {
                 if (pt->pt_index[i][j] != NULL) {
+                    pt_acquire_entry(pt, INDEX_TO_VADDR(i, j));
                     pte_destroy(pt->pt_index[i][j]);
                 }
             }
@@ -161,8 +162,6 @@ pt_copy_shallow(struct page_table *old_pt)
             pte_unlock(new_pte);
         }
     }
-    // clear all dirty bits in the TLB
-    tlb_cleanall();
     return new_pt;
 }
 
@@ -181,7 +180,11 @@ pt_copyonwrite(struct page_table* pt, vaddr_t vaddr)
     KASSERT(old_pte->pte_refcount > 1);
     
     old_pte->pte_refcount--;    
-    return pte_copy_deep(vaddr, old_pte);
+    struct pt_entry *new_pte = pte_copy_deep(vaddr, old_pte);
+    
+    // put the new PTE in the page table and return
+    pt->pt_index[l1_idx][l2_idx] = new_pte;
+    return new_pte;
 }
 
 
@@ -328,6 +331,7 @@ pt_destroy_entry(struct page_table *pt, vaddr_t vaddr)
 /************ Page Table Entry Helper Functions ************/
 
 // if the pte has no more references to it, destroy it
+// the PTE must be locked
 static
 void
 pte_destroy(struct pt_entry *pte)
@@ -355,6 +359,8 @@ pte_destroy(struct pt_entry *pte)
         // free the PTE
         kfree(pte);
     }
+    else
+        pte_unlock(pte);
 }
 
 // Must be called with the PTE locked
@@ -381,8 +387,11 @@ pte_copy(vaddr_t vaddr, struct pt_entry *old_pte)
     KASSERT(old_pte != NULL);
     KASSERT(old_pte->pte_busy);
     
-    if (pte_incr_ref(old_pte))
+    if (pte_incr_ref(old_pte)) {
+        // clear the dirty bit in the TLB
+        tlb_clean(vaddr, old_pte);
         return old_pte;
+    }
     else
         return pte_copy_deep(vaddr, old_pte);
 }
@@ -479,7 +488,7 @@ pte_try_dirty(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    if (pte->pte_inmem) {
+    if (pte->pte_inmem && pte->pte_refcount == 1) {
         KASSERT(!pte->pte_dirty || pte->pte_cleaning);
         
         pte->pte_active = 1;

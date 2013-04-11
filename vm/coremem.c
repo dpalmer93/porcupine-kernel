@@ -275,6 +275,8 @@ core_acquire_frame(void)
                     coremap[index].cme_swapblk = 0;
                     coremap[index].cme_vaddr = 0;
                     coremap[index].cme_resident = NULL;
+                    
+                    // update stats
                     vs_decr_ram_inactive();
                     vs_incr_ram_free();
                     
