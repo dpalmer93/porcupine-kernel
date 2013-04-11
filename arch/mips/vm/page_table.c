@@ -441,7 +441,7 @@ pte_copy_deep(vaddr_t vaddr, struct pt_entry *old_pte)
     new_pte->pte_inmem = 1;
     new_pte->pte_refcount = 1;
     new_pte->pte_active = 0;
-    new_pte->pte_dirty = 0;
+    new_pte->pte_dirty = 1;
     new_pte->pte_cleaning = 0;
     new_pte->pte_swapin = 0;
     new_pte->pte_frame = PAGE_NUM(new_frame);
