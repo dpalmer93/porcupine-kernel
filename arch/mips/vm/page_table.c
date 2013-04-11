@@ -160,6 +160,8 @@ pt_copy_shallow(struct page_table *old_pt)
             pte_unlock(new_pte);
         }
     }
+    // dirty the whole TLB
+    tlb_dirtyall();
     return new_pt;
 }
 
