@@ -129,11 +129,11 @@ struct pt_entry {
             unsigned    pte_cleaning:1; // Page currently being cleaned?
             unsigned    pte_swapin:1;   // Page being swapped in?
             unsigned    pte_frame:20;   // Page frame number
-        };
+        } __attribute__((__packed__));
         // ----------------- On-disk fields ----------------- //
         unsigned        pte_swapblk:24; // Swap backing block
-    };
-};
+    } __attribute__((__packed__)); 
+} __attribute__((__packed__));
 
 /*
  * TLB shootdown bits.
@@ -141,6 +141,7 @@ struct pt_entry {
  * We'll take up to 16 invalidations before just flushing the whole TLB.
  */
 
+// TLB shootdown types
 #define TS_CLEAN 0 // Clean the TLB entry
 #define TS_INVAL 1 // Invalidate the TLB entry
 
