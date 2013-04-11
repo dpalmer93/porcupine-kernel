@@ -370,9 +370,8 @@ core_clean(void *data1, unsigned long data2)
             // try to lock both the CME and PTE
             // if it fails, go to the next cme
             if (cme_try_lock(index)) {
-                if (!(cme->cme_busy)    // check conditions again to
-                && !(cme->cme_kernel)   // ensure nothing changed while
-                && cme->cme_resident)   // we were getting the locks
+                if (!(cme->cme_kernel)  // check conditions again to ensure nothing
+                && cme->cme_resident    // changed while we were getting the lock
                 && pte_try_lock(cme->cme_resident)) {
                     
                     struct pt_entry *pte = cme->cme_resident;
