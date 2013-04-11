@@ -46,7 +46,8 @@ int     swap_in(swapidx_t src, paddr_t dst);
 int     swap_out(paddr_t src, swapidx_t dst);
 int     swap_copy(swapidx_t src, swapidx_t dst);
 
-void    swap_wait_lock(void); // call this before waiting on a swapin
-void    swap_wait(void);      // call this to wait on a swapin
+void    swap_wait_lock(void);   // call this before waiting on a swapin
+void    swap_wait(void);        // call this to wait on a swapin
+void    swap_wait_unlock(void);  // call this to cancel a wait
 
 #endif /* _SWAP_H_ */

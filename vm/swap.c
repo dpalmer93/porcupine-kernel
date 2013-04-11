@@ -193,3 +193,9 @@ swap_wait(void)
 {
     wchan_sleep(swap_wchan);
 }
+
+void
+swap_wait_unlock(void)
+{
+    wchan_unlock(swap_wchan);
+}

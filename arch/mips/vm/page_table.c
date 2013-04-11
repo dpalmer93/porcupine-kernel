@@ -161,8 +161,8 @@ pt_copy_shallow(struct page_table *old_pt)
             pte_unlock(new_pte);
         }
     }
-    // dirty the whole TLB
-    tlb_dirtyall();
+    // clear all dirty bits in the TLB
+    tlb_cleanall();
     return new_pt;
 }
 
@@ -248,6 +248,8 @@ pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
         swap_wait_lock();
         if (pte->pte_swapin)
             swap_wait();
+        else
+            swap_wait_unlock();
     }
     
     return pte;
