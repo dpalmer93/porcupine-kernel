@@ -34,6 +34,7 @@
 #include <vm.h>
 #include <page_table.h>
 #include <machine/tlb.h>
+#include "opt-copyonwrite.h"
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -77,7 +78,11 @@ as_copy(struct addrspace *old_as, struct addrspace **ret)
 		return ENOMEM;
 	}
 
+#if OPT_COPYONWRITE
 	new_as->as_pgtbl = pt_copy_shallow(old_as->as_pgtbl);
+#else
+    new_as->as_pgtbl = pt_copy_deep(old_as->as_pgtbl);
+#endif
     if (new_as->as_pgtbl == NULL) {
         kfree(new_as);
         return ENOMEM;
