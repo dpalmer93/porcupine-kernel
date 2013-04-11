@@ -31,6 +31,7 @@
 #include <machine/vm.h>
 #include <kern/fcntl.h>
 #include <spinlock.h>
+#include <wchan.h>
 #include <uio.h>
 #include <vnode.h>
 #include <vfs.h>
@@ -66,7 +67,7 @@ swap_bootstrap(void)
         panic("swap_bootstrap: Out of memory.\n");
     
     swap_wchan = wchan_create("Swap Wait Channel");
-    if (swap_wchan == NULL);
+    if (swap_wchan == NULL)
         panic("swap_bootstrap: Out of memory.\n");
     
     spinlock_init(&swap_lock);
@@ -190,5 +191,5 @@ swap_wait_lock(void)
 void
 swap_wait(void)
 {
-    wchan_wait(swap_wchan);
+    wchan_sleep(swap_wchan);
 }

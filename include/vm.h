@@ -55,8 +55,8 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 /* Page fault handling functions called by vm_fault()
  */
 int vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt);
-int vm_swapin_page_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte);
-int vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte);
+int vm_swapin_page_fault(vaddr_t faultaddress, struct pt_entry *pte);
+int vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt);
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) 
  * alloc_kpages() currently only allows allocation of single

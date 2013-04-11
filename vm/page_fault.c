@@ -28,6 +28,7 @@
  */
 
 #include <types.h>
+#include <machine/tlb.h>
 #include <kern/errno.h>
 #include <lib.h>
 #include <page_table.h>
@@ -59,7 +60,7 @@ vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt)
     swapidx_t swapblk;
     err = swap_get_free(&swapblk);
     if (err) {
-        pt_destroy_entry(pt, vaddr);
+        pt_destroy_entry(pt, faultaddress);
         core_release_frame(frame);
         return err;
     }
@@ -68,7 +69,7 @@ vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt)
     bzero((void *)PADDR_TO_KVADDR(frame), PAGE_SIZE);
     
     // update the core map
-    core_map_frame(frame, vaddr & PAGE_FRAME, pte, swapblk);
+    core_map_frame(frame, faultaddress & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
     
     // clean up
@@ -79,34 +80,37 @@ vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt)
 // Handle a page fault in the case in which the page has
 // been swapped out.  The PTE is already locked.
 int
-vm_swapin_page_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte)
+vm_swapin_page_fault(vaddr_t faultaddress, struct pt_entry *pte)
 {
     // find a free page frame
     paddr_t frame = core_acquire_frame();
     if (frame == 0)
         return ENOMEM;
     
-    // alert others that this PTE is being swapped in
-    pte_start_swapin(pte, frame);
+    // Alert others that this PTE is being swapped in
+    // and get the page's swap block.
+    swapidx_t swapblk = pte_start_swapin(pte, frame);
     
     // swap in the page
-    swapidx_t swapblk = pte->pte_swapblk;
-    if (swap_in(swapblk, frame)) {
+    int err = swap_in(swapblk, frame);
+    if (err) {
         core_release_frame(frame);
+        pte_evict(pte, swapblk);
         pte_unlock(pte);
+        return err;
     }
     
     // clean up...
     core_map_frame(frame, faultaddress & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
-    pte_map(pte, frame); // this clears the swapin bit
+    pte_finish_swapin(pte);
     pte_unlock(pte);
     return 0;
 }
 
-// Handle a copy-on-write fault.  The PTE is already locked.
+// Handle a copy-on-write fault.  The old PTE is already locked.
 int
-vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entry *pte)
+vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt)
 {
     struct pt_entry *new_pte = pt_copyonwrite(pt, faultaddress);
     // Old pte is now unlocked
@@ -117,7 +121,7 @@ vm_copyonwrite_fault(vaddr_t faultaddress, struct page_table *pt, struct pt_entr
         return ENOMEM;
     }
     
-    tlb_load_pte(new_pte);
+    tlb_load_pte(faultaddress, new_pte);
     
     // update statistics
     vs_incr_cow_faults();

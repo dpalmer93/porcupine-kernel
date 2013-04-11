@@ -36,6 +36,7 @@
 #include <synch.h>
 #include <addrspace.h>
 #include <coremem.h>
+#include <swap.h>
 #include <vmstat.h>
 #include <page_table.h>
 
@@ -180,7 +181,7 @@ pt_copyonwrite(struct page_table* pt, vaddr_t vaddr)
     KASSERT(old_pte->pte_refcount > 1);
     
     old_pte->pte_refcount--;    
-    return pte_copy_deep(old_pte);
+    return pte_copy_deep(vaddr, old_pte);
 }
 
 
@@ -255,7 +256,7 @@ pt_acquire_entry(struct page_table *pt, vaddr_t vaddr)
 // The created entry is locked.  It must be unlocked with
 // pte_unlock() when the operations on it are complete
 struct pt_entry *
-pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
+pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t frame)
 {
     unsigned long l1_idx = L1_INDEX(vaddr);
     unsigned long l2_idx = L2_INDEX(vaddr);
@@ -292,7 +293,7 @@ pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr)
     pte->pte_dirty = 0;
     pte->pte_cleaning = 0;
     pte->pte_swapin = 0;
-    pte->pte_frame = PAGE_NUM(paddr);
+    pte->pte_frame = PAGE_NUM(frame);
     
     // save our new structures
     l2_tbl[l2_idx] = pte;
@@ -332,7 +333,7 @@ pte_destroy(struct pt_entry *pte)
     KASSERT(pte != NULL);
     
     pte->pte_refcount--;
-    if (pte->pte_refcount == 0)
+    if (pte->pte_refcount == 0) {
         // free the page frame and/or swap space
         if (pte->pte_inmem) {
             core_free_frame(MAKE_ADDR(pte->pte_frame, 0));
@@ -401,17 +402,22 @@ pte_copy_deep(vaddr_t vaddr, struct pt_entry *old_pte)
         return NULL;
     
     // acquire a page frame
-    paddr_t frame = core_acquire_frame();
+    paddr_t new_frame = core_acquire_frame();
+    if (new_frame == 0) {
+        pte_unlock(old_pte);
+        kfree(new_pte);
+        return NULL;
+    }
     
     // copy the old page's data
     if (old_pte->pte_inmem) {
         paddr_t old_frame = MAKE_ADDR(old_pte->pte_frame, 0);
-        memcpy((void *)PADDR_TO_KVADDR(frame),
+        memcpy((void *)PADDR_TO_KVADDR(new_frame),
                (void *)PADDR_TO_KVADDR(old_frame), PAGE_SIZE);
     }
     else {
-        if (swap_in(old_pte->pte_swapblk, frame)) {
-            core_release_frame(frame);
+        if (swap_in(old_pte->pte_swapblk, new_frame)) {
+            core_release_frame(new_frame);
             pte_unlock(old_pte);
             kfree(new_pte);
             return NULL;
@@ -419,17 +425,17 @@ pte_copy_deep(vaddr_t vaddr, struct pt_entry *old_pte)
     }
     
     // get a new swap block
-    swapblk_t swapblk;
-    if (swap_get_free(&swapblk)) {
-        core_release_frame(frame);
+    swapidx_t new_swapblk;
+    if (swap_get_free(&new_swapblk)) {
+        core_release_frame(new_frame);
         pte_unlock(old_pte);
         kfree(new_pte);
         return NULL;
     }
     
     // update the coremap
-    core_map_frame(frame, vaddr, new_pte, swapblk);
-    core_release_frame(frame);
+    core_map_frame(new_frame, vaddr, new_pte, new_swapblk);
+    core_release_frame(new_frame);
     
     new_pte->pte_busy = 1;
     new_pte->pte_inmem = 1;
@@ -438,7 +444,7 @@ pte_copy_deep(vaddr_t vaddr, struct pt_entry *old_pte)
     new_pte->pte_dirty = 0;
     new_pte->pte_cleaning = 0;
     new_pte->pte_swapin = 0;
-    new_pte->pte_frame = PAGE_NUM(frame);
+    new_pte->pte_frame = PAGE_NUM(new_frame);
 
     // unlock the old entry
     pte_unlock(old_pte);
@@ -571,20 +577,6 @@ pte_finish_cleaning(struct pt_entry *pte)
     }
 }
 
-void
-pte_start_swapin(struct pt_entry *pte, paddr_t frame)
-{
-    KASSERT(pte != NULL);
-    KASSERT(pte->pte_busy);
-    KASSERT(!pte->pte_inmem)
-    
-    pte->pte_inmem = 1;
-    pte->pte_dirty = 0;
-    pte->pte_cleaning = 0;
-    pte->pte_swapin = 1;
-    pte->pte_frame = PAGE_NUM(frame);
-}
-
 // redirect the PTE to its swap block
 // Must be called with the PTE locked
 void
@@ -597,16 +589,34 @@ pte_evict(struct pt_entry *pte, swapidx_t swapblk)
     pte->pte_swapblk = swapblk;
 }
 
+// Must be called with the PTE locked and the page in swap
+swapidx_t
+pte_start_swapin(struct pt_entry *pte, paddr_t frame)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    KASSERT(!pte->pte_inmem);
+    
+    // save the swap block
+    swapidx_t swapblk = pte->pte_swapblk;
+    
+    pte->pte_inmem = 1;
+    pte->pte_dirty = 0;
+    pte->pte_cleaning = 0;
+    pte->pte_swapin = 1;
+    pte->pte_frame = PAGE_NUM(frame);
+    
+    return swapblk;
+}
+
 // call this after paging in
 // Must be called with the PTE locked
 void
-pte_map(struct pt_entry *pte, paddr_t frame)
+pte_finish_swapin(struct pt_entry *pte)
 {
-    pte->pte_inmem = 1;
-    pte->pte_active = 0;
-    pte->pte_dirty = 0;
-    pte->pte_cleaning = 0;
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    
     pte->pte_swapin = 0;
-    pte->pte_frame = PAGE_NUM(frame);
 }
 
