@@ -59,7 +59,7 @@ void                pt_destroy(struct page_table *pt);
  * pte_unlock - unlock a page table entry
  */
 struct pt_entry    *pt_acquire_entry(struct page_table *pt, vaddr_t vaddr);
-struct pt_entry    *pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t paddr);
+struct pt_entry    *pt_create_entry(struct page_table *pt, vaddr_t vaddr, paddr_t frame);
 void                pt_destroy_entry(struct page_table *pt, vaddr_t vaddr);
 bool                pte_try_lock(struct pt_entry *pte);
 void                pte_unlock(struct pt_entry *pte);
@@ -71,17 +71,16 @@ void                pte_unlock(struct pt_entry *pte);
 // Makes a deep copy of the PTE and returns it, both PTE's are locked
 struct pt_entry *pt_copyonwrite(struct page_table* pt, vaddr_t vaddr);
 
-bool pte_try_access(struct pt_entry *pte);              // try to access the page
-bool pte_try_dirty(struct pt_entry *pte);               // try to dirty the page
-bool pte_resident(struct pt_entry *pte);                // check whether in memory
-bool pte_is_dirty(struct pt_entry *pte);                // check whether dirty
-bool pte_need_copyonwrite(struct pt_entry *pte);        // returns true if > 1 references
-void pte_evict(struct pt_entry *pte,                    // evict the page to the swap block
+bool pte_try_access(struct pt_entry *pte); // try to access the page
+bool pte_try_dirty(struct pt_entry *pte); // try to dirty the page
+bool pte_resident(struct pt_entry *pte); // check whether in memory
+bool pte_is_dirty(struct pt_entry *pte); // check whether dirty
+void pte_evict(struct pt_entry *pte, // evict the page to the swap block
                swapidx_t swapblk);
-void pte_map(struct pt_entry *pte, paddr_t frame);      // map the page to a physical frame
-bool pte_refresh(vaddr_t vaddr, struct pt_entry *pte);  // reset & return the "active" bit;
-                                                        // invalidate TLBs if necessary
-void pte_start_swapin(struct pt_entry *pte);            // alert others to wait on swapin
+bool pte_refresh(vaddr_t vaddr, struct pt_entry *pte); // reset & return the "active" bit;
+                                                       // invalidate TLBs if necessary
+swapidx_t pte_start_swapin(struct pt_entry *pte, paddr_t frame); // mark as paging in
+void pte_finish_swapin(struct pt_entry *pte); // mark as paged in
 // non-blocking cleaning
 void pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte);
 void pte_finish_cleaning(struct pt_entry *pte);

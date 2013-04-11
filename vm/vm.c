@@ -92,7 +92,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
             else {
                 // copy-on-write
                 // NOTE: this will unlock the PTE when it is done
-                return vm_copyonwrite_fault(faultaddress, pt, pte);
+                return vm_copyonwrite_fault(faultaddress, pt);
             }
     
         case VM_FAULT_READ:
@@ -101,7 +101,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
                 return vm_unmapped_page_fault(faultaddress, pt);
             else if (!pte_try_access(pte)) { // PTE is in swap
                 // NOTE: this will unlock the PTE when it is done
-                return vm_swapin_page_fault(faultaddress, pt, pte);
+                return vm_swapin_page_fault(faultaddress, pte);
             }
             else {
                 // Just load the TLB

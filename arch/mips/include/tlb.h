@@ -30,6 +30,8 @@
 #ifndef _MIPS_TLB_H_
 #define _MIPS_TLB_H_
 
+#include <mips/vm.h>
+
 /*
  * MIPS-specific TLB access functions.
  *
