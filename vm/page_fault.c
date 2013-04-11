@@ -100,9 +100,11 @@ vm_swapin_page_fault(vaddr_t faultaddress, struct pt_entry *pte)
         return err;
     }
     
-    // clean up...
+    // update the core map
     core_map_frame(frame, faultaddress & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
+    
+    // clean up
     pte_finish_swapin(pte);
     pte_unlock(pte);
     return 0;

@@ -87,7 +87,7 @@ core_clocktick()
 
 // actually frees a CME/frame.
 // this only gets called from core_free_frame()
-// and core_unlock(), which synchronize the freeing
+// and cme_unlock(), which synchronize the freeing
 static
 void
 cme_do_free(struct cm_entry *cme)
@@ -111,7 +111,7 @@ cme_do_free(struct cm_entry *cme)
 // not exported in coremem.h
 static
 bool
-core_try_lock(size_t index)
+cme_try_lock(size_t index)
 {
     struct cm_entry *cme = &coremap[index];
     
@@ -128,7 +128,7 @@ core_try_lock(size_t index)
 
 static
 void
-core_unlock(size_t index)
+cme_unlock(size_t index)
 {
     // frame must be locked before it can be unlocked
     KASSERT(coremap[index].cme_busy);
@@ -224,10 +224,10 @@ core_acquire_frame(void)
         size_t index = core_clocktick();
         
         // try to lock the coremap entry
-        if (core_try_lock(index)) {
+        if (cme_try_lock(index)) {
             // ignore kernel-reserved pages
             if (coremap[index].cme_kernel) {
-                core_unlock(index);
+                cme_unlock(index);
                 continue;
             }
             
@@ -250,7 +250,7 @@ core_acquire_frame(void)
                 // skip dirty pages
                 if (pte_is_dirty(pte)) {
                     pte_unlock(pte);
-                    core_unlock(index);
+                    cme_unlock(index);
                     continue;
                 }
                 
@@ -263,11 +263,11 @@ core_acquire_frame(void)
                     
                     // move on...
                     pte_unlock(pte);
-                    core_unlock(index);
+                    cme_unlock(index);
                     continue;
                 }
                 else { // found a frame that has not been recently accessed
-                    // evict the PTE to its swap block
+                    // re-map the PTE to its swap block
                     pte_evict(pte, coremap[index].cme_swapblk);
                     pte_unlock(pte);
                     
@@ -283,7 +283,7 @@ core_acquire_frame(void)
                     return CORE_TO_PADDR(index);
                 }
             }
-            core_unlock(index);
+            cme_unlock(index);
         }
     }
 }
@@ -291,7 +291,7 @@ core_acquire_frame(void)
 void
 core_release_frame(paddr_t frame)
 {
-    core_unlock(PADDR_TO_CORE(frame));
+    cme_unlock(PADDR_TO_CORE(frame));
 }
 
 void
@@ -339,7 +339,7 @@ core_free_frame(paddr_t frame)
     
     struct cm_entry *cme = &coremap[PADDR_TO_CORE(frame)];
     
-    // if the CME is busy, defer freeing until core_unlock()
+    // if the CME is busy, defer freeing until cme_unlock()
     if (cme->cme_busy) {
         cme->cme_to_free = 1;
         spinlock_release(&core_lock);
@@ -369,12 +369,11 @@ core_clean(void *data1, unsigned long data2)
         if(!(cme->cme_busy) && !(cme->cme_kernel) && cme->cme_resident) {
             // try to lock both the CME and PTE
             // if it fails, go to the next cme
-            if (core_try_lock(index)
-                && !(cme->cme_busy)         // check conditions again to
-                && !(cme->cme_kernel)       // ensure nothing changed while
-                && cme->cme_resident) {     // we were getting the locks
-            
-                if (pte_try_lock(cme->cme_resident)) {
+            if (cme_try_lock(index)) {
+                if (!(cme->cme_busy)    // check conditions again to
+                && !(cme->cme_kernel)   // ensure nothing changed while
+                && cme->cme_resident)   // we were getting the locks
+                && pte_try_lock(cme->cme_resident)) {
                     
                     struct pt_entry *pte = cme->cme_resident;
                     vaddr_t vaddr = cme->cme_vaddr;
@@ -399,7 +398,7 @@ core_clean(void *data1, unsigned long data2)
                     else
                         pte_unlock(pte);
                 }
-                core_unlock(index);
+                cme_unlock(index);
             }
         }
         
