@@ -457,6 +457,9 @@ pte_copy_deep(vaddr_t vaddr, struct pt_entry *old_pte)
     new_pte->pte_swapin = 0;
     new_pte->pte_frame = PAGE_NUM(new_frame);
 
+    // update statistics
+    vs_incr_ram_dirty();
+    
     // unlock the old entry
     pte_unlock(old_pte);
     

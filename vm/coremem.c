@@ -373,6 +373,7 @@ core_clean(void *data1, unsigned long data2)
                 && !(cme->cme_busy)         // check conditions again to
                 && !(cme->cme_kernel)       // ensure nothing changed while
                 && cme->cme_resident) {     // we were getting the locks
+            
                 if (pte_try_lock(cme->cme_resident)) {
                     
                     struct pt_entry *pte = cme->cme_resident;
@@ -401,8 +402,11 @@ core_clean(void *data1, unsigned long data2)
                 core_unlock(index);
             }
         }
+        
+        // move on
         index = (index + 1) % core_len;
 
+        // go to sleep if cleaning is unneeded
         if (vs_get_ram_dirty() <= MIN_DIRTY) {
             wchan_lock(core_cleaner_wchan);
             wchan_sleep(core_cleaner_wchan);
