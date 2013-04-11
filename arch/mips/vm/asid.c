@@ -66,7 +66,7 @@ at_assign(struct asid_table *at, struct addrspace *as)
         // pick a random ASID
         // no synchronization is needed, as
         // this is per-CPU
-        int asid = random() % NUM_ASIDS;
+        unsigned int asid = random() % NUM_ASIDS;
         at->at_holders[asid] = as;
         as->as_id = asid;
         tlb_flush_asid(asid);

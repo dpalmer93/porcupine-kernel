@@ -33,6 +33,8 @@
 #include <mips/tlb.h>
 #include "opt-asid.h"
 
+static int tlb_get_asid(void);
+
 // Load a mapping
 void
 tlb_load(vaddr_t vaddr, paddr_t paddr, bool write, bool global)
@@ -42,10 +44,10 @@ tlb_load(vaddr_t vaddr, paddr_t paddr, bool write, bool global)
     
 #if OPT_ASID
     // get current ASID
-    int asid = tlb_get_asid();
+    unsigned int asid = tlb_get_asid();
 #else
     // ignore ASID and the global bit
-    int asid = 0;
+    unsigned int asid = 0;
     global = false;
 #endif
     
@@ -88,7 +90,7 @@ tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte)
     
 #if OPT_ASID
     // save ASID
-    int asid = tlb_get_asid();
+    unsigned int asid = tlb_get_asid();
     
     // there may be multiple matching entries,
     // so loop through the TLB
@@ -136,7 +138,7 @@ tlb_clean(vaddr_t vaddr, const struct pt_entry *pte)
     
 #if OPT_ASID
     // save ASID
-    int asid = tlb_get_asid();
+    unsigned int asid = tlb_get_asid();
     
     // there may be multiple matching entries,
     // so loop through the TLB
@@ -182,7 +184,7 @@ tlb_flush(void)
     int x = splhigh();
     
     // save ASID
-    int asid = tlb_get_asid();
+    unsigned int asid = tlb_get_asid();
     
     for (int i = 0; i < NUM_TLB; i++) {
         tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
@@ -197,7 +199,7 @@ tlb_flush(void)
 /******************** ASIDs ********************/
 
 void
-tlb_activate_asid(int asid)
+tlb_activate_asid(unsigned int asid)
 {
     uint32_t entryhi = asid << TLBHI_PID_SHIFT;
     __asm volatile("mtc0 %0, $10;" // c0_entryhi = entryhi
@@ -205,7 +207,7 @@ tlb_activate_asid(int asid)
 }
 
 void
-tlb_flush_asid(int asid)
+tlb_flush_asid(unsigned int asid)
 {
     uint32_t entryhi;
     uint32_t entrylo;
@@ -214,7 +216,7 @@ tlb_flush_asid(int asid)
     int x = splhigh();
     
     // save ASID
-    int cur_asid = tlb_get_asid();
+    unsigned int cur_asid = tlb_get_asid();
     
     for (int i = 0; i < NUM_TLB; i++) {
         tlb_read(&entryhi, &entrylo, i);

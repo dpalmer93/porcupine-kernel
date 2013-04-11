@@ -91,8 +91,8 @@ void tlb_load_pte(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte);
 void tlb_clean(vaddr_t paddr, const struct pt_entry *pte);
 void tlb_flush(void);
-void tlb_activate_asid(int asid);
-void tlb_flush_asid(int asid);
+void tlb_activate_asid(unsigned int asid);
+void tlb_flush_asid(unsigned int asid);
 
 
 /*

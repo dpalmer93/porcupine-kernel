@@ -82,7 +82,7 @@ struct addrspace {
 	paddr_t as_stackpbase;
 };
 #else
-    int                 as_id;
+    unsigned int        as_id;
 	struct page_table  *as_pgtbl;
     // NSEGS + the stack and heap
     struct segment      as_segs[NSEGS + 2];
