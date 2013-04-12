@@ -70,7 +70,8 @@ as_create(void)
     seg_init(&as->AS_STACK, 0, 0, true);
     seg_init(&as->AS_HEAP, 0, 0, true);
 
-    as->as_loading = false;    
+    as->as_loading = false;
+    as->as_id = 0;
 	return as;
 }
  
