@@ -36,6 +36,6 @@ struct asid_table;
 
 struct asid_table *at_create(void);
 void at_destroy(struct asid_table *at);
-int at_assign(struct asid_table *at, struct addrspace *as);
+unsigned int at_assign(struct asid_table *at, struct addrspace *as);
 
 #endif /* _ASID_H_ */

@@ -58,7 +58,7 @@ at_destroy(struct asid_table *at)
     kfree(at);
 }
 
-int
+unsigned int
 at_assign(struct asid_table *at, struct addrspace *as)
 {
     if (as == NULL)
