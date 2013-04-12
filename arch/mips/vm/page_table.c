@@ -575,7 +575,7 @@ pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte)
 }
 
 // Must be called with the PTE locked
-void
+bool
 pte_finish_cleaning(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
@@ -587,7 +587,9 @@ pte_finish_cleaning(struct pt_entry *pte)
         pte->pte_dirty = 0;
         // update statistics
         vs_decr_ram_dirty();
+        return true;
     }
+    return false;
 }
 
 // redirect the PTE to its swap block
