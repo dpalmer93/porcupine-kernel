@@ -1195,6 +1195,7 @@ ipi_broadcast(int code)
 	}
 }
 
+static
 void
 ipi_tlbshootdown(struct cpu *target, const struct tlbshootdown *mapping)
 {
@@ -1220,15 +1221,21 @@ ipi_tlbshootdown(struct cpu *target, const struct tlbshootdown *mapping)
 void
 ipi_tlbbroadcast(const struct tlbshootdown *mapping)
 {
-    unsigned i;
+    unsigned i, ncpus;
 	struct cpu *c;
     
-	for (i=0; i < cpuarray_num(&allcpus); i++) {
+    ncpus = cpuarray_num(&allcpus);
+    // first, send all the shootdowns...
+	for (i=0; i < ncpus; i++) {
 		c = cpuarray_get(&allcpus, i);
 		if (c != curcpu->c_self) {
 			ipi_tlbshootdown(c, mapping);
 		}
 	}
+    
+    // ...then, wait for them all to complete
+    for (i = 0; i < ncpus; i++)
+        ts_wait(mapping);
 }
 
 void

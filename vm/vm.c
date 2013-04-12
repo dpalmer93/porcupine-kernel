@@ -119,6 +119,10 @@ void
 vm_tlbshootdown_all(void)
 {
     // empty the entire TLB
+    // (this should never occur,
+    // as the per-CPU shootdown queue
+    // is larger than the shootdown pool
+    // from which shootdowns are allocated)
     tlb_flush();
 }
 
@@ -134,6 +138,8 @@ vm_tlbshootdown(const struct tlbshootdown *ts)
             tlb_invalidate(ts->ts_vaddr, ts->ts_pte);
             break;
     }
+    // wake the sender
+    ts_finish(ts);
 }
 
 /*

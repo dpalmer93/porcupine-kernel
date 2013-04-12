@@ -533,12 +533,9 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
         vs_incr_ram_inactive();
         // invalidate TLBs
         tlb_invalidate(vaddr, pte);
-        struct tlbshootdown ts = {
-            .ts_type = TS_INVAL,
-            .ts_vaddr = vaddr,
-            .ts_pte = pte
-        };
+        struct tlbshootdown *ts = ts_create(TS_INVAL, vaddr, pte);
         ipi_tlbbroadcast(&ts);
+        ts_return(ts);
     }
     
     return active;
@@ -576,13 +573,10 @@ pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte)
     pte->pte_cleaning = 1;
     
     // clean TLBs
-    tlb_clean(vaddr, pte);
-    struct tlbshootdown ts = {
-        .ts_type = TS_CLEAN,
-        .ts_vaddr = vaddr,
-        .ts_pte = pte
-    };
+    tlb_invalidate(vaddr, pte);
+    struct tlbshootdown *ts = ts_create(TS_CLEAN, vaddr, pte);
     ipi_tlbbroadcast(&ts);
+    ts_return(ts);
 }
 
 // Must be called with the PTE locked

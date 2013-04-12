@@ -146,10 +146,16 @@ struct pt_entry {
 #define TS_INVAL 1 // Invalidate the TLB entry
 
 struct tlbshootdown {
-    int              ts_type;
-	vaddr_t          ts_vaddr;
-	struct pt_entry *ts_pte;
+    int                 ts_type;
+	vaddr_t             ts_vaddr;
+	struct pt_entry    *ts_pte;
+    struct semaphore   *ts_sem;
 };
+
+struct tlbshootdown *ts_create(int type, vaddr_t vaddr, struct pt_entry *pte);
+void ts_return(struct tlbshootdown *ts);
+void ts_wait(struct tlbshootdown *ts);
+void ts_finish(struct tlbshootdown *ts);
 
 #define TLBSHOOTDOWN_MAX 16
 
