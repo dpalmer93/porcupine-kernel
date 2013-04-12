@@ -37,9 +37,8 @@ static tlbshootdown *ts_pool[TOTAL_SHOOTDOWNS];
 static int           tp_index;
 static struct lock  *tp_lock;
 static struct cv    *tp_cv;
- 
 
- 
+// Get a shootdown struct from the pool and fill it
 struct tlb_shootdown *
 ts_create(int type, vaddr_t vaddr, struct pt_entry *pte)
 {
@@ -62,7 +61,7 @@ ts_create(int type, vaddr_t vaddr, struct pt_entry *pte)
     return ts;
 }
 
-
+// Return a shootdown struct to the pool
 void
 ts_return(tlbshootdown *ts)
 {
@@ -75,6 +74,7 @@ ts_return(tlbshootdown *ts)
     lock_release(tp_lock);
 }
  
+// Allocates all the shootdown structs in the pool
 struct tlb_shootdown *
 ts_bootstrap()
 {
