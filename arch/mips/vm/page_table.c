@@ -491,14 +491,13 @@ pte_try_dirty(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
-    if (pte->pte_inmem && pte->pte_refcount == 1) {
-        KASSERT(!pte->pte_dirty || pte->pte_cleaning);
-        
+    if (pte->pte_inmem && pte->pte_refcount == 1) {    
+        // update statistics
+        if (!pte->pte_dirty)
+            vs_incr_ram_dirty();
+    
         pte->pte_active = 1;
         pte->pte_dirty = 1;
-        
-        // update statistics
-        vs_incr_ram_dirty();
         
         // if the page is currently being cleaned,
         // nullify the cleaning
