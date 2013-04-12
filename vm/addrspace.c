@@ -97,6 +97,7 @@ as_copy(struct addrspace *old_as, struct addrspace **ret)
         new_as->as_segs[i] = old_as->as_segs[i];
     
     new_as->as_loading = false;
+    new_as->as_id = 0;
     
 	*ret = new_as;
     return 0;
