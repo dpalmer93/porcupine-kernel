@@ -345,6 +345,8 @@ defoption roundrobin
 
 defoption copyonwrite
 defoption asid
+defoption oneclock
+defoption twoclock
 
 file      vm/kmalloc.c
 

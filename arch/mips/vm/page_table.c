@@ -522,12 +522,12 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
     KASSERT(pte != NULL);
     KASSERT(pte->pte_busy);
     
-    // reset the accesssed bit to 0 and return
+    // reset the active bit to 0 and return
     // the old one
-    bool accessed = pte->pte_active;
+    bool active = pte->pte_active;
     pte->pte_active = 0;
     
-    if (accessed) {
+    if (active) {
         // update stats
         vs_decr_ram_active();
         vs_incr_ram_inactive();
@@ -541,7 +541,7 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
         ipi_tlbbroadcast(&ts);
     }
     
-    return accessed;
+    return active;
 }
 
 // Must be called with the PTE locked
@@ -586,7 +586,7 @@ pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte)
 }
 
 // Must be called with the PTE locked
-bool
+void
 pte_finish_cleaning(struct pt_entry *pte)
 {
     KASSERT(pte != NULL);
@@ -598,9 +598,7 @@ pte_finish_cleaning(struct pt_entry *pte)
         pte->pte_dirty = 0;
         // update statistics
         vs_decr_ram_dirty();
-        return true;
     }
-    return false;
 }
 
 // redirect the PTE to its swap block

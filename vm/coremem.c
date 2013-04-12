@@ -263,7 +263,7 @@ core_acquire_random(void)
 // looks for empty frame with eviction
 // one LRU clock hand that gets a "recently unused" frame
 // or two LRU clock hand depending on option
-/*
+
 static paddr_t
 core_acquire_oneclock(void)
 {
@@ -335,7 +335,7 @@ core_acquire_oneclock(void)
         }
     }
 }
-*/
+/*
 
 static paddr_t
 core_acquire_twoclock(void)
@@ -423,12 +423,12 @@ core_acquire_twoclock(void)
         }
     }
 }
-
+*/
 
 paddr_t
 core_acquire_frame(void)
 {
-    return core_acquire_twoclock();
+    return core_acquire_oneclock();
 }
 
 void
@@ -558,7 +558,7 @@ core_clean(void *data1, unsigned long data2)
 void core_cleaner_bootstrap(void)
 {
     core_cleaner_wchan = wchan_create("Core Cleaner Wait Channel");
-    pid = thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
+    thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
 }
 
 
