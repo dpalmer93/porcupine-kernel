@@ -28,13 +28,15 @@
  */
 
 #include <types.h>
+#include <machine/tlb.h>
 #include <kern/errno.h>
 #include <lib.h>
 #include <addrspace.h>
 #include <asid.h>
+#include <cpu.h>
+#include <current.h>
 #include <vm.h>
 #include <page_table.h>
-#include <machine/tlb.h>
 #include "opt-copyonwrite.h"
 #include "opt-asid.h"
 
@@ -110,7 +112,7 @@ void
 as_activate(struct addrspace *as)
 {
 #if OPT_ASID
-    tlb_activate_asid(asid_assign(as));
+    tlb_activate_asid(at_assign(curcpu->c_asids, as));
 #else
     // unused
     (void)as;

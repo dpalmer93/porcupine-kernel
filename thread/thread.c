@@ -45,6 +45,7 @@
 #include <current.h>
 #include <synch.h>
 #include <addrspace.h>
+#include <asid.h>
 #include <process.h>
 #include <mainbus.h>
 #include <vnode.h>

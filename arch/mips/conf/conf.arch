@@ -76,6 +76,7 @@ machine mips optfile dumbvm    arch/mips/vm/dumbvm.c
 machine mips optofffile dumbvm arch/mips/vm/kvm.c
 machine mips optofffile dumbvm arch/mips/vm/page_table.c
 machine mips optofffile dumbvm arch/mips/vm/tlb_util.c
+machine mips optofffile dumbvm arch/mips/vm/asid.c
 
 #
 # System call layer

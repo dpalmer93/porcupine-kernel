@@ -100,7 +100,7 @@ tlb_invalidate(vaddr_t vaddr, const struct pt_entry *pte)
             && (entrylo >> TLBLO_PPAGE_SHIFT) == pte->pte_frame) {
             // found a match, so clear the valid bit
             entrylo &= ~TLBLO_VALID;
-            tlb_write(entryhi, entrylo);
+            tlb_write(entryhi, entrylo, i);
         }
         
     }
@@ -148,7 +148,7 @@ tlb_clean(vaddr_t vaddr, const struct pt_entry *pte)
         && (entrylo >> TLBLO_PPAGE_SHIFT) == pte->pte_frame) {
             // found a match, so clear the dirty bit
             entrylo &= ~TLBLO_DIRTY;
-            tlb_write(entryhi, entrylo);
+            tlb_write(entryhi, entrylo, i);
         }
         
     }

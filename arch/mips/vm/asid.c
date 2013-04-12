@@ -31,19 +31,25 @@
 #include <addrspace.h>
 #include <cpu.h>
 #include <lib.h>
+#include <asid.h>
 
 #define NUM_ASIDS 63
 #define RESERVED_ASID 63
 
-// CPU-specific ASID table
+// MIPS-specific ASID table
 struct asid_table {
-    struct addrspace at_holders[NUM_ASIDS];
+    struct addrspace *at_holders[NUM_ASIDS];
 };
 
 struct asid_table *
 at_create(void)
 {
-    return kmalloc(sizeof(struct asid_table));
+    struct asid_table *at = kmalloc(sizeof(struct asid_table));
+    if (at == NULL)
+        return NULL;
+    
+    bzero(at, sizeof(struct asid_table));
+    return at;
 }
 
 void
@@ -67,8 +73,13 @@ at_assign(struct asid_table *at, struct addrspace *as)
         // no synchronization is needed, as
         // this is per-CPU
         unsigned int asid = random() % NUM_ASIDS;
+        
+        // we may need to flush the TLB
+        if (at->at_holders[asid] != NULL)
+            tlb_flush_asid(asid);
+        
         at->at_holders[asid] = as;
         as->as_id = asid;
-        tlb_flush_asid(asid);
+        return asid;
     }
 }
