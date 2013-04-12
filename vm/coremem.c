@@ -53,6 +53,11 @@
 // Number of pages that the 2nd clockhand trails behind the 1st
 #define CLOCK_OFFSET 128
 
+// options for clock hands touching active pages
+#define ACTIVE_IGNORE   0   // ignore activity level
+#define ACTIVE_SKIP     1   // skip active pages
+#define ACTIVE_REFRESH  2   // refresh active pages
+
 struct cm_entry {
     unsigned         cme_kernel:1;   // In use by kernel?
     unsigned         cme_busy:1;     // For synchronization
@@ -150,6 +155,33 @@ cme_unlock(size_t index)
     spinlock_release(&core_lock);
 }
 
+// tries to clean a single frame...
+// Caller must have both the CME and PTE
+// already locked.  At the end,
+// both are still locked.
+static bool
+cme_clean(size_t index)
+{
+    struct cm_entry *cme = &coremap[index];
+    struct pt_entry *pte = cme->cme_resident;
+    vaddr_t vaddr = cme->cme_vaddr;
+    
+    // set the cleaning bit, clean the TLBs, and unlock
+    pte_start_cleaning(vaddr, pte); // this cleans TLBs too
+    pte_unlock(pte);
+    
+    swap_out(CORE_TO_PADDR(index), cme->cme_swapblk);
+    
+    // once done writing, lock the PTE and check the cleaning bit
+    // if it is intact, no writes to this page have intervened
+    // in our cleaning: the clean was successful, and we can clear
+    // the dirty bit
+    if (pte_try_lock(pte) && pte_finish_cleaning(pte)) {
+        return true
+    }
+    return false;
+}
+
 /**************************************************/
 
 void
@@ -192,10 +224,74 @@ core_bootstrap(void)
     vs_init_ram(hi / PAGE_SIZE, cm_npages + lo / PAGE_SIZE);
 }
 
-#if OPT_ONECLOCK
-// looks for empty frame with eviction
-// one LRU clock hand that gets a "recently unused" frame
-static paddr_t
+// This gets called from each of the core_acquire functions.
+// It checks a frame for suitability.  The CME must be
+// locked before core_clockhand is called, and is locked
+// upon return
+static
+bool
+core_clockhand(size_t index, int on_active)
+{
+    // ignore kernel-reserved pages
+    if (coremap[index].cme_kernel) {
+        cme_unlock(index);
+        return 0;
+    }
+    
+    struct pt_entry *pte = coremap[index].cme_resident;
+    vaddr_t vaddr = coremap[index].cme_vaddr;
+    
+    // found a free frame.
+    if (pte == NULL) {
+        KASSERT(vaddr == 0);
+        KASSERT(coremap[index].cme_swapblk == 0);
+        return true;
+    }
+    
+    // otherwise, try to lock the page table entry, skip if cannot acquire
+    if (pte_try_lock(pte)) {
+        // the PTE should be in memory, since it is using up a
+        // physical page
+        KASSERT(pte_resident(pte));
+        
+        // skip dirty pages
+        if (pte_is_dirty(pte)) {
+            pte_unlock(pte);
+            return false;
+        }
+        
+        // Refresh the active bit and invalidate TLBs to simulate
+        // hardware-managed active bit (pte_refresh() does both)
+        if (on_active != ACTIVE_IGNORE && pte_is_active(pte)) {
+            if (on_active == ACTIVE_REFRESH)
+                pte_refresh(vaddr, pte);
+            pte_unlock(pte);
+            return false;
+        }
+        
+        // found a frame that has not been recently accessed
+        // re-map the PTE to its swap block
+        pte_evict(pte, coremap[index].cme_swapblk);
+        pte_unlock(pte);
+        
+        // mark the CME as free and update stats
+        coremap[index].cme_swapblk = 0;
+        coremap[index].cme_vaddr = 0;
+        coremap[index].cme_resident = NULL;
+        
+        // update stats
+        vs_decr_ram_inactive();
+        vs_incr_ram_free();
+        
+        return true;
+    }
+}
+
+// Looks for empty frame with eviction:
+// one LRU clock hand that gets a "recently unused" frame.
+// On return, the CME is locked
+static
+paddr_t
 core_acquire_oneclock(void)
 {
     // wake up the cleaner thread if necessary
@@ -209,66 +305,19 @@ core_acquire_oneclock(void)
         
         // try to lock the coremap entry
         if (cme_try_lock(index)) {
-            // ignore kernel-reserved pages
-            if (coremap[index].cme_kernel) {
-                cme_unlock(index);
-                continue;
-            }
-            
-            struct pt_entry *pte = coremap[index].cme_resident;
-            vaddr_t vaddr = coremap[index].cme_vaddr;
-            
-            // found a free frame.  Take it and return
-            if (pte == NULL) {
-                KASSERT(vaddr == 0);
-                KASSERT(coremap[index].cme_swapblk == 0);
+            if (core_clockhand(index, ACTIVE_REFRESH))
                 return CORE_TO_PADDR(index);
-            }
-            
-            // otherwise, try to lock the page table entry, skip if cannot acquire
-            if (pte_try_lock(pte)) {
-                // the PTE should be in memory, since it is using up a
-                // physical page
-                KASSERT(pte_resident(pte));
-                
-                // skip dirty pages
-                if (pte_is_dirty(pte)) {
-                    pte_unlock(pte);
-                    cme_unlock(index);
-                    continue;
-                }
-                
-                // Refresh the active bit and invalidate TLBs to simulate
-                // hardware-managed active bit (pte_refresh() does both)
-                if (pte_refresh(vaddr, pte)) {
-                    pte_unlock(pte);
-                    cme_unlock(index);
-                    continue;
-                }
-                else { // found a frame that has not been recently accessed
-                    // re-map the PTE to its swap block
-                    pte_evict(pte, coremap[index].cme_swapblk);
-                    pte_unlock(pte);
-                    
-                    // mark the CME as free and update stats
-                    coremap[index].cme_swapblk = 0;
-                    coremap[index].cme_vaddr = 0;
-                    coremap[index].cme_resident = NULL;
-                    
-                    // update stats
-                    vs_decr_ram_inactive();
-                    vs_incr_ram_free();
-                    
-                    return CORE_TO_PADDR(index);
-                }
-            }
             cme_unlock(index);
         }
     }
 }
 
-#elif OPT_TWOCLOCK
-static paddr_t
+// Looks for empty frame with eviction.
+// two LRU clock hands: one refreshes active bits;
+// the other looks for inactive frames.
+// On return, the CME is locked
+static
+paddr_t
 core_acquire_twoclock(void)
 {
     // wake up the cleaner thread if necessary
@@ -277,149 +326,62 @@ core_acquire_twoclock(void)
     }
     
     while(true) {
-        // get current clock hand and increment clock
-        size_t index = core_clocktick();
-    
-        // calculate the second clock hand
-        size_t index2 = (index + CLOCK_OFFSET) % core_len;
+        // get trailing (page-grabbing) clock hand and increment clock
+        size_t trailing = core_clocktick();
+        
+        // calculate the leading clock hand
+        size_t leading = (trailing + CLOCK_OFFSET) % core_len;
         // mark the PTE the second clock hand is pointing at as not recently used
-        if (cme_try_lock(index2)) {
-            if (!coremap[index2].cme_kernel) {
-                struct pt_entry *pte = coremap[index2].cme_resident;
-                vaddr_t vaddr = coremap[index2].cme_vaddr;
+        if (cme_try_lock(leading)) {
+            if (!coremap[leading].cme_kernel) {
+                struct pt_entry *pte = coremap[leading].cme_resident;
+                vaddr_t vaddr = coremap[leading].cme_vaddr;
                 
                 if (pte && pte_try_lock(pte)) {
                     pte_refresh(vaddr, pte);
                     pte_unlock(pte);
                 }
             }
-            cme_unlock(index2);
+            cme_unlock(leading);
         }                    
     
-        // try to lock the coremap entry
-        if (cme_try_lock(index)) {
-            // ignore kernel-reserved pages
-            if (coremap[index].cme_kernel) {
-                cme_unlock(index);
-                continue;
-            }
-            
-            struct pt_entry *pte = coremap[index].cme_resident;
-            vaddr_t vaddr = coremap[index].cme_vaddr;
-            
-            // found a free frame.  Take it and return
-            if (pte == NULL) {
-                KASSERT(vaddr == 0);
-                KASSERT(coremap[index].cme_swapblk == 0);
-                return CORE_TO_PADDR(index);
-            }
-            
-            // otherwise, try to lock the page table entry, skip if cannot acquire
-            if (pte_try_lock(pte)) {
-                // the PTE should be in memory, since it is using up a
-                // physical page
-                KASSERT(pte_resident(pte));
-                
-                // skip dirty/active pages
-                if (pte_is_dirty(pte) || pte_is_active(pte)) {
-                    pte_unlock(pte);
-                    cme_unlock(index);
-                    continue;
-                }
-                else { // found a frame that has not been recently accessed
-                    // re-map the PTE to its swap block
-                    pte_evict(pte, coremap[index].cme_swapblk);
-                    pte_unlock(pte);
-                    
-                    // mark the CME as free and update stats
-                    coremap[index].cme_swapblk = 0;
-                    coremap[index].cme_vaddr = 0;
-                    coremap[index].cme_resident = NULL;
-                    
-                    // update stats
-                    vs_decr_ram_inactive();
-                    vs_incr_ram_free();
-                    
-                    return CORE_TO_PADDR(index);
-                }
-            }
-            cme_unlock(index);
+        // run the trailing hand
+        if (cme_try_lock(trailing)) {
+            if (core_clockhand(trailing, ACTIVE_SKIP))
+                return CORE_TO_PADDR(trailing);
+            cme_unlock(trailing);
         }
     }
 }
 
-#else
 // randomly choose pages until it finds a page
 // that is not busy, kernel-allocated, or dirty
-static paddr_t
+static
+paddr_t
 core_acquire_random(void)
 {
     // wake up the cleaner thread if necessary
     if (vs_get_ram_dirty () >= MAX_DIRTY) {
         wchan_wakeone(core_cleaner_wchan);
     }
-    // if we have random numbers then
-    // get an index uniformly distributed over the core map
-    int index;
-    if (is_random_init())
-        index = random() % core_len;
+    
+    // if the random device is initialized, then
+    // start at an index uniformly distributed over the core map
     // otherwise start at 0
-    else
-        index = 0;
+    int index = is_random_init()? (random() % core_len) : 0;
         
     while(true) {
-        index = (index + 1) % core_len;
         // try to lock the coremap entry
         if (cme_try_lock(index)) {
-            // ignore kernel-reserved pages
-            if (coremap[index].cme_kernel) {
-                cme_unlock(index);
-                continue;
-            }
-            
-            struct pt_entry *pte = coremap[index].cme_resident;
-            vaddr_t vaddr = coremap[index].cme_vaddr;
-            
-            // found a free frame.  Take it and return
-            if (pte == NULL) {
-                KASSERT(vaddr == 0);
-                KASSERT(coremap[index].cme_swapblk == 0);
+            if (core_clockhand(index, ACTIVE_IGNORE))
                 return CORE_TO_PADDR(index);
-            }
-            
-            // otherwise, try to lock the page table entry, skip if cannot acquire
-            if (pte_try_lock(pte)) {
-                // the PTE should be in memory, since it is using up a
-                // physical page
-                KASSERT(pte_resident(pte));
-                
-                // skip dirty pages
-                if (pte_is_dirty(pte)) {
-                    pte_unlock(pte);
-                    cme_unlock(index);
-                    continue;
-                }
-                
-                // evict the page
-                pte_evict(pte, coremap[index].cme_swapblk);
-                pte_unlock(pte);
-                    
-                // mark the CME as free and update stats
-                coremap[index].cme_swapblk = 0;
-                coremap[index].cme_vaddr = 0;
-                coremap[index].cme_resident = NULL;
-                
-                // update stats
-                vs_decr_ram_inactive();
-                vs_incr_ram_free();
-                
-                return CORE_TO_PADDR(index);
-            }
             cme_unlock(index);
         }
+        
+        // move on
+        index = (index + 1) % core_len;
     }
 }
-#endif
 
 paddr_t
 core_acquire_frame(void)
@@ -523,24 +485,10 @@ core_clean(void *data1, unsigned long data2)
                     vaddr_t vaddr = cme->cme_vaddr;
                     
                     // if dirty, then start cleaning
-                    if(pte_is_dirty(pte)) {
-                        // set the cleaning bit, clean the TLBs, and unlock
-                        pte_start_cleaning(vaddr, pte); // this cleans TLBs too
-                        pte_unlock(pte);
-                        
-                        swap_out(CORE_TO_PADDR(index), cme->cme_swapblk);
-                        
-                        // once done writing, lock the PTE and check the cleaning bit
-                        // if it is intact, no writes to this page have intervened
-                        // in our cleaning: the clean was successful, and we can clear
-                        // the dirty bit
-                        if (pte_try_lock(pte)) {
-                            pte_finish_cleaning(pte);
-                            pte_unlock(pte);
-                        }
-                    }
-                    else
-                        pte_unlock(pte);
+                    if(pte_is_dirty(pte))
+                        cme_clean(index);
+                    
+                    pte_unlock(pte);
                 }
                 cme_unlock(index);
             }
