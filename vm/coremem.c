@@ -160,7 +160,7 @@ cme_unlock(size_t index)
 // already locked.  At the end,
 // both are still locked.
 static bool
-cme_clean(size_t index)
+cme_try_clean(size_t index)
 {
     struct cm_entry *cme = &coremap[index];
     struct pt_entry *pte = cme->cme_resident;
@@ -177,7 +177,7 @@ cme_clean(size_t index)
     // in our cleaning: the clean was successful, and we can clear
     // the dirty bit
     if (pte_try_lock(pte) && pte_finish_cleaning(pte)) {
-        return true
+        return true;
     }
     return false;
 }
@@ -254,10 +254,13 @@ core_clockhand(size_t index, int on_active)
         // physical page
         KASSERT(pte_resident(pte));
         
-        // skip dirty pages
         if (pte_is_dirty(pte)) {
-            pte_unlock(pte);
-            return false;
+            // skip dirty pages if there are relatively few of them
+            // else try to clean them
+            if (vs_get_ram_dirty() < MAX_DIRTY || !cme_try_clean(index)) {
+                pte_unlock(pte);
+                return false;
+            }
         }
         
         // Refresh the active bit and invalidate TLBs to simulate
@@ -285,8 +288,10 @@ core_clockhand(size_t index, int on_active)
         
         return true;
     }
+    return false;
 }
 
+#if OPT_ONECLOCK
 // Looks for empty frame with eviction:
 // one LRU clock hand that gets a "recently unused" frame.
 // On return, the CME is locked
@@ -294,11 +299,6 @@ static
 paddr_t
 core_acquire_oneclock(void)
 {
-    // wake up the cleaner thread if necessary
-    if (vs_get_ram_dirty() >= MAX_DIRTY) {
-        wchan_wakeone(core_cleaner_wchan);
-    }
-    
     while(true) {
         // get current clock hand and increment clock
         size_t index = core_clocktick();
@@ -312,6 +312,7 @@ core_acquire_oneclock(void)
     }
 }
 
+#elif OPT_TWOCLOCK
 // Looks for empty frame with eviction.
 // two LRU clock hands: one refreshes active bits;
 // the other looks for inactive frames.
@@ -320,11 +321,6 @@ static
 paddr_t
 core_acquire_twoclock(void)
 {
-    // wake up the cleaner thread if necessary
-    if (vs_get_ram_dirty() >= MAX_DIRTY) {
-        wchan_wakeone(core_cleaner_wchan);
-    }
-    
     while(true) {
         // get trailing (page-grabbing) clock hand and increment clock
         size_t trailing = core_clocktick();
@@ -354,17 +350,13 @@ core_acquire_twoclock(void)
     }
 }
 
+#else
 // randomly choose pages until it finds a page
 // that is not busy, kernel-allocated, or dirty
 static
 paddr_t
 core_acquire_random(void)
 {
-    // wake up the cleaner thread if necessary
-    if (vs_get_ram_dirty () >= MAX_DIRTY) {
-        wchan_wakeone(core_cleaner_wchan);
-    }
-    
     // if the random device is initialized, then
     // start at an index uniformly distributed over the core map
     // otherwise start at 0
@@ -382,10 +374,16 @@ core_acquire_random(void)
         index = (index + 1) % core_len;
     }
 }
+#endif
 
 paddr_t
 core_acquire_frame(void)
 {
+    // wake up the cleaner thread if necessary
+    if (vs_get_ram_dirty() >= MAX_DIRTY) {
+        wchan_wakeone(core_cleaner_wchan);
+    }
+    
 #if OPT_ONECLOCK
     return core_acquire_oneclock();
 #elif OPT_TWOCLOCK
@@ -480,15 +478,11 @@ core_clean(void *data1, unsigned long data2)
                 if (!(cme->cme_kernel)  // check conditions again to ensure nothing
                 && cme->cme_resident    // changed while we were getting the lock
                 && pte_try_lock(cme->cme_resident)) {
-                    
-                    struct pt_entry *pte = cme->cme_resident;
-                    vaddr_t vaddr = cme->cme_vaddr;
-                    
                     // if dirty, then start cleaning
-                    if(pte_is_dirty(pte))
-                        cme_clean(index);
+                    if(pte_is_dirty(cme->cme_resident))
+                        cme_try_clean(index);
                     
-                    pte_unlock(pte);
+                    pte_unlock(cme->cme_resident);
                 }
                 cme_unlock(index);
             }
