@@ -32,7 +32,7 @@
 #include <synch.h>
 #include <lib.h> 
 
-#define TOTAL_SHOOTDOWNS 64
+#define TOTAL_SHOOTDOWNS TLBSHOOTDOWN_MAX
  
 static struct tlbshootdown *ts_pool[TOTAL_SHOOTDOWNS];
 static int                  tp_index;
