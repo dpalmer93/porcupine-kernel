@@ -49,13 +49,13 @@ sys_execv(const_userptr_t path, const_userptr_t argv)
     int err;
     struct process *proc = curthread->t_proc;
     
-    char *kpath = kmalloc(PATH_MAX + 1);
+    char *kpath = kmalloc(PATH_MAX);
     if (kpath == NULL)
         return ENOMEM;
     
     // copy in path
     size_t path_len;
-    if ((err = copyinstr(path, kpath, PATH_MAX + 1, &path_len)))
+    if ((err = copyinstr(path, kpath, PATH_MAX, &path_len)))
     {
         kfree(kpath);
         return err;

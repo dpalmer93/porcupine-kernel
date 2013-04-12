@@ -39,7 +39,7 @@
  */
  
 struct fd_table *
-fdt_create() 
+fdt_create(void)
 {
     struct fd_table *fdt;
 

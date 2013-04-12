@@ -175,7 +175,7 @@ syscall(struct trapframe *tf)
             // copy the whence from the stack---we need to add
             // four bytes to sp because the user program
             // reserves this much space for saving the arg registers
-            err = copyin((const_userptr_t)(tf->tf_sp + 16), &whence, 4);
+            err = copyin((const_userptr_t)(tf->tf_sp + 16), &whence, sizeof(int));
             if (err) break;
             
             retval64 = sys_lseek((int)tf->tf_a0,

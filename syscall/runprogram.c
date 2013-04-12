@@ -308,12 +308,10 @@ setup_inouterr(struct fd_table *fdt)
         return ENOMEM;
     }
     
-    // Insert file contexts:
-    // these should always succeed, since the FDT was
-    // previously empty.
-    KASSERT(fdt_replace(fdt, STDIN_FILENO, fc_stdin) == 0);
-    KASSERT(fdt_replace(fdt, STDOUT_FILENO, fc_stdout) == 0);
-    KASSERT(fdt_replace(fdt, STDERR_FILENO, fc_stderr) == 0);
+    // Insert file contexts
+    fdt_replace(fdt, STDIN_FILENO, fc_stdin);
+    fdt_replace(fdt, STDOUT_FILENO, fc_stdout);
+    fdt_replace(fdt, STDERR_FILENO, fc_stderr);
     
     return 0;
 }

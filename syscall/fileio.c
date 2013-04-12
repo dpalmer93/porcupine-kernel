@@ -49,13 +49,13 @@ sys_open(const_userptr_t filename, int flags, int* err)
     struct fd_table *fdt;
     
     // copy in filename to kernel space
-    char *kfilename = kmalloc((PATH_MAX + 1) * sizeof(char));
+    char *kfilename = kmalloc(PATH_MAX);
     if (kfilename == NULL)
     {
         *err = ENOMEM;
         return -1;
     }
-    result = copyinstr(filename, kfilename, PATH_MAX + 1, &got);
+    result = copyinstr(filename, kfilename, PATH_MAX, &got);
     if (result){
         kfree(kfilename);
         *err = result;
@@ -149,10 +149,10 @@ sys_remove(const_userptr_t filename)
     int err;
     
     // copy in filename to kernel space
-    char *kfilename = kmalloc((PATH_MAX + 1) * sizeof(char));
+    char *kfilename = kmalloc(PATH_MAX);
     if (kfilename == NULL)
         return ENOMEM;
-    err = copyinstr(filename, kfilename, PATH_MAX + 1, &got);
+    err = copyinstr(filename, kfilename, PATH_MAX, &got);
     if (err) {
         kfree(kfilename);
         return err;
@@ -282,23 +282,17 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
     lock_acquire(fc->fc_lock);
     
     // stat the file to find the type and length
-    VOP_STAT(fc->fc_vnode, &statbuf);
+    *err = VOP_STAT(fc->fc_vnode, &statbuf);
+    if (*err) {
+        lock_release(fc->fc_lock);
+        return (off_t)-1;
+    }
     
-    // discard bottom 12 bits of mode
-    mode_t ftype = statbuf.st_mode & S_IFMT;
-    
-    // make sure we can seek on this file
-    switch (ftype)
-    {
-        case S_IFIFO:  // FIFO
-        case S_IFSOCK:  // socket
-        case S_IFCHR:   // character device
-        case S_IFBLK: // block device
-            lock_release(fc->fc_lock);
-            *err = ESPIPE;
-            return (off_t)-1;
-        default:
-            break;
+    // make sure we can seek to this position on this file
+    *err = VOP_TRYSEEK(fc->fc_vnode, offset);
+    if (*err) {
+        lock_release(fc->fc_lock);
+        return (off_t)-1;
     }
     
     // determine the new offset
@@ -317,14 +311,6 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
             lock_release(fc->fc_lock);
             *err = EINVAL;
             return (off_t)-1;
-    }
-    
-    // check for integer overflow or negative offset
-    if (new_offset < 0)
-    {
-        lock_release(fc->fc_lock);
-        *err = EINVAL;
-        return (off_t)-1;
     }
     
     fc->fc_offset = new_offset;
@@ -351,9 +337,10 @@ sys_fstat(int fd, userptr_t statbuf)
     
     lock_acquire(fc->fc_lock);
     // call VFS to get the stats
-    VOP_STAT(fc->fc_vnode, &kstatbuf);
-    
+    err = VOP_STAT(fc->fc_vnode, &kstatbuf);
     lock_release(fc->fc_lock);
+    if (err)
+        return err;
     
     // copy the stat to the user buffer
     err = copyout(&kstatbuf, statbuf, sizeof(struct stat));

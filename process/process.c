@@ -160,7 +160,7 @@ process_waiton(struct process *p)
 {
     int exit_code;
     lock_acquire(p->ps_waitpid_lock);
-    while (p->ps_status == PS_ACTIVE)
+    while (p->ps_status != PS_ZOMBIE)
         cv_wait(p->ps_waitpid_cv, p->ps_waitpid_lock);
     exit_code = p->ps_exit_code;
     lock_release(p->ps_waitpid_lock);
