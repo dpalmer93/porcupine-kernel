@@ -68,9 +68,10 @@ paddr_t                 core_frame0;
 /**************** BASIC PRIMITIVES ****************/
 
 // increment clock; return old value
+
 static
 size_t
-core_clocktick()
+core_one_clocktick()
 {
     spinlock_acquire(&core_lock);
     
@@ -185,34 +186,83 @@ core_bootstrap(void)
     vs_init_ram(hi / PAGE_SIZE, cm_npages + lo / PAGE_SIZE);
 }
 
-paddr_t
+/*
+// randomly choose pages until it finds a page
+// that is not busy, kernel-allocated, or dirty
+static paddr_t
 core_acquire_random(void)
 {
-    // get an index uniformly distributed over the core map
-    int i, i0;
-    i = i0 = random() % core_len;
-    
-    // look for a free frame
-    spinlock_acquire(&core_lock);
-    while (coremap[i].cme_kernel || coremap[i].cme_busy || coremap[i].cme_resident) {
-        i = (i + 1) % core_len;
-        if (i == i0) {
-            // FAILED...
-            spinlock_release(&core_lock);
-            return 0;
-        }
-            
+    // wake up the cleaner thread if necessary
+    if (vs_get_ram_dirty () >= MAX_DIRTY) {
+        wchan_wakeone(core_cleaner_wchan);
     }
-    coremap[i].cme_busy = 1;
-    spinlock_release(&core_lock);
-    return CORE_TO_PADDR(i);
+    // if we have random numbers then
+    // get an index uniformly distributed over the core map
+    int index;
+    if (is_random_init())
+        index = random() % core_len;
+    // otherwise start at 0
+    else
+        index = 0;
+        
+    while(true) {
+        index = (index + 1) % core_len;
+        // try to lock the coremap entry
+        if (cme_try_lock(index)) {
+            // ignore kernel-reserved pages
+            if (coremap[index].cme_kernel) {
+                cme_unlock(index);
+                continue;
+            }
+            
+            struct pt_entry *pte = coremap[index].cme_resident;
+            vaddr_t vaddr = coremap[index].cme_vaddr;
+            
+            // found a free frame.  Take it and return
+            if (pte == NULL) {
+                KASSERT(vaddr == 0);
+                KASSERT(coremap[index].cme_swapblk == 0);
+                return CORE_TO_PADDR(index);
+            }
+            
+            // otherwise, try to lock the page table entry, skip if cannot acquire
+            if (pte_try_lock(pte)) {
+                // the PTE should be in memory, since it is using up a
+                // physical page
+                KASSERT(pte_resident(pte));
+                
+                // skip dirty pages
+                if (pte_is_dirty(pte)) {
+                    pte_unlock(pte);
+                    cme_unlock(index);
+                    continue;
+                }
+                
+                // evict the page
+                pte_evict(pte, coremap[index].cme_swapblk);
+                pte_unlock(pte);
+                    
+                // mark the CME as free and update stats
+                coremap[index].cme_swapblk = 0;
+                coremap[index].cme_vaddr = 0;
+                coremap[index].cme_resident = NULL;
+                
+                // update stats
+                vs_decr_ram_inactive();
+                vs_incr_ram_free();
+                
+                return CORE_TO_PADDR(index);
+            }
+            cme_unlock(index);
+        }
+    }
 }
+*/
 
 // looks for empty frame with eviction
-// one LRU clock hand that tries MAX_CLOCKTICKS times to
-// get a "recently unused" frame
-paddr_t
-core_acquire_frame(void)
+// one LRU clock hand that gets a "recently unused" frame
+static paddr_t
+core_acquire_oneclock(void)
 {
     // wake up the cleaner thread if necessary
     if (vs_get_ram_dirty() >= MAX_DIRTY) {
@@ -221,7 +271,7 @@ core_acquire_frame(void)
     
     while(true) {
         // get current clock hand and increment clock
-        size_t index = core_clocktick();
+        size_t index = core_one_clocktick();
         
         // try to lock the coremap entry
         if (cme_try_lock(index)) {
@@ -286,6 +336,20 @@ core_acquire_frame(void)
             cme_unlock(index);
         }
     }
+}
+
+/*
+static paddr_t
+core_acquire_twoclock(void)
+{
+    return 0;
+}
+*/
+
+paddr_t
+core_acquire_frame(void)
+{
+    return core_acquire_oneclock();
 }
 
 void

@@ -164,3 +164,9 @@ randmax(void)
 	}
 	return the_random->rs_randmax(the_random->rs_devdata);
 }
+
+bool 
+is_random_init(void)
+{
+    return (the_random != NULL);
+}

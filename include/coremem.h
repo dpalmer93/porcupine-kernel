@@ -56,8 +56,7 @@
  * core_free_frame - indicate that a page frame is no longer being used
  */
 void    core_bootstrap(void);
-paddr_t core_acquire_random(void);  // random page allocation
-paddr_t core_acquire_frame(void);   // single hand lru clock 
+paddr_t core_acquire_frame(void);
 void    core_release_frame(paddr_t frame);
 void    core_map_frame(paddr_t frame, vaddr_t vaddr,
                        struct pt_entry *pte, swapidx_t swapblk);

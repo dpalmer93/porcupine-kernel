@@ -117,6 +117,7 @@ extern uint32_t dbflags;
 #define RANDOM_MAX (randmax())
 uint32_t randmax(void);
 uint32_t random(void);
+bool is_random_init(void);
 
 /*
  * Kernel heap memory allocation. Like malloc/free.
