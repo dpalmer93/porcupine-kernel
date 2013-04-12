@@ -30,8 +30,8 @@ options sfs                     # Always use the file system
 #options dumbvm                 # Use your own VM system now.
 #options synchprobs             # No longer needed/wanted after asst. 1
 options copyonwrite             # Share pages on fork(), copy on write
-#options asid                    # Allow multiple address spaces on TLB
+#options asid                   # Allow multiple address spaces on TLB
 
 # Choose zero or one of the following (default is random eviction)
-#options oneclock                # One-handed clock page eviction
+#options oneclock               # One-handed clock page eviction
 options twoclock                # Two-handed clock page eviction
