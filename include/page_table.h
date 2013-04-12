@@ -85,7 +85,7 @@ swapidx_t pte_start_swapin(struct pt_entry *pte, paddr_t frame); // mark as pagi
 void pte_finish_swapin(struct pt_entry *pte); // mark as paged in
 // non-blocking cleaning
 void pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte);
-void pte_finish_cleaning(struct pt_entry *pte);
+bool pte_finish_cleaning(struct pt_entry *pte); // returns true on successful clean
 
 // Deep copy of the page table and all the page table entries
 struct page_table *pt_copy_deep(struct page_table *old_pt);
