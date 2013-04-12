@@ -534,7 +534,7 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
         // invalidate TLBs
         tlb_invalidate(vaddr, pte);
         struct tlbshootdown *ts = ts_create(TS_INVAL, vaddr, pte);
-        ipi_tlbbroadcast(&ts);
+        ipi_tlbbroadcast(ts);
         ts_return(ts);
     }
     
@@ -573,9 +573,9 @@ pte_start_cleaning(vaddr_t vaddr, struct pt_entry *pte)
     pte->pte_cleaning = 1;
     
     // clean TLBs
-    tlb_invalidate(vaddr, pte);
+    tlb_clean(vaddr, pte);
     struct tlbshootdown *ts = ts_create(TS_CLEAN, vaddr, pte);
-    ipi_tlbbroadcast(&ts);
+    ipi_tlbbroadcast(ts);
     ts_return(ts);
 }
 

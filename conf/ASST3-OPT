@@ -34,6 +34,6 @@ options sfs                     # Always use the file system
 options copyonwrite             # Share pages on fork(), copy on write
 options asid                    # Allow multiple address spaces on TLB
 
-# Pick one of the two; default is random eviction
+# Choose zero or one of the following (default is random eviction)
 options oneclock                # One-handed clock page eviction
 #options twoclock                # Two-handed clock page eviction
