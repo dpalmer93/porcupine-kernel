@@ -38,7 +38,8 @@
 #include <vmstat.h>
 #include <coremem.h>
 
-#include "opt-.h"
+#include "opt-oneclock.h"
+#include "opt-twoclock.h"
 
 // Number of dirty pages at which we wake the cleaner thread
 #define MAX_DIRTY (core_len/2)
