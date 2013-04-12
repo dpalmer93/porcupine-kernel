@@ -38,6 +38,8 @@
 #include <vmstat.h>
 #include <coremem.h>
 
+#include "opt-.h"
+
 // Number of dirty pages at which we wake the cleaner thread
 #define MAX_DIRTY (core_len/2)
 // Number of dirty pages at which the cleaner thread sleeps
