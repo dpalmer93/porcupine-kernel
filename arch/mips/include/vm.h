@@ -154,8 +154,9 @@ struct tlbshootdown {
 
 struct tlbshootdown *ts_create(int type, vaddr_t vaddr, struct pt_entry *pte);
 void ts_return(struct tlbshootdown *ts);
-void ts_wait(struct tlbshootdown *ts);
-void ts_finish(struct tlbshootdown *ts);
+void ts_wait(const struct tlbshootdown *ts);
+void ts_finish(const struct tlbshootdown *ts);
+void ts_bootstrap(void);
 
 #define TLBSHOOTDOWN_MAX 16
 

@@ -44,6 +44,8 @@ void
 vm_bootstrap(void)
 {
     swap_bootstrap();
+    // Initialize the tlbshootdown pool
+    ts_bootstrap();
     core_cleaner_bootstrap();
 }
 

@@ -30,16 +30,17 @@
 #include <mips/vm.h>
 #include <mips/tlb.h>
 #include <synch.h>
- 
+#include <lib.h> 
+
 #define TOTAL_SHOOTDOWNS 64
  
-static tlbshootdown *ts_pool[TOTAL_SHOOTDOWNS];
-static int           tp_index;
-static struct lock  *tp_lock;
-static struct cv    *tp_cv;
+static struct tlbshootdown *ts_pool[TOTAL_SHOOTDOWNS];
+static int                  tp_index;
+static struct lock         *tp_lock;
+static struct cv           *tp_cv;
 
 // Get a shootdown struct from the pool and fill it
-struct tlb_shootdown *
+struct tlbshootdown *
 ts_create(int type, vaddr_t vaddr, struct pt_entry *pte)
 {
     lock_acquire(tp_lock);
@@ -63,7 +64,7 @@ ts_create(int type, vaddr_t vaddr, struct pt_entry *pte)
 
 // Return a shootdown struct to the pool
 void
-ts_return(tlbshootdown *ts)
+ts_return(struct tlbshootdown *ts)
 {
     lock_acquire(tp_lock);
     KASSERT(tp_index > 0);
@@ -75,7 +76,7 @@ ts_return(tlbshootdown *ts)
 }
  
 // Allocates all the shootdown structs in the pool
-struct tlb_shootdown *
+void
 ts_bootstrap()
 {
     tp_lock = lock_create("TLB Shootdown Pool Lock");
@@ -89,22 +90,20 @@ ts_bootstrap()
         ts_pool[i] = kmalloc(sizeof(struct tlbshootdown));
         if (ts_pool[i] == NULL)
             panic("ts_bootstrap: Out of memory\n");
-        ts_pool[i]->ts_sem = sem_create("TLB Shootdown Semaphore");
+        ts_pool[i]->ts_sem = sem_create("TLB Shootdown Semaphore", 0);
         if (ts_pool[i]->ts_sem == NULL)
             panic("ts_bootstrap: Out of memory\n");
     }
 }
  
 void
-ts_wait(struct tlbshootdown *ts)
+ts_wait(const struct tlbshootdown *ts)
 {
     P(ts->ts_sem);
 }
  
 void
-ts_finish(struct tlbshootdown *ts)
+ts_finish(const struct tlbshootdown *ts)
 {
     V(ts->ts_sem);
 }
- 
- 

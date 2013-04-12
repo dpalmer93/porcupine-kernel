@@ -73,10 +73,11 @@ defoption   dumbvm
 machine mips optfile dumbvm    arch/mips/vm/dumbvm.c
 
 # The real VM system
+machine mips optofffile dumbvm arch/mips/vm/asid.c
 machine mips optofffile dumbvm arch/mips/vm/kvm.c
 machine mips optofffile dumbvm arch/mips/vm/page_table.c
+machine mips optofffile dumbvm arch/mips/vm/tlbshootdown.c
 machine mips optofffile dumbvm arch/mips/vm/tlb_util.c
-machine mips optofffile dumbvm arch/mips/vm/asid.c
 
 #
 # System call layer
