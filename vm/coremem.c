@@ -72,7 +72,7 @@ static struct spinlock  core_lock = SPINLOCK_INITIALIZER;
 static struct wchan    *core_cleaner_wchan;
 static size_t           core_lruclock;
 static size_t           core_len;
-paddr_t                 core_frame0; // physical address of first cme
+paddr_t                 core_frame0; // physical address of first managed frame
 
 
 /**************** BASIC PRIMITIVES ****************/
