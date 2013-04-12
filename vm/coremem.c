@@ -233,10 +233,8 @@ bool
 core_clockhand(size_t index, int on_active)
 {
     // ignore kernel-reserved pages
-    if (coremap[index].cme_kernel) {
-        cme_unlock(index);
+    if (coremap[index].cme_kernel)
         return 0;
-    }
     
     struct pt_entry *pte = coremap[index].cme_resident;
     vaddr_t vaddr = coremap[index].cme_vaddr;
