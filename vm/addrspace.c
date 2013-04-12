@@ -107,6 +107,9 @@ void
 as_destroy(struct addrspace *as)
 {
 	pt_destroy(as->as_pgtbl);
+#if OPT_ASID
+    tlb_flush_asid(as->as_id);
+#endif
 	kfree(as);
 }
 

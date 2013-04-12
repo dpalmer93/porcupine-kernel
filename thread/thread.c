@@ -1234,7 +1234,7 @@ ipi_tlbbroadcast(const struct tlbshootdown *mapping)
 	}
     
     // ...then, wait for them all to complete
-    for (i = 0; i < ncpus; i++)
+    for (i = 0; i < ncpus - 1; i++)
         ts_wait(mapping);
 }
 
