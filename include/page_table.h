@@ -75,10 +75,12 @@ bool pte_try_access(struct pt_entry *pte); // try to access the page
 bool pte_try_dirty(struct pt_entry *pte); // try to dirty the page
 bool pte_resident(struct pt_entry *pte); // check whether in memory
 bool pte_is_dirty(struct pt_entry *pte); // check whether dirty
-void pte_evict(struct pt_entry *pte, // evict the page to the swap block
-               swapidx_t swapblk);
+bool pte_is_active(struct pt_entry *pte); // check whether recently used
 bool pte_refresh(vaddr_t vaddr, struct pt_entry *pte); // reset & return the "active" bit;
                                                        // invalidate TLBs if necessary
+void pte_evict(struct pt_entry *pte, // evict the page to the swap block
+               swapidx_t swapblk);
+
 swapidx_t pte_start_swapin(struct pt_entry *pte, paddr_t frame); // mark as paging in
 void pte_finish_swapin(struct pt_entry *pte); // mark as paged in
 // non-blocking cleaning

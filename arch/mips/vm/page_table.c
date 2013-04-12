@@ -485,6 +485,14 @@ pte_try_access(struct pt_entry *pte)
     return false;
 }
 
+bool
+pte_is_active(struct pt_entry *pte)
+{
+    KASSERT(pte != NULL);
+    KASSERT(pte->pte_busy);
+    return pte->pte_active;
+}
+
 // Must be called with the PTE locked
 bool
 pte_try_dirty(struct pt_entry *pte)
@@ -519,8 +527,11 @@ pte_refresh(vaddr_t vaddr, struct pt_entry *pte)
     bool accessed = pte->pte_active;
     pte->pte_active = 0;
     
-    // invalidate TLBs if necessary
     if (accessed) {
+        // update stats
+        vs_decr_ram_active();
+        vs_incr_ram_inactive();
+        // invalidate TLBs
         tlb_invalidate(vaddr, pte);
         struct tlbshootdown ts = {
             .ts_type = TS_INVAL,

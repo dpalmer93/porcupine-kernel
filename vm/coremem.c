@@ -47,6 +47,8 @@
 #define CORE_TO_PADDR(i) (core_frame0 + i * PAGE_SIZE)
 #define PADDR_TO_CORE(paddr) ((paddr - core_frame0) / PAGE_SIZE)
 
+// Number of pages that the 2nd clockhand trails behind the 1st
+#define CLOCK_OFFSET 128
 
 struct cm_entry {
     unsigned         cme_kernel:1;   // In use by kernel?
@@ -68,10 +70,9 @@ paddr_t                 core_frame0;
 /**************** BASIC PRIMITIVES ****************/
 
 // increment clock; return old value
-
 static
 size_t
-core_one_clocktick()
+core_clocktick()
 {
     spinlock_acquire(&core_lock);
     
@@ -261,6 +262,8 @@ core_acquire_random(void)
 
 // looks for empty frame with eviction
 // one LRU clock hand that gets a "recently unused" frame
+// or two LRU clock hand depending on option
+/*
 static paddr_t
 core_acquire_oneclock(void)
 {
@@ -271,7 +274,7 @@ core_acquire_oneclock(void)
     
     while(true) {
         // get current clock hand and increment clock
-        size_t index = core_one_clocktick();
+        size_t index = core_clocktick();
         
         // try to lock the coremap entry
         if (cme_try_lock(index)) {
@@ -307,11 +310,94 @@ core_acquire_oneclock(void)
                 // Refresh the active bit and invalidate TLBs to simulate
                 // hardware-managed active bit (pte_refresh() does both)
                 if (pte_refresh(vaddr, pte)) {
-                    // update stats
-                    vs_decr_ram_active();
-                    vs_incr_ram_inactive();
+                    pte_unlock(pte);
+                    cme_unlock(index);
+                    continue;
+                }
+                else { // found a frame that has not been recently accessed
+                    // re-map the PTE to its swap block
+                    pte_evict(pte, coremap[index].cme_swapblk);
+                    pte_unlock(pte);
                     
-                    // move on...
+                    // mark the CME as free and update stats
+                    coremap[index].cme_swapblk = 0;
+                    coremap[index].cme_vaddr = 0;
+                    coremap[index].cme_resident = NULL;
+                    
+                    // update stats
+                    vs_decr_ram_inactive();
+                    vs_incr_ram_free();
+                    
+                    return CORE_TO_PADDR(index);
+                }
+            }
+            cme_unlock(index);
+        }
+    }
+}
+*/
+
+static paddr_t
+core_acquire_twoclock(void)
+{
+    // wake up the cleaner thread if necessary
+    if (vs_get_ram_dirty() >= MAX_DIRTY) {
+        wchan_wakeone(core_cleaner_wchan);
+    }
+    
+    while(true) {
+        // get current clock hand and increment clock
+        size_t index = core_clocktick();
+    
+        // calculate the second clock hand
+        size_t index2 = (index + CLOCK_OFFSET) % core_len;
+        // mark the PTE the second clock hand is pointing at as not recently used
+        if (cme_try_lock(index2)) {
+            if (!coremap[index2].cme_kernel) {
+                struct pt_entry *pte = coremap[index2].cme_resident;
+                vaddr_t vaddr = coremap[index2].cme_vaddr;
+                
+                if (pte && pte_try_lock(pte)) {
+                    pte_refresh(vaddr, pte);
+                    pte_unlock(pte);
+                }
+            }
+            cme_unlock(index2);
+        }                    
+    
+        // try to lock the coremap entry
+        if (cme_try_lock(index)) {
+            // ignore kernel-reserved pages
+            if (coremap[index].cme_kernel) {
+                cme_unlock(index);
+                continue;
+            }
+            
+            struct pt_entry *pte = coremap[index].cme_resident;
+            vaddr_t vaddr = coremap[index].cme_vaddr;
+            
+            // found a free frame.  Take it and return
+            if (pte == NULL) {
+                KASSERT(vaddr == 0);
+                KASSERT(coremap[index].cme_swapblk == 0);
+                return CORE_TO_PADDR(index);
+            }
+            
+            // otherwise, try to lock the page table entry, skip if cannot acquire
+            if (pte_try_lock(pte)) {
+                // the PTE should be in memory, since it is using up a
+                // physical page
+                KASSERT(pte_resident(pte));
+                
+                // skip dirty pages
+                if (pte_is_dirty(pte)) {
+                    pte_unlock(pte);
+                    cme_unlock(index);
+                    continue;
+                }
+                
+                // Skip any recently used PTE's (within CLOCK_OFFSET ticks)
+                if (pte_is_active(pte)) {
                     pte_unlock(pte);
                     cme_unlock(index);
                     continue;
@@ -338,18 +424,11 @@ core_acquire_oneclock(void)
     }
 }
 
-/*
-static paddr_t
-core_acquire_twoclock(void)
-{
-    return 0;
-}
-*/
 
 paddr_t
 core_acquire_frame(void)
 {
-    return core_acquire_oneclock();
+    return core_acquire_twoclock();
 }
 
 void
@@ -479,7 +558,7 @@ core_clean(void *data1, unsigned long data2)
 void core_cleaner_bootstrap(void)
 {
     core_cleaner_wchan = wchan_create("Core Cleaner Wait Channel");
-    thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
+    pid = thread_fork("Core Cleaner", core_clean, NULL, 0, NULL);
 }
 
 
