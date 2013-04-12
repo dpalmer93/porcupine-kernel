@@ -320,15 +320,8 @@ core_acquire_twoclock(void)
                 // physical page
                 KASSERT(pte_resident(pte));
                 
-                // skip dirty pages
-                if (pte_is_dirty(pte)) {
-                    pte_unlock(pte);
-                    cme_unlock(index);
-                    continue;
-                }
-                
-                // Skip any recently used PTE's (within CLOCK_OFFSET ticks)
-                if (pte_is_active(pte)) {
+                // skip dirty/active pages
+                if (pte_is_dirty(pte) || pte_is_active(pte)) {
                     pte_unlock(pte);
                     cme_unlock(index);
                     continue;
