@@ -33,7 +33,7 @@
 #include <mips/tlb.h>
 #include "opt-asid.h"
 
-static int tlb_get_asid(void);
+static unsigned int tlb_get_asid(void);
 
 // Load a mapping
 void
@@ -231,7 +231,7 @@ tlb_flush_asid(unsigned int asid)
 }
 
 static
-int
+unsigned int
 tlb_get_asid(void)
 {
     uint32_t entryhi;
