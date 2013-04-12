@@ -216,8 +216,7 @@ syscall(struct trapframe *tf)
 	}
     else if (retval64) {
         // Use the 64-bit return value if one exists (e.g., lseek)
-        tf->tf_v0 = retval64 >> 32;
-        tf->tf_v1 = retval64 & 0xFFFFFFFF;
+        split64to32(retval64, &tf->tf_v0, &tf->tf_v1);
         tf->tf_a3 = 0;
     }
 	else {

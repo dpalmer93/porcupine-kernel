@@ -288,13 +288,6 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
         return (off_t)-1;
     }
     
-    // make sure we can seek to this position on this file
-    *err = VOP_TRYSEEK(fc->fc_vnode, offset);
-    if (*err) {
-        lock_release(fc->fc_lock);
-        return (off_t)-1;
-    }
-    
     // determine the new offset
     switch(whence)
     {
@@ -311,6 +304,13 @@ sys_lseek(int fd, off_t offset, int whence, int *err)
             lock_release(fc->fc_lock);
             *err = EINVAL;
             return (off_t)-1;
+    }
+    
+    // make sure we can seek to this position on this file
+    *err = VOP_TRYSEEK(fc->fc_vnode, new_offset);
+    if (*err) {
+        lock_release(fc->fc_lock);
+        return (off_t)-1;
     }
     
     fc->fc_offset = new_offset;
