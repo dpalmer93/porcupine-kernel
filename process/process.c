@@ -230,8 +230,11 @@ process_destroy(pid_t pid)
     // orphan all children if not already done in process_finish()
     // (this is important because kill_curthread() calls
     // process_destroy() on a process that has not properly exited.)
-    if (!pid_set_empty(p->ps_children))
+    if (!pid_set_empty(p->ps_children)) {
+        int x = splhigh();
         pid_set_map(p->ps_children, process_orphan);
+        splx(x);
+    }
     
     process_cleanup(p);
 }
@@ -275,7 +278,7 @@ process_orphan(pid_t pid)
 {
     struct pid_set *orphan_set = curthread->t_cpu->c_orphans;
     pid_set_add(orphan_set, pid);
-    return false;
+    return true;
 }
 
 bool
