@@ -159,29 +159,6 @@ swap_out(paddr_t src, swapidx_t dst)
     return VOP_WRITE(swap_vnode, &swapout_uio);
 }
 
-int
-swap_copy(swapidx_t src, swapidx_t dst)
-{
-    // buffer to hold page to be copied
-    void *buf = kmalloc(PAGE_SIZE);
-    int err;
-    
-    err = swap_in(src, KVADDR_TO_PADDR((vaddr_t)buf));
-    if (err) {
-        kfree(buf);
-        return err;
-    }
-    
-    err = swap_out(KVADDR_TO_PADDR((vaddr_t)buf), dst);
-    if (err) {
-        kfree(buf);
-        return err;
-    }
-    
-    kfree(buf);
-    return 0;
-}
-
 void
 swap_wait_lock(void)
 {
