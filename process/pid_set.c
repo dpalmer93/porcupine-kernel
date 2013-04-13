@@ -35,6 +35,10 @@
 
 #if 0
 
+/*
+ * Two-level table implementation
+ */
+
 #define SEGBITS 5
 #define SEGMASK 0x1F
 #define SEGSIZE 32
@@ -161,6 +165,10 @@ allocate_subset(void)
 }
 #endif
 
+/*
+ * List implementation
+ */
+
 struct pid_set {
     pid_t pid;
     struct pid_set *next;
@@ -202,7 +210,7 @@ pid_set_empty(struct pid_set *set)
     return set->next == set;
 }
 
-// callers must not add elements already in the set
+// caller must not add an element already in the set
 int
 pid_set_add(struct pid_set *set, pid_t pid)
 {
