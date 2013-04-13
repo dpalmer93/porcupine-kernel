@@ -235,6 +235,9 @@ as_sbrk(struct addrspace *as, intptr_t amount, vaddr_t *old_heaptop)
     vaddr_t new_heaptop = heaptop + amount;
     
     // check whether the heap top is less than the heap base
+    // also check for integer overflow
+    if (amount < 0 && new_heaptop > heaptop)
+        return EINVAL;
     if (new_heaptop < as->AS_HEAP.seg_base)
         return EINVAL;
     
