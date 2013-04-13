@@ -263,11 +263,18 @@ core_clockhand(size_t index, int on_active)
         
         // Refresh the active bit and invalidate TLBs to simulate
         // hardware-managed active bit (pte_refresh() does both)
-        if (on_active != ACTIVE_IGNORE && pte_is_active(pte)) {
-            if (on_active == ACTIVE_REFRESH)
-                pte_refresh(vaddr, pte);
-            pte_unlock(pte);
-            return false;
+        if (pte_is_active(pte)) {
+            switch(on_active) {
+                case ACTIVE_IGNORE: // take the frame anyway
+                    // invalidate any TLB entries
+                    pte_refresh(vaddr, pte);
+                    break;
+                case ACTIVE_REFRESH: // refresh the PTE/TLB and move on
+                    pte_refresh(vaddr, pte);
+                case ACTIVE_SKIP: // just move on
+                    pte_unlock(pte);
+                    return false;
+            }
         }
         
         // found a frame that has not been recently accessed
