@@ -78,7 +78,7 @@ paddr_t                 core_frame0; // physical address of first managed frame
 /**************** BASIC PRIMITIVES ****************/
 
 // increment clock; return old value
-#if OPT_ONECLOCK | OPT_TWOCLOCK
+#if OPT_ONECLOCK || OPT_TWOCLOCK
 static
 size_t
 core_clocktick()
