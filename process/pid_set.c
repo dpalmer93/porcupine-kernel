@@ -33,6 +33,8 @@
 #include <pid_set.h>
 #include <lib.h>
 
+#if 0
+
 #define SEGBITS 5
 #define SEGMASK 0x1F
 #define SEGSIZE 32
@@ -156,4 +158,90 @@ allocate_subset(void)
     for (int i = 0; i < SEGSIZE; i++)
         subset[i] = 0;
     return subset;
+}
+#endif
+
+struct pid_set {
+    pid_t pid;
+    struct pid_set *next;
+}
+
+struct pid_set *
+pid_set_create(void)
+{
+    struct pid_set *set = kmalloc(sizeof(struct pid_set));
+    set->pid = 0;
+    set->next = set;
+    return set;
+}
+
+void
+pid_set_destroy(struct pid_set *set)
+{
+    while (set->next != set) {
+        struct pid_set *elt = set->next;
+        set->next = elt->next;
+        kfree(elt);
+    }
+    kfree(set);
+}
+
+bool
+pid_set_includes(struct pid_set *set, pid_t pid)
+{
+    for (struct pid_set *elt = set->next; elt->pid != 0; elt = elt->next) {
+        if (elt->pid == pid)
+            return true;
+    }
+    return false;
+}
+
+bool
+pid_set_empty(struct pid_set *set)
+{
+    return set->next == set;
+}
+
+// callers must not add elements already in the set
+int
+pid_set_add(struct pid_set *set, pid_t pid)
+{
+    struct pid_set *elt = kmalloc(sizeof(struct pid_set));
+    if (elt == NULL)
+        return ENOMEM;
+    
+    elt->pid = pid;
+    elt->next = set->next;
+    set->next = elt;
+    return 0;
+}
+
+void
+pid_set_remove(struct pid_set *set, pid_t pid)
+{
+    struct pid_set *elt = set;
+    do {
+        if (elt->next->pid == pid) {
+            struct pid_set *rem = elt->next;
+            elt->next = elt->next->next;
+            kfree(rem);
+            return;
+        }
+        elt = elt->next;
+    } while (elt->pid != 0)
+}
+
+void
+pid_set_map(struct pid_set *set, bool (*func)(pid_t))
+{
+    struct pid_set *elt = set;
+    do {
+        if (elt->next->pid != 0 && func(elt->next->pid)) {
+            struct pid_set *rem = elt->next;
+            elt->next = elt->next->next;
+            kfree(rem);
+        }
+        else
+            elt = elt->next;
+    } while (elt->pid != 0)
 }
