@@ -164,7 +164,7 @@ allocate_subset(void)
 struct pid_set {
     pid_t pid;
     struct pid_set *next;
-}
+};
 
 struct pid_set *
 pid_set_create(void)
@@ -228,7 +228,7 @@ pid_set_remove(struct pid_set *set, pid_t pid)
             return;
         }
         elt = elt->next;
-    } while (elt->pid != 0)
+    } while (elt->pid != 0);
 }
 
 void
@@ -243,5 +243,5 @@ pid_set_map(struct pid_set *set, bool (*func)(pid_t))
         }
         else
             elt = elt->next;
-    } while (elt->pid != 0)
+    } while (elt->pid != 0);
 }
