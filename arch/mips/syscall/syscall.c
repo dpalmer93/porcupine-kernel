@@ -124,15 +124,19 @@ syscall(struct trapframe *tf)
 		err = sys_rmdir((userptr_t)tf->tf_a0);
 		break;
 	    case SYS_remove:
-		err = sys_remove((userptr_t)tf->tf_a0);
+        // in fileio.c
+		err = sys_remove((const_userptr_t)tf->tf_a0);
 		break;
 	    case SYS_rename:
 		err = sys_rename((userptr_t)tf->tf_a0, (userptr_t)tf->tf_a1);
 		break;
 	    case SYS_getdirentry:
-		err = sys_getdirentry(tf->tf_a0, (userptr_t)tf->tf_a1,
-				      tf->tf_a2, &retval);
+        // in fileio.c
+        retval = sys_getdirentry((int)tf->tf_a0,
+                                 (userptr_t)tf->tf_a1,
+                                 (size_t)tf->tf_a2, &err);
 		break;
+        // in fileio.c
 	    case SYS_fstat:
 		err = sys_fstat(tf->tf_a0, (userptr_t)tf->tf_a1);
 		break;
@@ -178,9 +182,6 @@ syscall(struct trapframe *tf)
             retval = sys_dup2((int)tf->tf_a0,
                               (int)tf->tf_a1, &err);
             break;
-        case SYS_remove:
-            err = sys_remove((const_userptr_t)tf->tf_a0);
-            break;
         case SYS_read:
             retval = sys_read((int)tf->tf_a0, 
                               (userptr_t)tf->tf_a1,
@@ -191,11 +192,7 @@ syscall(struct trapframe *tf)
                                (const_userptr_t)tf->tf_a1,
                                (size_t)tf->tf_a2, &err);
             break;
-        case SYS_getdirentry:
-            retval = sys_getdirentry((int)tf->tf_a0,
-                                     (userptr_t)tf->tf_a1,
-                                     (size_t)tf->tf_a2, &err);
-            break;
+
         case SYS_lseek:
             // extract the offset from aligned pair of regs a2-a3
             join32to64(tf->tf_a2, tf->tf_a3, (uint64_t *)&offset64);
@@ -209,9 +206,6 @@ syscall(struct trapframe *tf)
             retval64 = sys_lseek((int)tf->tf_a0,
                                  (off_t)offset64,
                                  (int)whence, &err);
-            break;
-        case SYS_fstat:
-            err = sys_fstat((int)tf->tf_a0, (userptr_t)tf->tf_a1);
             break;
         case SYS_chdir:
             retval = sys_chdir((const_userptr_t)tf->tf_a0, &err);

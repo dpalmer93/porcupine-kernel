@@ -46,6 +46,8 @@
 #include <vfs.h>
 #include <vnode.h>
 #include <syscall.h>
+#include <fdt.h>
+#include <process.h>
 
 /*
  * sync - call vfs_sync
@@ -106,24 +108,6 @@ sys_rmdir(userptr_t path)
 }
 
 /*
- * remove - call vfs_remove
- */
-int
-sys_remove(userptr_t path)
-{
-	char pathbuf[PATH_MAX];
-	int err;
-
-	err = copyinstr(path, pathbuf, sizeof(pathbuf), NULL);
-	if (err) {
-		return err;
-	}
-	else {
-		return vfs_remove(pathbuf);
-	}
-}
-
-/*
  * rename - call vfs_rename
  */
 int
@@ -162,133 +146,25 @@ sys_rename(userptr_t oldpath, userptr_t newpath)
 }
 
 /*
- * getdirentry - call VOP_GETDIRENTRY
- */
-int
-sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *retval)
-{
-    (void)fd;
-    (void)buf;
-    (void)buflen;
-    (void)retval;
-    return 0;
-/*
-	struct iovec iov;
-	struct uio useruio;
-	struct openfile *file;
-	int err;
-*/
-
-	/* better be a valid file descriptor */
-
-/*
-	err = filetable_findfile(fd, &file);
-	if (err) {
-		return err;
-	}
-
-	lock_acquire(file->of_lock);
-*/
-
-	/* Dirs shouldn't be openable for write at all, but be safe... */
-/*
-	if (file->of_accmode == O_WRONLY) {
-		lock_release(file->of_lock);
-		return EBADF;
-	}
-*/
-
-	/* set up a uio with the buffer, its size, and the current offset */
-/*
-	mk_useruio(&iov, &useruio, buf, buflen, file->of_offset, UIO_READ);
-*/
-
-	/* does the read */
-/*
-	err = VOP_GETDIRENTRY(file->of_vnode, &useruio);
-	if (err) {
-		lock_release(file->of_lock);
-		return err;
-	}
-*/
-
-	/* set the offset to the updated offset in the uio */
-/*
-	file->of_offset = useruio.uio_offset;
-
-	lock_release(file->of_lock);
-*/
-
-	/*
-	 * the amount read is the size of the buffer originally, minus
-	 * how much is left in it. Note: it is not correct to use
-	 * uio_offset for this!
-	 */
-/*
-	*retval = buflen - useruio.uio_resid;
-
-	return 0;
-*/
-}
-
-/*
- * fstat - call VOP_FSTAT
- */
-int
-sys_fstat(int fd, userptr_t statptr)
-{
-    (void)fd;
-    (void)statptr;
-    return 0;
-/*
-	struct stat kbuf;
-	struct openfile *file;
-	int err;
-
-	err = filetable_findfile(fd, &file);
-	if (err) {
-		return err;
-	}
-*/
-
-	/*
-	 * No need to lock the openfile - it cannot disappear under us,
-	 * and we're not using any of its non-constant fields.
-	 */
-
-/*
-	err = VOP_STAT(file->of_vnode, &kbuf);
-	if (err) {
-		return err;
-	}
-
-	return copyout(&kbuf, statptr, sizeof(struct stat));
-*/
-}
-
-/*
  * fsync - call VOP_FSYNC
  */
 int
 sys_fsync(int fd)
 {
-	(void)fd;
-	return 0;
-/*
-	struct openfile *file;
-	int err;
+    struct fd_table *fdt;
+    struct file_ctxt *fc;
+    
+    fdt = curthread->t_proc->ps_fdt;
+    
+    fc = fdt_get(fdt, fd);
+    if (fc == NULL)
+        return EBADF;
 
-	err = filetable_findfile(fd, &file);
-	if (err) {
-		return err;
-	}
-*/
 	/*
 	 * No need to lock the openfile - it cannot disappear under us,
 	 * and we're not using any of its non-constant fields.
 	 */
+     
+	return VOP_FSYNC(fc->fc_vnode);
 
-/*
-	return VOP_FSYNC(file->of_vnode);
-*/
 }

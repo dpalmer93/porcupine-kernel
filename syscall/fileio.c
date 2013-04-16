@@ -342,10 +342,6 @@ sys_fstat(int fd, userptr_t statbuf)
     if (err)
         return err;
     
-    // copy the stat to the user buffer
-    err = copyout(&kstatbuf, statbuf, sizeof(struct stat));
-    if (err)
-        return err;
-    
-    return 0;
+    // copy the stat to the user buffer  
+    return copyout(&kstatbuf, statbuf, sizeof(struct stat));
 }

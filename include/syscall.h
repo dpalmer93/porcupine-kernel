@@ -59,7 +59,7 @@ void enter_new_process(int argc, userptr_t argv, vaddr_t stackptr,
 int sys_sync(void);
 int sys_mkdir(userptr_t path, mode_t mode);
 int sys_rmdir(userptr_t path);
-int sys_remove(userptr_t path);
+int sys_remove(const_userptr_t path);
 int sys_rename(userptr_t oldpath, userptr_t newpath);
 int sys_getdirentry(int fd, userptr_t buf, size_t buflen, int *retval);
 int sys_fstat(int fd, userptr_t statptr);
@@ -80,7 +80,6 @@ pid_t sys_getpid(void);
 int sys_open(const_userptr_t filename, int flags, int* err);
 int sys_close(int fd);
 int sys_dup2(int old_fd, int new_fd, int *err);
-int sys_remove(const_userptr_t filename);
 
 int sys_read(int fd, userptr_t buf, size_t buflen, int *err);
 int sys_write(int fd, const_userptr_t buf, size_t count, int *err);
