@@ -1,8 +1,10 @@
 # Kernel config file for assignment 4.
+# This config builds with optimization for performance testing.
 
 include conf/conf.kern          # get definitions of available options
 
-debug                           # Compile with debug info.
+#debug                          # Optimizing compile (no debug).
+options noasserts               # Disable assertions.
 
 #
 # Device drivers for hardware.

@@ -72,6 +72,11 @@ vm_unmapped_page_fault(vaddr_t faultaddress, struct page_table *pt)
     core_map_frame(frame, faultaddress & PAGE_FRAME, pte, swapblk);
     core_release_frame(frame);
     
+    
+    // update TLB
+    if (pte_try_access(pte))
+        tlb_load_pte(faultaddress, pte);
+    
     // clean up
     pte_unlock(pte);
     return 0;
@@ -106,6 +111,11 @@ vm_swapin_page_fault(vaddr_t faultaddress, struct pt_entry *pte)
     
     // clean up
     pte_finish_swapin(pte);
+    
+    // update TLB
+    if (pte_try_access(pte))
+        tlb_load_pte(faultaddress, pte);
+    
     pte_unlock(pte);
     return 0;
 }
