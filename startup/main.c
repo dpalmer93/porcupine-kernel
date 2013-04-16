@@ -45,6 +45,7 @@
 #include <coremem.h>
 #include <mainbus.h>
 #include <vfs.h>
+#include <buf.h>
 #include <device.h>
 #include <syscall.h>
 #include <test.h>
@@ -126,6 +127,9 @@ boot(void)
 	thread_start_cpus();
 	vm_bootstrap();
     process_bootstrap();
+
+	/* Buffer cache */
+	buffer_bootstrap();
 
 	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
 	vfs_setbootfs("emu0");
