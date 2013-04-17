@@ -369,13 +369,14 @@ defoption  net
 # VFS layer
 #
 
-file      vfs/buf.c
 file      vfs/device.c
 file      vfs/vfscwd.c
 file      vfs/vfslist.c
 file      vfs/vfslookup.c
 file      vfs/vfspath.c
 file      vfs/vnode.c
+
+file      vfs/buf.c
 
 #
 # VFS devices
@@ -418,6 +419,7 @@ file      startup/menu.c
 
 defoption sfs
 optfile   sfs    fs/sfs/sfs_fs.c
+optfile   sfs    fs/sfs/sfs_inode.c
 optfile   sfs    fs/sfs/sfs_io.c
 optfile   sfs    fs/sfs/sfs_vnode.c
 

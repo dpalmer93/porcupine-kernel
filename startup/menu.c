@@ -42,6 +42,7 @@
 #include <sfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <buf.h>
 #include "opt-synchprobs.h"
 #include "opt-sfs.h"
 #include "opt-net.h"
@@ -305,6 +306,24 @@ cmd_unmount(int nargs, char **args)
 	return vfs_unmount(device);
 }
 
+static
+int
+cmd_doom(int nargs, char **args)
+{
+	int val;
+	if (nargs != 2) {
+		kprintf("Usage: doom <doom counter value>\n");
+		return EINVAL;
+	}
+
+	val = atoi(args[1]);
+	set_doom(val);
+
+	kprintf("Doom counter set to %d.\n", val);
+
+	return 0;
+}
+
 /*
  * Command to set the "boot fs".
  *
@@ -380,6 +399,7 @@ static const char *opsmenu[] = {
 	"[p]       Other program             ",
 	"[mount]   Mount a filesystem        ",
 	"[unmount] Unmount a filesystem      ",
+	"[doom]    Set the SFS Doom Counter  ",
 	"[bootfs]  Set \"boot\" filesystem     ",
 	"[pf]      Print a file              ",
 	"[cd]      Change directory          ",
@@ -485,6 +505,7 @@ static struct {
 	{ "p",		cmd_prog },
 	{ "mount",	cmd_mount },
 	{ "unmount",	cmd_unmount },
+	{ "doom",   cmd_doom },
 	{ "bootfs",	cmd_bootfs },
 	{ "pf",		printfile },
 	{ "cd",		cmd_chdir },
