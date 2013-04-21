@@ -157,8 +157,10 @@ cme_unlock(size_t index)
 
 // tries to clean a single frame...
 // Caller must have both the CME and PTE
-// already locked.  At the end,
-// both are still locked.
+// already locked.  If the function returns true,
+// both remain locked, so that further action
+// may be taken with the frame.  Otherwise, the
+// PTE is unlocked.
 static bool
 cme_try_clean(size_t index)
 {
@@ -176,8 +178,10 @@ cme_try_clean(size_t index)
     // if it is intact, no writes to this page have intervened
     // in our cleaning: the clean was successful, and we can clear
     // the dirty bit
-    if (pte_try_lock(pte) && pte_finish_cleaning(pte)) {
-        return true;
+    if (pte_try_lock(pte)) {
+        if (pte_finish_cleaning(pte))
+            return true;
+        pte_unlock(pte);
     }
     return false;
 }
@@ -255,8 +259,12 @@ core_clockhand(size_t index, int on_active)
         if (pte_is_dirty(pte)) {
             // skip dirty pages if there are relatively few of them
             // else try to clean them
-            if (vs_get_ram_dirty() < MAX_DIRTY || !cme_try_clean(index)) {
+            if (vs_get_ram_dirty() < MAX_DIRTY) {
                 pte_unlock(pte);
+                return false;
+            }
+            else if (!cme_try_clean(index)) {
+                // no need to unlock the PTE: it is already unlocked
                 return false;
             }
         }
@@ -484,10 +492,14 @@ core_clean(void *data1, unsigned long data2)
                 && cme->cme_resident    // changed while we were getting the lock
                 && pte_try_lock(cme->cme_resident)) {
                     // if dirty, then start cleaning
-                    if(pte_is_dirty(cme->cme_resident))
-                        cme_try_clean(index);
-                    
-                    pte_unlock(cme->cme_resident);
+                    if(pte_is_dirty(cme->cme_resident)) {
+                        if (cme_try_clean(index))
+                            pte_unlock(cme->cme_resident);
+                        // If the cleaning failed, the PTE is already
+                        // unlocked.
+                    }
+                    else
+                        pte_unlock(cme->cme_resident);
                 }
                 cme_unlock(index);
             }
