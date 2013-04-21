@@ -172,7 +172,8 @@ cme_try_clean(size_t index)
     pte_start_cleaning(vaddr, pte); // this cleans TLBs too
     pte_unlock(pte);
     
-    swap_out(CORE_TO_PADDR(index), cme->cme_swapblk);
+    if (swap_out(CORE_TO_PADDR(index), cme->cme_swapblk))
+        return false;
     
     // once done writing, lock the PTE and check the cleaning bit
     // if it is intact, no writes to this page have intervened
