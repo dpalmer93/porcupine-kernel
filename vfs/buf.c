@@ -74,7 +74,6 @@ struct buf {
 	/* value */
 	void *b_data;
 	size_t b_size;
-    
 };
 
 /*

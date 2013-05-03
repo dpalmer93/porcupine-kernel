@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
+ * Copyright (c) 2013
  *	The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,18 +30,17 @@
 #ifndef _TRANSACTION_H_
 #define _TRANSACTION_H_
 
+#include <array.h>
 #include <buf.h>
 
-struct transaction {
-    uint64_t    txn_id; // transaction ID
-    bufarray    txn_bufs; // pointer to buffers modified by transaction
-}
+struct transaction;
 
-struct transaction *txn_create();
-void                txn_destroy();
-int                 txn_addbuf(struct transaction *, struct buf *); // add buffer to transaction
-int                 txn_removebuf(struct transaction *, struct buf *); // remove buffer from transaction
-int                 txn_isdone(); // have all the buffers been written to disk?
+struct transaction *txn_create(void);
+void                txn_close(struct transaction *txn);
+void                txn_attach(struct transaction *txn, struct buf *b);
+void                txn_commit(struct transaction *txn);
+void                txn_abort(struct transaction *txn);
+bool                txn_isdone(void); // have all the buffers been written to disk?
 
 
 
