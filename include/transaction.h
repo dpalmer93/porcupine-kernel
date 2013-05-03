@@ -52,6 +52,6 @@ int                txn_commit(struct transaction *txn);
 int                txn_abort(struct transaction *txn);
 bool               txn_isdone(struct transaction *txn); // have all the buffers been written to disk?
 
-void txn_bootstrap(void);
+int txn_bootstrap(void);
 
 #endif /* _TRANSACTION_H_ */
