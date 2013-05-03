@@ -33,15 +33,25 @@
 #include <array.h>
 #include <buf.h>
 
-struct transaction;
+#define TXN_MAX 128
 
-struct transaction *txn_create(void);
-void                txn_close(struct transaction *txn);
-void                txn_attach(struct transaction *txn, struct buf *b);
-void                txn_commit(struct transaction *txn);
-void                txn_abort(struct transaction *txn);
-bool                txn_isdone(void); // have all the buffers been written to disk?
+struct transaction {
+    uint64_t        txn_id;
+    uint32_t        txn_refcount;  // number of buffers modified
+    daddr_t         txn_startblk;
+    daddr_t         txn_endblk;
+    struct bufarray txn_bufs; // array of buffers modified
+    struct journal *txn_jnl;
+};
 
+struct transaction *txn_create(struct journal *jnl);
+int                txn_start(struct transaction *txn);
+int                txn_close(struct transaction *txn); // what is this for?
+int                txn_attach(struct transaction *txn, struct buf *b);
+int                txn_commit(struct transaction *txn);
+int                txn_abort(struct transaction *txn);
+bool               txn_isdone(struct transaction *txn); // have all the buffers been written to disk?
 
+void txn_bootstrap(void);
 
 #endif /* _TRANSACTION_H_ */

@@ -37,61 +37,37 @@
 #include <journal.h>
 
 int 
-jnl_write_start(struct journal *jnl, uint64_t txnid)
+jnl_write_start(struct journal *jnl, uint64_t txnid, daddr_t *written_blk)
 {    
-    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry));
-    if (entry == NULL) {
-        return ENOMEM;
-    }
+    struct jnl_entry entry;
+    entry.je_type = JE_START;
+    entry.je_txnid = txn_id;
     
-    entry->je_type = JE_START;
-    entry->je_txnid = txn_id;
-    
-    int err = jnl_write_entry(jnl, entry);
-    
-    free(entry);
-    
-    return err;
+    return jnl_write_entry(jnl, &entry, written_blk);
 }
 
 int 
-jnl_write_commit(struct journal *jnl, uint64_t txnid)
+jnl_write_commit(struct journal *jnl, uint64_t txnid, daddr_t *written_blk)
 {    
-    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry));
-    if (entry == NULL) {
-        return ENOMEM;
-    }
+    struct jnl_entry entry;
+    entry.je_type = JE_COMMIT;
+    entry.je_txnid = txn_id;
     
-    entry->je_type = JE_COMMIT;
-    entry->je_txnid = txn_id;
-    
-    int err = jnl_write_entry(jnl, entry);
-    
-    free(entry);
-    
-    return err;
+    return jnl_write_entry(jnl, &entry, written_blk);
 }
 
 int 
-jnl_write_abort(struct journal *jnl, uint64_t txnid)
+jnl_write_abort(struct journal *jnl, uint64_t txnid, daddr_t *written_blk)
 {    
-    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry));
-    if (entry == NULL) {
-        return ENOMEM;
-    }
+    struct jnl_entry entry;
+    entry.je_type = JE_ABORT;
+    entry.je_txnid = txn_id;
     
-    entry->je_type = JE_ABORT;
-    entry->je_txnid = txn_id;
-    
-    int err = jnl_write_entry(jnl, entry);
-    
-    free(entry);
-    
-    return err;
+    return jnl_write_entry(jnl, &entry, written_blk);
 }
 
 int
-jnl_write_entry(struct journal *jnl, struct jnl_entry *)
+jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_blk)
 {
     struct *buf iobuffer;
     int err;
@@ -99,7 +75,7 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *)
     struct uio *ku;
     
     // set up a uio to do the journal write
-    uio_kinit(&iov, &ku, jnl_entry, JE_SIZE, 0, UIO_WRITE);
+    uio_kinit(&iov, &ku, entry, JE_SIZE, 0, UIO_WRITE);
     
     lock_acquire(jnl->jnl_lock);
     
@@ -108,11 +84,12 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *)
         jnl_next_block(jnl);
         jnl->jnl_num_entries = 0;
     }
+    *written_blk = jnl->jnl_current;
     
     int offset = jnl->jnl_num_entries * JE_SIZE;
     
     // write journal entry to proper buffer
-    err = buffer_get(jnl->jnl_fs, jnl->jnl_next, 512, &iobuffer);
+    err = buffer_get(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
     if (err) {
         lock_release(jnl->jnl_lock);
         return err;
@@ -138,17 +115,27 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *)
     return 0;
 }
 
-// Gets the next physical block available for journal and sets it
+// Gets the next physical block available for journal and sets jnl->current
+// Must hold the journal lock
 void
 jnl_next_block(struct journal *jnl)
 {
-    void (jnl);
-    daddr_t next_block = jnl->jnl_next + 512;
-    if (next_block >= JOURNAL_TOP)
+    KASSERT(lock_do_i_hold(jnl->jnl_lock));
+    
+    daddr_t next_block = jnl->jnl_current + 512;
+    if (next_block >= JOURNAL_TOP) {
         next_block = JOURNAL_BOTTOM;
+    }
     
+    // We've hit our checkpoint so next block is unavailable
+    // In this case, flush all the file system buffers
+    if (next_block == jnl->checkpoint) {
+        sync_fs_buffers(jnl->fs);
+        jnl->checkpoint = JOURNAL_BOTTOM;
+        next_block = JOURNAL_BOTTOM;
+    }
     
+    jnl->jnl_current = next_block;
     
-    jnl->jnl->next = next_block;
-    
+    return;
 }
