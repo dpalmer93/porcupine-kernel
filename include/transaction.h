@@ -37,11 +37,11 @@
 
 struct transaction {
     uint64_t        txn_id;
-    uint32_t        txn_refcount;  // number of buffers modified
-    daddr_t         txn_startblk;
-    daddr_t         txn_endblk;
-    struct bufarray txn_bufs; // array of buffers modified
-    struct journal *txn_jnl;
+    uint32_t        txn_refcount;  // # of modified buffers not yet synced
+    daddr_t         txn_startblk; // disk block containing start entry
+    daddr_t         txn_endblk; // disk block containing commit/abort entry
+    struct bufarray txn_bufs; // array of modified buffers
+    struct journal *txn_jnl; // journal transaction belongs to
 };
 
 struct transaction *txn_create(struct journal *jnl);
