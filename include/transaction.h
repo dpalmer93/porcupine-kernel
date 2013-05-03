@@ -37,9 +37,10 @@ struct transaction;
 
 struct transaction *txn_create(void);
 void                txn_close(struct transaction *txn);
-void                txn_attach(struct buf *b);
+void                txn_attach(struct transaction *txn, struct buf *b);
 void                txn_commit(struct transaction *txn);
 void                txn_abort(struct transaction *txn);
+bool                txn_isdone(void); // have all the buffers been written to disk?
 
 
 
