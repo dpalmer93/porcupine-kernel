@@ -39,7 +39,7 @@
 int 
 jnl_write_start(struct journal *jnl, uint64_t txnid)
 {    
-    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry))
+    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry));
     if (entry == NULL) {
         return ENOMEM;
     }
@@ -57,7 +57,7 @@ jnl_write_start(struct journal *jnl, uint64_t txnid)
 int 
 jnl_write_commit(struct journal *jnl, uint64_t txnid)
 {    
-    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry))
+    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry));
     if (entry == NULL) {
         return ENOMEM;
     }
@@ -75,7 +75,7 @@ jnl_write_commit(struct journal *jnl, uint64_t txnid)
 int 
 jnl_write_abort(struct journal *jnl, uint64_t txnid)
 {    
-    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry))
+    struct jnl_entry *entry = kmalloc(sizeof(jnl_entry));
     if (entry == NULL) {
         return ENOMEM;
     }
@@ -130,7 +130,7 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *)
     // mark the buffer as dirty and place it in the journal's bufarray
     buffer_mark_dirty(iobuffer);
     int index;
-    array_add(jnl->jnl_blks, iobuffer, &index)
+    array_add(jnl->jnl_blks, iobuffer, &index);
 
     buffer_release(iobuffer);
     lock_release(jnl->jnl_lock);
@@ -143,9 +143,9 @@ void
 jnl_next_block(struct journal *jnl)
 {
     void (jnl);
-    daddr_t next_block = jnl->jnl_next + 512
+    daddr_t next_block = jnl->jnl_next + 512;
     if (next_block >= JOURNAL_TOP)
-        next_block = JOURNAL_BOTTOM
+        next_block = JOURNAL_BOTTOM;
     
     
     

@@ -38,6 +38,7 @@
 struct journal {
     struct bufarray jnl_blks;     // dynamic array of journal blocks
     daddr_t         jnl_next;     // next journal block on disk
+    daddr_t         jnl_checkpoint; // address of clean journal block
     int             jnl_num_entry; // number of entries in jnl_entries
     struct lock    *jnl_lock;     // journal lock
 };
