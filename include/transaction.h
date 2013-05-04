@@ -36,21 +36,20 @@
 #define TXN_MAX 128
 
 struct transaction {
-    uint64_t        txn_id;
-    uint32_t        txn_refcount;  // # of modified buffers not yet synced
-    daddr_t         txn_startblk; // disk block containing start entry
-    daddr_t         txn_endblk; // disk block containing commit/abort entry
-    struct bufarray txn_bufs; // array of modified buffers
-    struct journal *txn_jnl; // journal transaction belongs to
+    struct journal *txn_jnl;        // journal transaction belongs to
+    uint64_t        txn_id;         // unique & monotonic ID
+    uint32_t        txn_refcount;   // # of modified buffers not yet synced
+    daddr_t         txn_startblk;   // disk block containing start entry
+    daddr_t         txn_endblk;     // disk block containing commit/abort entry
+    struct bufarray txn_bufs;       // array of modified buffers
 };
 
 struct transaction *txn_create(struct journal *jnl);
-int                txn_start(struct transaction *txn);
-int                txn_close(struct transaction *txn); // what is this for?
-int                txn_attach(struct transaction *txn, struct buf *b);
-int                txn_commit(struct transaction *txn);
-int                txn_abort(struct transaction *txn);
-bool               txn_isdone(struct transaction *txn); // have all the buffers been written to disk?
+int                 txn_close(struct transaction *txn); // call on buffer sync
+int                 txn_attach(struct transaction *txn, struct buf *b);
+int                 txn_commit(struct transaction *txn);
+int                 txn_abort(struct transaction *txn);
+bool                txn_issynced(struct transaction *txn);
 
 int txn_bootstrap(void);
 
