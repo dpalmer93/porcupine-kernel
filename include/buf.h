@@ -30,7 +30,8 @@
 #ifndef _BUF_H_
 #define _BUF_H_
 
-struct fs;  /* fs.h */
+struct fs;          /* fs.h */
+struct transaction; /* transaction.h */
 
 
 /*
@@ -67,11 +68,14 @@ struct buf; /* Opaque. */
  *
  * buffer_drop looks for an existing buffer and invalidates it
  * immediately without returning it.
+ *
+ * buffer_txn_touch marks a buffer as being modified by a transaction.
  */
 
 int buffer_get(struct fs *fs, daddr_t block, size_t size, struct buf **ret);
 int buffer_read(struct fs *fs, daddr_t block, size_t size, struct buf **ret);
 void buffer_drop(struct fs *fs, daddr_t block, size_t size);
+void buffer_txn_touch(struct buf *buf, struct transaction *txn);
 
 /*
  * Release-a-buffer operations.
@@ -82,9 +86,13 @@ void buffer_drop(struct fs *fs, daddr_t block, size_t size);
  *
  * buffer_release_and_invalidate does the same but marks the contents
  * no longer valid.
+ *
+ * buffer_txn_yield decrements the buffer's count of 'attached' transactions.
+ * This should be called on transaction commit.
  */
 void buffer_release(struct buf *buf);
 void buffer_release_and_invalidate(struct buf *buf);
+void buffer_txn_yield(struct buf *buf);
 
 /*
  * Other operations on buffers.

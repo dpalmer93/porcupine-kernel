@@ -57,23 +57,27 @@ DEFARRAY(buf, /*noinline*/);
  */
 struct buf {
 	/* maintenance */
-	unsigned b_tableindex;	/* index into {{de,at}tached,busy}_buffers */
-	unsigned b_bucketindex;	/* index into buffer_hash bucket */
+	unsigned        b_tableindex    // index into {{de,at}tached,busy}_buffers
+	unsigned        b_bucketindex;	// index into buffer_hash bucket
+    
+    /* transaction tracking */
+    unsigned        b_txncount;     // # uncommitted txns touching buf
+    struct txnarray b_txns;         // list of txns
 
 	/* status flags */
-	unsigned b_attached:1;	/* key fields are valid */
-	unsigned b_busy:1;	/* currently in use */
-	unsigned b_valid:1;	/* contains real data */
-	unsigned b_dirty:1;	/* data needs to be written to disk */
-	struct thread *b_holder; /* who did buffer_mark_busy() */
+	unsigned        b_attached:1;	// key fields are valid
+	unsigned        b_busy:1;       // currently in use
+	unsigned        b_valid:1;      // contains real data
+	unsigned        b_dirty:1;      // data needs to be written to disk
+	struct thread  *b_holder;       // who did buffer_mark_busy()
 
 	/* key */
-	struct fs *b_fs;	/* file system buffer belongs to */
-	daddr_t b_physblock;	/* physical block number */
+	struct fs      *b_fs;           // file system buffer belongs to
+	daddr_t         b_physblock;    // physical block number
 
 	/* value */
-	void *b_data;
-	size_t b_size;
+	void           *b_data;
+	size_t          b_size;
 };
 
 /*
