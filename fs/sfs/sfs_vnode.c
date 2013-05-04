@@ -176,6 +176,7 @@ sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret)
 
 	result = bitmap_alloc(sfs->sfs_freemap, diskblock);
 	if (result) {
+		lock_release(sfs->sfs_bitlock);
 		return result;
 	}
 	sfs->sfs_freemapdirty = true;
