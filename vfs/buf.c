@@ -850,16 +850,30 @@ buffer_sync(struct buf *b)
 	 * Mark it busy while we do I/O, but do *not* move it to the
 	 * busy list; this preserves its LRU ordering.
 	 */
+    
+    // Cannot sync a buffer that still has uncommited transactions
+    if(b->b_txncount > 0) {
+        return ENOSYNC;
+    }
+     
 	buffer_mark_busy(b);
 	curthread->t_busy_buffers++;
 
 	result = buffer_writeout(b);
+    
+    // Go to each transaction and decrement the refcount
+    for (unsigned i = 0; i < array_num(b->txns); i++) {
+        txn_close(array_get(b->txns, i));
+    }
 
 	buffer_unmark_busy(b);
 	curthread->t_busy_buffers--;
 
 	return result;
 }
+
+
+
 
 /*
  * Evict a buffer.

@@ -45,7 +45,8 @@ struct transaction {
 };
 
 struct transaction *txn_create(struct journal *jnl);
-int                 txn_close(struct transaction *txn); // call on buffer sync
+void                txn_close(struct transaction *txn); // call on buffer sync
+void                txn_docheckpoint(void);
 int                 txn_attach(struct transaction *txn, struct buf *b);
 int                 txn_commit(struct transaction *txn);
 int                 txn_abort(struct transaction *txn);
