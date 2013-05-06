@@ -78,6 +78,7 @@ struct sfs_super {
 	uint32_t sp_magic;                  // Magic number, should be SFS_MAGIC
 	uint32_t sp_nblocks;                // Number of blocks in fs
     uint32_t sp_ckpoint;                // Last journal checkpoint
+    uint32_t sp_commit;                 // Block of last transaction commit
 	char sp_volname[SFS_VOLNAME_SIZE];	// Name of this volume
 	uint32_t reserved[118];
 };
