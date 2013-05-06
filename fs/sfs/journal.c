@@ -248,11 +248,15 @@ sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
             return 0;
         case JE_NEW_INODE:
             return sfs_makeobj(sfs, je->je_inotype, NULL, NULL);
-        case JE_POINT_INODE:
+        case JE_ADD_DATABLOCK_INODE:
             // Check whether block is allocated.
             // If not, alloc it.
             // Finally, point inode to it.
-        case JE_POINT_INDIRECT:
+            if (!sfs_bused(sfs, je->je_childblk)) {
+                if ()
+            }
+            
+        case JE_ADD_DATABLOCK_INDIRECT:
             
         case JE_WRITE_DIR:
             // Check that directory block containing
@@ -261,9 +265,14 @@ sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
             daddr_t diskblock;
             if () {
             }
+        case JE_REMOVE_INODE:
+            sfs_bfree(sfs, je->je_ino);
+            return 0;
+        case JE_REMOVE_DATABLOCK_INODE:
+        case JE_REMOVE_DATABLOCK_INDIRECT:
 }
 
-int 
+int
 jnl_sync(struct journal *jnl)
 {
     int result;
