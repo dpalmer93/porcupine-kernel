@@ -86,7 +86,7 @@ int sfs_loadvnode(struct sfs_fs *sfs, uint32_t ino, int forcetype,
 
 /* needed by reclaim */
 static
-int sfs_dotruncate(struct vnode *v, off_t len);
+int sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn);
 
 ////////////////////////////////////////////////////////////
 //
@@ -1395,7 +1395,7 @@ sfs_reclaim(struct vnode *v)
             return result;
         }
         
-		result = sfs_dotruncate(&sv->sv_v, 0);
+		result = sfs_dotruncate(&sv->sv_v, 0, txn);
 		if (result) {
             txn(abort);
 			sfs_release_inode(sv);
@@ -2230,7 +2230,7 @@ sfs_truncate(struct vnode *v, off_t len)
         return result;
     }
 
-    result = sfs_dotruncate(v, len);
+    result = sfs_dotruncate(v, len, txn);
 	
     // End transaction
     if (result) {
@@ -3349,7 +3349,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
             buffer_mark_dirty(obj2->sv_buf);
 
 			/* ignore errors on this */
-			sfs_dotruncate(&obj2->sv_v, 0);
+			sfs_dotruncate(&obj2->sv_v, 0, txn);
 		}
 		else {
 			KASSERT(obj1->sv_type == SFS_TYPE_FILE);
