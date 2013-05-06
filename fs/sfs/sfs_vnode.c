@@ -3301,6 +3301,17 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	KASSERT(slot1>=0);
 	KASSERT(slot2>=0);
 
+    // Start transaction
+    struct transaction *txn = txn_create(sfs->sfs_jnl);
+    if (txn == NULL) {
+        result = ENOMEM;
+        goto out4;
+    }
+    result = txn_start(txn);
+    if (result) {
+        goto out4;
+    }
+    
 	if (obj2 != NULL) {
 		/*
 		 * Target already exists.
@@ -3311,16 +3322,19 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 		if (obj1_inodeptr->sfi_type == SFS_TYPE_DIR) {
 			if (obj2_inodeptr->sfi_type != SFS_TYPE_DIR) {
 				result = ENOTDIR;
+                txn_abort(txn);
 				goto out4;
 			}
 			result = sfs_dir_checkempty(obj2);
 			if (result) {
+                txn_abort(txn);
 				goto out4;
 			}
 
 			/* Remove the name */
 			result = sfs_dir_unlink(dir2, slot2);
 			if (result) {
+                txn_abort(txn);
 				goto out4;
 			}
 
@@ -3328,9 +3342,11 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			KASSERT(dir2_inodeptr->sfi_linkcount > 1);
 			KASSERT(obj2_inodeptr->sfi_linkcount == 2);
 			dir2_inodeptr->sfi_linkcount--;
+            txn_attach(txn, dir2->sv_buf);
 			buffer_mark_dirty(dir2->sv_buf);
 			obj2_inodeptr->sfi_linkcount -= 2;
-			buffer_mark_dirty(obj2->sv_buf);
+			txn_attach(txn, obj2->sv_buf);
+            buffer_mark_dirty(obj2->sv_buf);
 
 			/* ignore errors on this */
 			sfs_dotruncate(&obj2->sv_v, 0);
@@ -3339,18 +3355,21 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			KASSERT(obj1->sv_type == SFS_TYPE_FILE);
 			if (obj2->sv_type != SFS_TYPE_FILE) {
 				result = EISDIR;
+                txn_abort(txn);    
 				goto out4;
 			}
 
 			/* Remove the name */
 			result = sfs_dir_unlink(dir2, slot2);
 			if (result) {
+                txn_abort(txn);
 				goto out4;
 			}
 
 			/* Dispose of the file */
 			KASSERT(obj2_inodeptr->sfi_linkcount > 0);
 			obj2_inodeptr->sfi_linkcount--;
+            txn_attach(txn, obj2->sv_buf);
 			buffer_mark_dirty(obj2->sv_buf);
 		}
 
@@ -3374,10 +3393,12 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	strcpy(sd.sfd_name, name2);
 	result = sfs_writedir(dir2, &sd, slot2);
 	if (result) {
+        txn_abort(txn);
 		goto out4;
 	}
 
 	obj1_inodeptr->sfi_linkcount++;
+    txn_attach(txn, obj1->sv_buf);
 	buffer_mark_dirty(obj1->sv_buf);
 
 	if (obj1->sv_type == SFS_TYPE_DIR) {
@@ -3410,6 +3431,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 		goto recover2;
 	}
 	obj1_inodeptr->sfi_linkcount--;
+    txn_attach(txn, obj1->sv_buf);
 	buffer_mark_dirty(obj1->sv_buf);
 
 	KASSERT(result==0);
@@ -3424,9 +3446,12 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 				recovermsg(result, result2);
 			}
 			dir1_inodeptr->sfi_linkcount++;
+            txn_attach(txn, dir1->sv_buf);
 			buffer_mark_dirty(dir1->sv_buf);
 			dir2_inodeptr->sfi_linkcount--;
+            txn_attach(txn, dir2->sv_buf);
 			buffer_mark_dirty(dir2->sv_buf);
+            txn_abort(txn);
 		}
     recover1:
 		result2 = sfs_dir_unlink(dir2, slot2);
@@ -3434,7 +3459,9 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			recovermsg(result, result2);
 		}
 		obj1_inodeptr->sfi_linkcount--;
+        txn_attach(txn, obj1->sv_buf);
 		buffer_mark_dirty(obj1->sv_buf);
+        txn_abort(txn);
 	}
 
  out4:
