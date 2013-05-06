@@ -170,13 +170,13 @@ sfs_clearblock(struct sfs_fs *sfs, uint32_t block, struct buf **bufret)
  */
 static
 int
-sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret)
+sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret, struct transaction *txn)
 {
 	int result;
 
 	lock_acquire(sfs->sfs_bitlock);
 
-	result = bitmap_alloc(sfs->sfs_freemap, diskblock);
+	result = bitmap_alloc(sfs->sfs_freemap, diskblock, txn);
 	if (result) {
 		lock_release(sfs->sfs_bitlock);
 		return result;
@@ -191,7 +191,7 @@ sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret)
 	}
 
 	/* Clear block before returning it */
-	return sfs_clearblock(sfs, *diskblock, bufret);
+	return sfs_clearblock(sfs, *diskblock, bufret, txn);
 }
 
 /*
@@ -199,10 +199,10 @@ sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret)
  */
 static
 void
-sfs_bfree(struct sfs_fs *sfs, uint32_t diskblock)
+sfs_bfree(struct sfs_fs *sfs, uint32_t diskblock, struct transaction *txn)
 {
 	lock_acquire(sfs->sfs_bitlock);
-	bitmap_unmark(sfs->sfs_freemap, diskblock);
+	bitmap_unmark(sfs->sfs_freemap, diskblock, txn);
 	sfs->sfs_freemapdirty = true;
 	lock_release(sfs->sfs_bitlock);
 }
@@ -1411,7 +1411,7 @@ sfs_reclaim(struct vnode *v)
 		/* Discard the inode */
         
         // Log journal entry
-        result = jnl_remove_indo(txn->txn_jnl, txn->txn_id, sv->sv_ino);
+        result = jnl_remove_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino);
         if (result) {
             txn(abort);
 			lock_release(sfs->sfs_vnlock);
@@ -2495,6 +2495,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 	new_inodeptr->sfi_linkcount++;
 
 	/* and consequently mark it dirty. */
+    txn_attach(txn, newguy->sv_buf);
 	buffer_mark_dirty(newguy->sv_buf);
 	
     // End transaction
