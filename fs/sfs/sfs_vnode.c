@@ -246,7 +246,7 @@ sfs_bused(struct sfs_fs *sfs, uint32_t diskblock)
 static
 int
 sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
-		int doalloc, uint32_t *diskblock, struct transactiotn *txn)
+		int doalloc, uint32_t *diskblock, struct transaction *txn)
 {
 	struct sfs_fs *sfs = sv->sv_v.vn_fs->fs_data;
 	struct sfs_inode *inodeptr;

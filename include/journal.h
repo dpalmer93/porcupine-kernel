@@ -61,13 +61,15 @@ struct jnl_entry {
 };
 
 typedef enum {
-    JE_INVAL,           // invalid journal entry
+    JE_INVAL = 0,       // invalid journal entry
     JE_START,           // first journal entry in a transaction
     JE_ABORT,           // last journal entry in a failed transaction
     JE_COMMIT,          // last journal entry in a successful transaction
-    // Add data block je_childblk to inode je_ino.  It is the je_slot word in inode.
+    // Add data block je_childblk to inode je_ino.
+    // It is the je_slot word in inode.
     JE_ADD_DATABLOCK_INODE,
-    // Add data block je_childblk to indirect block je_parentblk.  It is the je_slot block in indirect.
+    // Add data block je_childblk to indirect block je_parentblk.
+    // It is the je_slot block in indirect.
     JE_ADD_DATABLOCK_INDIRECT,
     // Allocated a new inode block at block je_ino, with inumber je_ino, and type je_inotype
     JE_NEW_INODE,
@@ -83,9 +85,9 @@ typedef enum {
 
 /* Commands to write entries */
 int jnl_write_entry(struct journal *jnl, struct jnl_entry *je, daddr_t *written_blk);
-int jnl_write_start(struct journal *jnl, uint64_t txn_id, daddr_t *written_blk);
-int jnl_write_commit(struct journal *jnl, uint64_t txn_id, daddr_t *written_blk);
-int jnl_write_abort(struct journal *jnl, uint64_t txn_id, daddr_t *written_blk);
+int jnl_write_start(struct journal *jnl, uint64_t txnid, daddr_t *written_blk);
+int jnl_write_commit(struct journal *jnl, uint64_t txnid, daddr_t *written_blk);
+int jnl_write_abort(struct journal *jnl, uint64_t txnid, daddr_t *written_blk);
 int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot);
 int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot);
 int jnl_new_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, uint16_t inotype);

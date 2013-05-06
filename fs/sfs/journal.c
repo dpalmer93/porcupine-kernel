@@ -236,7 +236,43 @@ int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t p
     return jnl_write_entry(jnl, &je, NULL);
 }
 
-int 
+
+int
+sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
+{
+    switch (je->je_type) {
+        case JE_INVAL:
+        case JE_START:
+        case JE_ABORT:
+        case JE_COMMIT:
+            return 0;
+        case JE_NEW_INODE:
+            return sfs_makeobj(sfs, je->je_inotype, NULL, NULL);
+        case JE_ADD_DATABLOCK_INODE:
+            // Check whether block is allocated.
+            // If not, alloc it.
+            // Finally, point inode to it.
+            if (!sfs_bused(sfs, je->je_childblk)) {
+                if ()
+            }
+            
+        case JE_ADD_DATABLOCK_INDIRECT:
+            
+        case JE_WRITE_DIR:
+            // Check that directory block containing
+            // this slot exists.  Fill in slot.
+            uint32_t dirblock = je->je_slot * / SFS_BLOCKSIZE;
+            daddr_t diskblock;
+            if () {
+            }
+        case JE_REMOVE_INODE:
+            sfs_bfree(sfs, je->je_ino);
+            return 0;
+        case JE_REMOVE_DATABLOCK_INODE:
+        case JE_REMOVE_DATABLOCK_INDIRECT:
+}
+
+int
 jnl_sync(struct journal *jnl)
 {
     int result;
