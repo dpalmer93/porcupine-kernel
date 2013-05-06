@@ -1372,21 +1372,71 @@ sfs_reclaim(struct vnode *v)
 
 	/* If there are no on-disk references to the file either, erase it. */
 	if (iptr->sfi_linkcount==0) {
-		result = sfs_dotruncate(&sv->sv_v, 0);
-		if (result) {
+    
+        // Start transaction
+        struct transaction *txn = txn_create(sfs->sfs_jnl);
+        if (txn == NULL) {
 			sfs_release_inode(sv);
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
 			if (buffers_needed) {
 				unreserve_buffers(4, SFS_BLOCKSIZE);
 			}
+            return ENOMEM;
+        }
+        result = txn_start(txn);
+        if (result) {
+			sfs_release_inode(sv);
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+            return result;
+        }
+        
+		result = sfs_dotruncate(&sv->sv_v, 0);
+		if (result) {
+            txn(abort);
+			sfs_release_inode(sv);
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+            
 			return result;
 		}
 		sfs_release_inode(sv);
 		/* Discard the inode */
+        
+        // Log journal entry
+        result = jnl_remove_indo(txn->txn_jnl, txn->txn_id, sv->sv_ino);
+        if (result) {
+            txn(abort);
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+			return result;
+        }
+        
 		buffer_drop(&sfs->sfs_absfs, sv->sv_ino, SFS_BLOCKSIZE);
 		sfs_bfree(sfs, sv->sv_ino);
-	} else {
+        
+        result = txn_commit(txn);    
+        if (result) {
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+			return result;
+        }
+        
+	} 
+    else {
 		sfs_release_inode(sv);
 	}
 
@@ -2689,6 +2739,17 @@ sfs_rmdir(struct vnode *v, const char *name)
 		goto die_total;
 	}
 
+    // Start transaction
+    struct transaction *txn = txn_create(sfs->sfs_jnl);
+    if (txn == NULL) {
+        result = ENOMEM;
+        goto die_total;
+    }
+    result = txn_start(txn);
+    if (result) {
+        goto die_total;
+    }
+    
 	result = sfs_dir_unlink(sv, slot);
 	if (result) {
 		goto die_total;
@@ -2698,14 +2759,23 @@ sfs_rmdir(struct vnode *v, const char *name)
 	KASSERT(victim_inodeptr->sfi_linkcount==2);
 
 	dir_inodeptr->sfi_linkcount--;
-	buffer_mark_dirty(sv->sv_buf);
+	txn_attach(txn, sv->sv_buf);
+    buffer_mark_dirty(sv->sv_buf);
 
 	victim_inodeptr->sfi_linkcount -= 2;
+    txn_attach(txn, victim->sv_buf);
 	buffer_mark_dirty(victim->sv_buf);
 	/* buffer released below */
 
 	result = sfs_dotruncate(&victim->sv_v, 0);
 
+    if (result) {
+        txn_abort(txn);
+    }
+    else {
+        result = txn_commit(txn);
+    }
+    
 die_total:
 	sfs_release_inode(victim);
 	lock_release(victim->sv_lock);
@@ -2784,14 +2854,44 @@ sfs_remove(struct vnode *dir, const char *name)
 		return EISDIR;
 	}
 
+    // Start transaction
+    struct transaction *txn = txn_create(sfs->sfs_jnl);
+    if (txn == NULL) {
+		sfs_release_inode(sv);
+		sfs_release_inode(victim);
+		lock_release(victim->sv_lock);
+		lock_release(sv->sv_lock);
+		VOP_DECREF(&victim->sv_v);
+		unreserve_buffers(4, SFS_BLOCKSIZE);
+        return ENOMEM;
+    }
+    result = txn_start(txn);
+    if (result) {
+		sfs_release_inode(sv);
+		sfs_release_inode(victim);
+		lock_release(victim->sv_lock);
+		lock_release(sv->sv_lock);
+		VOP_DECREF(&victim->sv_v);
+		unreserve_buffers(4, SFS_BLOCKSIZE);
+        return result;
+    }
+
 	/* Erase its directory entry. */
 	result = sfs_dir_unlink(sv, slot);
 	if (result==0) {
 		/* If we succeeded, decrement the link count. */
 		KASSERT(victim_inodeptr->sfi_linkcount > 0);
 		victim_inodeptr->sfi_linkcount--;
+        txn_attach(txn, victim->sv_buf);
 		buffer_mark_dirty(victim->sv_buf);
 	}
+    else {
+        txn_commit(txn);
+    }
+    
+    // End transaction
+    result = txn_commit(txn);
+    
 
 	sfs_release_inode(sv);
 	sfs_release_inode(victim);

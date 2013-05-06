@@ -188,12 +188,23 @@ int
 jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir)
 {
     struct jnl_entry je;
-    je.je_type = JE_WRITE_DIR
+    je.je_type = JE_WRITE_DIR;
     je.je_txnid = txnid;
     je.je_ino = ino;
     je.je_slot = slot;
     je.je_dir.sfd_ino = dir->sfd_ino;
     strcpy(je.je_dir.sfd_name, dir->sfd_name)
+    
+    return jnl_write_entry(jnl, &je, NULL);
+}
+
+int
+jnl_remove_inode(struct journal *jnl, uint64_t txnid, uint32_t ino)
+{
+    struct jnl_entry je;
+    je.je_type = JE_REMOVE_INODE;
+    je.je_txnid = txnid;
+    je.je_ino = ino;
     
     return jnl_write_entry(jnl, &je, NULL);
 }
