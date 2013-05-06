@@ -32,6 +32,9 @@
 
 #include <buf.h>
 
+// Assume, for sanity, that journal entries will be 128 bytes,
+// independent of file system.  (VFS already makes a similar
+// assumption for buffers.)
 #define JE_PER_BLOCK 4
 #define JE_SIZE 128
 
@@ -47,12 +50,10 @@ struct journal {
 struct jnl_entry {
     je_type_t           je_type; // type of operation
     uint64_t            je_txnid;
-    uint32_t            je_blknum;
-    union {
-        struct je_dirent_t  je_dirent;  // modification to a directory
-        struct je_inode_t   je_inode;   // modification to an inode
-        struct je_idblk_t   je_idblk;   // modification to an indriect block
-    };
+    daddr_t             je_blk;
+    int                 je_slot;
+    uint32_t            je_ino;
+    char                je_name[SFS_NAMELEN];
     uint8_t             padding[SOME_PADDING_SIZE];
 };
 

@@ -36,6 +36,17 @@
 #include <buf.h>
 #include <journal.h>
 
+#define TXN_MAX 128
+
+struct transaction {
+    struct journal *txn_jnl;        // journal transaction belongs to
+    uint64_t        txn_id;         // unique & monotonic ID
+    uint32_t        txn_bufcount;   // # of modified buffers not yet synced
+    daddr_t         txn_startblk;   // disk block containing start entry
+    daddr_t         txn_endblk;     // disk block containing commit/abort entry
+    struct bufarray txn_bufs;       // array of modified buffers
+};
+
 struct transaction *txn_queue[TXN_MAX]; // transaction tracking
 int txn_qhead;  // first item in q
 int txn_qtail;  // next available spot in q
@@ -51,13 +62,14 @@ txn_create(struct journal *jnl)
     struct transaction *txn = kmalloc(sizeof(struct transaction));
     if (txn == NULL)
         return NULL;
+    
     txn->txn_bufs = array_create();
     if (txn->txn_bufs == NULL) {
         free(txn);
         return NULL;
     }
     
-    txn->txn_refcount = 0;
+    txn->txn_bufcount = 0;
     txn->jnl = jnl;
     
     lock_acquire(txn_lock);
@@ -125,7 +137,7 @@ txn_attach(struct transaction *txn, struct buf *b)
     // Increment transaction refcount on buffer
     buffer_txn_touch(b, txn);
     // Increment number of buffers this transaction touches
-    txn->txn_refcount++;
+    txn->txn_bufcount++;
     return 0;
 }
 
@@ -134,8 +146,8 @@ txn_attach(struct transaction *txn, struct buf *b)
 void
 txn_close(struct transaction *txn)
 {
-    txn->txn_refcount--;
-    if (txn->txn_refcount == 0) {
+    txn->txn_bufcount--;
+    if (txn->txn_bufcount == 0) {
         txn_docheckpoint(txn->jnl);
     }
 }
@@ -143,7 +155,7 @@ txn_close(struct transaction *txn)
 bool
 txn_issynced(struct transaction *txn)
 {
-    return (txn->txn_refcount == 0);
+    return (txn->txn_bufcount == 0);
 }
 
 
