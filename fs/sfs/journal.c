@@ -149,7 +149,11 @@ jnl_next_block(struct journal *jnl)
 }
 
 int
-jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot) 
+jnl_add_datablock_inode(struct journal *jnl,
+                        uint64_t txnid,
+                        uint32_t ino,
+                        daddr_t childblk,
+                        int slot)
 {
     struct jnl_entry je;
     je.je_type = JE_ADD_DATABLOCK_INODE;
@@ -161,7 +165,11 @@ jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr
 }
 
 int 
-jnl_add_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot)
+jnl_add_datablock_indirect(struct journal *jnl,
+                           uint64_t txnid,
+                           daddr_t parentblk,
+                           daddr_t childblk,
+                           int slot)
 {
     struct jnl_entry je;
     je.je_type = JE_ADD_DATABLOCK_INDIRECT;
@@ -173,7 +181,10 @@ jnl_add_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t parentbl
 }
 
 int
-jnl_new_inode(struct journal *jnl, uint64_t, txnid, uint32_t ino, uint16_t inotype)
+jnl_new_inode(struct journal *jnl,
+              uint64_t, txnid,
+              uint32_t ino,
+              uint16_t inotype)
 {
     struct jnl_entry je;
     je.je_type = JE_NEW_INODE;
@@ -185,7 +196,11 @@ jnl_new_inode(struct journal *jnl, uint64_t, txnid, uint32_t ino, uint16_t inoty
 }
 
 int 
-jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir)
+jnl_write_dir(struct journal *jnl,
+              uint64_t txnid,
+              uint32_t ino,
+              int slot,
+              struct sfs_dir *dir)
 {
     struct jnl_entry je;
     je.je_type = JE_WRITE_DIR
