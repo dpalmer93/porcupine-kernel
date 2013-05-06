@@ -91,7 +91,7 @@ txn_destroy(struct transaction *txn)
 int
 txn_start(struct transaction *txn)
 {
-    return jnl_write_start(txn->jnl, txn->txn_id, &txn->txn_startblk);
+    return jnl_write_start(txn, &txn->txn_startblk);
 }
 
 int
@@ -103,15 +103,12 @@ txn_commit(struct transaction *txn)
     }
 
     // Write commit message
-    err =  jnl_write_commit(txn->jnl, txn->txn_id, &txn->txn_endblk);
+    err =  jnl_write_commit(txn, &txn->txn_endblk);
     if (err)
         return err;
         
-    struct journal *jnl = txn->txn_jnl;
     // Flush all the journal buffers
-    jnl_sync(jnl);
-    
-    return 0;
+    return jnl_sync(txn->txn_jnl);
 }
 
 int
@@ -122,10 +119,9 @@ txn_abort(struct transaction *txn)
         buffer_txn_yield(array_get(txn->txn_bufs, i));
     }
     
-    return jnl_write_abort(txn->jnl, txn->txn_id, &txn->txn_endblk);
+    return jnl_write_abort(txn->txn_jnl, &txn->txn_endblk);
 }
 
-// Buffer cannot already be in txn_bufs
 // Buffer must be marked busy
 int
 txn_attach(struct transaction *txn, struct buf *b)

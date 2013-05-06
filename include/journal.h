@@ -85,16 +85,16 @@ typedef enum {
 
 /* Commands to write entries */
 int jnl_write_entry(struct journal *jnl, struct jnl_entry *je, daddr_t *written_blk);
-int jnl_write_start(struct journal *jnl, uint64_t txnid, daddr_t *written_blk);
-int jnl_write_commit(struct journal *jnl, uint64_t txnid, daddr_t *written_blk);
-int jnl_write_abort(struct journal *jnl, uint64_t txnid, daddr_t *written_blk);
-int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot);
-int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot);
-int jnl_new_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, uint16_t inotype);
-int jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir);
-int jnl_remove_inode(struct journal *jnl, uint64_t txnid, uint32_t ino);
-int jnl_remove_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot); 
-int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot); 
+int jnl_write_start(struct transaction *txn, daddr_t *written_blk);
+int jnl_write_commit(struct transaction *txn, daddr_t *written_blk);
+int jnl_write_abort(struct transaction *txn, daddr_t *written_blk);
+int jnl_add_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk, int slot);
+int jnl_add_datablock_inode(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot);
+int jnl_new_inode(struct transaction *txn, uint32_t ino, uint16_t inotype);
+int jnl_write_dir(struct transaction *txn, uint32_t ino, int slot, struct sfs_dir *dir);
+int jnl_remove_inode(struct transaction *txn, uint32_t ino);
+int jnl_remove_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk, int slot); 
+int jnl_remove_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot); 
 // Sync all journal buffers to disk
 int jnl_syn(struct journal *jnl);
 
