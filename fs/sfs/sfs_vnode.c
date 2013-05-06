@@ -313,7 +313,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 
             // Log journal entry
             int slot = fileblock = 2 + fileblock;
-            result = jnl_add_datablock_inode(txn->txn_jnl, txn->txn_txnid, sv->sv_ino, block, slot);
+            result = jnl_add_datablock_inode(txn, sv->sv_ino, block, slot);
             if (result) {
                 sfs_bfree(sfs, block);
                 sfs_release_inode(sv);
@@ -384,7 +384,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 
         // Log journal entry
         int slot = fileblock = 2 + SFS_NDIRECT + (indir - 1);
-        result = jnl_add_datablock_inode(txn->txn_jnl, txn->txn_txnid, sv->sv_ino, next_block, slot);
+        result = jnl_add_datablock_inode(txn, sv->sv_ino, next_block, slot);
         if (result) {
             sfs_bfree(sfs, next_block);
             sfs_release_inode(sv);
@@ -466,7 +466,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 
             // Log journal entry
             int slot = idoff;
-            result = jnl_add_datablock_indirect(txn->txn_jnl, txn->txn_txnid, cur_block, next_block, slot);
+            result = jnl_add_datablock_indirect(txn, cur_block, next_block, slot);
             if (result) {
                 sfs_bfree(sfs, next_block);
                 buffer_release(kbuf)
@@ -858,7 +858,7 @@ sfs_writedir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot)
 	}
 
     // Log journal entry
-    result = jnl_write_dir(txn->txn_jnl, txn->txn_id, sv->sv_ino, slot, sd)
+    result = jnl_write_dir(txn, sv->sv_ino, slot, sd)
     if (result) {
         return result;
     }
@@ -1226,7 +1226,7 @@ sfs_makeobj(struct sfs_fs *sfs, int type, struct sfs_vnode **ret, struct transac
 	}
     
     // Log journal entry
-    result = jnl_new_inode(txn->txn_jnl, txn->txn_id, ino, type)
+    result = jnl_new_inode(txn, ino, type)
     if (result) {
         sfs_bfree(sfs, ino)
         return result;
@@ -1428,7 +1428,7 @@ sfs_reclaim(struct vnode *v)
 		/* Discard the inode */
         
         // Log journal entry
-        result = jnl_remove_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino);
+        result = jnl_remove_inode(txn, sv->sv_ino);
         if (result) {
             txn(abort);
 			lock_release(sfs->sfs_vnlock);
@@ -1833,7 +1833,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 		block = inodeptr->sfi_direct[i];
 		if (i >= blocklen && block != 0) {
             // Log journal entry
-            jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, block, 2+i);
+            jnl_remove_datablock_inode(txn, sv->sv_ino, block, 2+i);
 			sfs_bfree(sfs, block);
 			inodeptr->sfi_direct[i] = 0;
 		}
@@ -2070,7 +2070,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 							id_modified = 1;
                             
                             // Log journal entry
-                            jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, idblock, block, level1);
+                            jnl_remove_datablock_indirect(txn, idblock, block, level1);
                             
 							sfs_bfree(sfs, block);
 						}
@@ -2086,10 +2086,10 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 					{
                         // Log journal entry
                         if (indir == 1) {
-                            jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, idblock, 2 + SFS_NDIRECT);
+                            jnl_remove_datablock_inode(txn, sv->sv_ino, idblock, 2 + SFS_NDIRECT);
                         }
                         if (indir != 1) {
-                            jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, didblock, idblock, level2);
+                            jnl_remove_datablock_indirect(txn, didblock, idblock, level2);
                         }
                     
 						/* The whole indirect block is empty now; free it */
@@ -2138,10 +2138,10 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 				{
                     // Log journal entry
                     if (indir == 2) {
-                        jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, didblock, 3 + SFS_NDIRECT);
+                        jnl_remove_datablock_inode(txn, sv->sv_ino, didblock, 3 + SFS_NDIRECT);
                     }
                     if (indir == 3) {
-                        jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, tidblock, didblock, level3);
+                        jnl_remove_datablock_indirect(txn, tidblock, didblock, level3);
                     }
 					/* The whole double indirect block is empty now; free it */
 					sfs_bfree(sfs, didblock);
@@ -2182,7 +2182,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 			if (!tid_hasnonzero)
 			{
                 // Log journal entry
-                jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, tidblock, 4 + NDIRECT);
+                jnl_remove_datablock_inode(txn, sv->sv_ino, tidblock, 4 + NDIRECT);
             
 				/* The whole triple indirect block is empty now; free it */
 				sfs_bfree(sfs, tidblock);
