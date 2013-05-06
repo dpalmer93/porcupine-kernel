@@ -239,7 +239,11 @@ int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t p
 int 
 jnl_sync(struct journal *jnl)
 {
+    int result;
     for (unsigned i = 0; i < array_num(jnl->jnl_blks); i++) {
-        buffer_sync(array_get(jnl->jnl_blks, i));
+        result = buffer_sync(array_get(jnl->jnl_blks, i));
+        if (result)
+            return result;
     }
+    return 0;
 }
