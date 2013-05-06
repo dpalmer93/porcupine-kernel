@@ -773,6 +773,8 @@ sfs_readdir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot)
 	return 0;
 }
 
+// TODO
+
 /*
  * Write (overwrite) the directory entry in slot SLOT of a directory
  * vnode.
@@ -963,6 +965,8 @@ sfs_dir_findino(struct sfs_vnode *sv, uint32_t ino,
 	return found ? 0 : ENOENT;
 }
 
+// TODO
+
 /*
  * Create a link in a directory to the specified inode by number, with
  * the specified name, and optionally hand back the slot.
@@ -1016,6 +1020,8 @@ sfs_dir_link(struct sfs_vnode *sv, const char *name, uint32_t ino, int *slot)
 	return sfs_writedir(sv, &sd, emptyslot);
 
 }
+
+// TODO
 
 /*
  * Unlink a name in a directory, by slot number.
@@ -1245,6 +1251,8 @@ sfs_close(struct vnode *v)
 	return 0;
 }
 
+// TODO
+
 /*
  * Called when the vnode refcount (in-memory usage count) hits zero.
  *
@@ -1392,6 +1400,8 @@ sfs_read(struct vnode *v, struct uio *uio)
 
 	return result;
 }
+
+// TODO
 
 /*
  * Called for write(). sfs_io() does the work.
@@ -1631,6 +1641,8 @@ sfs_fsync(struct vnode *v)
 	return FSOP_SYNC(sv->sv_v.vn_fs);
 }
 
+// TODO
+
 /*
  * Called for mmap().
  */
@@ -1641,6 +1653,8 @@ sfs_mmap(struct vnode *v   /* add stuff as needed */)
 	(void)v;
 	return EUNIMP;
 }
+
+// TODO
 
 /*
  * Do the work of truncating a file (or directory)
@@ -2035,6 +2049,8 @@ sfs_dotruncate(struct vnode *v, off_t len)
 	return final_result;
 }
 
+// TODO
+
 /*
  * Truncate a file (or directory)
  *
@@ -2188,6 +2204,9 @@ sfs_namefile(struct vnode *vv, struct uio *uio)
 	unreserve_buffers(3, SFS_BLOCKSIZE);
 	return result;
 }
+
+// TODO
+
 /*
  * Create a file. If EXCL is set, insist that the filename not already
  * exist; otherwise, if it already exists, just open it.
@@ -2299,6 +2318,8 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 	return 0;
 }
 
+// TODO
+
 /*
  * Make a hard link to a file.
  * The VFS layer should prevent this being called unless both
@@ -2361,6 +2382,8 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 
 	return 0;
 }
+
+// TODO
 
 /*
  * Create a directory.
@@ -2474,6 +2497,8 @@ die_early:
 	return result;
 }
 
+// TODO
+
 /*
  * Delete a directory.
  *
@@ -2563,6 +2588,8 @@ die_early:
 
 	return result;
 }
+
+// TODO
 
 /*
  * Delete a file.
@@ -2709,6 +2736,7 @@ check_parent(struct sfs_vnode *lookfor, struct sfs_vnode *failon,
 	return 0;
 }
 
+// TODO
 
 /*
  * Rename a file.
