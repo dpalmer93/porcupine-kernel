@@ -69,10 +69,16 @@ typedef enum {
     JE_ADD_DATABLOCK_INODE,
     // Add data block je_childblk to indirect block je_parentblk.  It is the je_slot block in indirect.
     JE_ADD_DATABLOCK_INDIRECT,
-    // Allocated a new inode block at block je_ino, with inumber je_ino, and type je_inotype;
+    // Allocated a new inode block at block je_ino, with inumber je_ino, and type je_inotype
     JE_NEW_INODE,
     // Write je_dir into je_slot of the directory with inumber je_ino
-    JE_WRITE_DIR
+    JE_WRITE_DIR,
+    // Remove inode at block je_ino, with inumber je_ino
+    JE_REMOVE_INODE,
+    // Remove data bloclk je_childblk from inode je_ino.  It is the je_slot word in the inode.
+    JE_REMOVE_DATABLOCK_INODE,
+    
+    JE_REMOVE_DATABLOCK_INDIRECT
 } je_type_t;
 
 /* Commands to write entries */
@@ -84,7 +90,9 @@ int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, d
 int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot);
 int jnl_new_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, uint16_t inotype);
 int jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir);
-
+int jnl_remove_inode(struct journal *jnl, uint64_t txnid, uint32_t ino);
+int jnl_remove_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot); 
+int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot); 
 // Sync all journal buffers to disk
 int jnl_syn(struct journal *jnl);
 

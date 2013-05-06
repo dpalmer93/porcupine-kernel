@@ -1105,6 +1105,26 @@ buffer_drop(struct fs *fs, daddr_t block, size_t size)
 	lock_release(buffer_lock);
 }
 
+int
+buffer_txn_touch(struct buf *buf, struct transaction *txn)
+{    
+    int err;
+    // Check to make sure the txn and buffer have not been attached
+    for (unsigned i = 0; i < array_num(b->b_txns); i++) {
+        if (txn == array_get(b->b_txns, i))
+            return EINVAL;
+    }
+    
+    int index;
+    err = array_add(buf->b_txns, txn, &index);
+    if (err)
+        return err;
+        
+    // Increment number of buffers this transaction touches    
+    b->b_txncount++;
+    return 0;
+}
+
 static
 void
 buffer_release_internal(struct buf *b)

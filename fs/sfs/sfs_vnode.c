@@ -86,7 +86,7 @@ int sfs_loadvnode(struct sfs_fs *sfs, uint32_t ino, int forcetype,
 
 /* needed by reclaim */
 static
-int sfs_dotruncate(struct vnode *v, off_t len);
+int sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn);
 
 ////////////////////////////////////////////////////////////
 //
@@ -1372,21 +1372,71 @@ sfs_reclaim(struct vnode *v)
 
 	/* If there are no on-disk references to the file either, erase it. */
 	if (iptr->sfi_linkcount==0) {
-		result = sfs_dotruncate(&sv->sv_v, 0);
-		if (result) {
+    
+        // Start transaction
+        struct transaction *txn = txn_create(sfs->sfs_jnl);
+        if (txn == NULL) {
 			sfs_release_inode(sv);
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
 			if (buffers_needed) {
 				unreserve_buffers(4, SFS_BLOCKSIZE);
 			}
+            return ENOMEM;
+        }
+        result = txn_start(txn);
+        if (result) {
+			sfs_release_inode(sv);
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+            return result;
+        }
+        
+		result = sfs_dotruncate(&sv->sv_v, 0, txn);
+		if (result) {
+            txn(abort);
+			sfs_release_inode(sv);
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+            
 			return result;
 		}
 		sfs_release_inode(sv);
 		/* Discard the inode */
+        
+        // Log journal entry
+        result = jnl_remove_indo(txn->txn_jnl, txn->txn_id, sv->sv_ino);
+        if (result) {
+            txn(abort);
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+			return result;
+        }
+        
 		buffer_drop(&sfs->sfs_absfs, sv->sv_ino, SFS_BLOCKSIZE);
 		sfs_bfree(sfs, sv->sv_ino);
-	} else {
+        
+        result = txn_commit(txn);    
+        if (result) {
+			lock_release(sfs->sfs_vnlock);
+			lock_release(sv->sv_lock);
+			if (buffers_needed) {
+				unreserve_buffers(4, SFS_BLOCKSIZE);
+			}
+			return result;
+        }
+        
+	} 
+    else {
 		sfs_release_inode(sv);
 	}
 
@@ -1734,7 +1784,7 @@ sfs_mmap(struct vnode *v   /* add stuff as needed */)
  */
 static
 int
-sfs_dotruncate(struct vnode *v, off_t len)
+sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 {
 	struct sfs_vnode *sv = v->vn_data;
 	struct sfs_fs *sfs = sv->sv_v.vn_fs->fs_data;
@@ -1765,6 +1815,8 @@ sfs_dotruncate(struct vnode *v, off_t len)
 	for (i=0; i<SFS_NDIRECT; i++) {
 		block = inodeptr->sfi_direct[i];
 		if (i >= blocklen && block != 0) {
+            // Log journal entry
+            jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, block, 2+i);
 			sfs_bfree(sfs, block);
 			inodeptr->sfi_direct[i] = 0;
 		}
@@ -1999,7 +2051,10 @@ sfs_dotruncate(struct vnode *v, off_t len)
 							int block = iddata[level1];
 							iddata[level1] = 0;
 							id_modified = 1;
-
+                            
+                            // Log journal entry
+                            jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, idblock, block, level1);
+                            
 							sfs_bfree(sfs, block);
 						}
 
@@ -2012,6 +2067,14 @@ sfs_dotruncate(struct vnode *v, off_t len)
 
 					if (!id_hasnonzero)
 					{
+                        // Log journal entry
+                        if (indir == 1) {
+                            jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, idblock, 2 + SFS_NDIRECT);
+                        }
+                        if (indir != 1) {
+                            jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, didblock, idblock, level2);
+                        }
+                    
 						/* The whole indirect block is empty now; free it */
 						sfs_bfree(sfs, idblock);
 						if(indir == 1)
@@ -2027,6 +2090,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 					else if(id_modified)
 					{
 						/* The indirect block has been modified */
+                        txn_attach(txn, tidbuf);
 						buffer_mark_dirty(idbuf);
 						if(indir != 1)
 						{
@@ -2055,11 +2119,19 @@ sfs_dotruncate(struct vnode *v, off_t len)
 
 				if (!did_hasnonzero)
 				{
+                    // Log journal entry
+                    if (indir == 2) {
+                        jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, didblock, 3 + SFS_NDIRECT);
+                    }
+                    if (indir == 3) {
+                        jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, tidblock, didblock, level3);
+                    }
 					/* The whole double indirect block is empty now; free it */
 					sfs_bfree(sfs, didblock);
 					if(indir == 2)
 					{
 						inodeptr->sfi_dindirect = 0;
+                        txn_attach(txn, tidbuf);
 						buffer_mark_dirty(sv->sv_buf);
 					}
 					if(indir == 3)
@@ -2071,6 +2143,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 				else if(did_modified)
 				{
 					/* The double indirect block has been modified */
+                    txn_attach(txn, tidbuf);
 					buffer_mark_dirty(didbuf);
 					if(indir == 3)
 					{
@@ -2091,6 +2164,9 @@ sfs_dotruncate(struct vnode *v, off_t len)
 			}
 			if (!tid_hasnonzero)
 			{
+                // Log journal entry
+                jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, tidblock, 4 + NDIRECT);
+            
 				/* The whole triple indirect block is empty now; free it */
 				sfs_bfree(sfs, tidblock);
 				inodeptr->sfi_tindirect = 0;
@@ -2098,6 +2174,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 			else if(tid_modified)
 			{
 				/* The triple indirect block has been modified */
+                txn_attach(txn, tidbuf);
 				buffer_mark_dirty(tidbuf);
 			}
 			buffer_release(tidbuf);
@@ -2110,6 +2187,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 	inodeptr->sfi_size = len;
 
 	/* Mark the inode dirty */
+    txn_attach(txn, sv->sv_buf);
 	buffer_mark_dirty(sv->sv_buf);
 
 	/* release the inode buffer */
@@ -2152,7 +2230,7 @@ sfs_truncate(struct vnode *v, off_t len)
         return result;
     }
 
-    result = sfs_dotruncate(v, len);
+    result = sfs_dotruncate(v, len, txn);
 	
     // End transaction
     if (result) {
@@ -2689,6 +2767,17 @@ sfs_rmdir(struct vnode *v, const char *name)
 		goto die_total;
 	}
 
+    // Start transaction
+    struct transaction *txn = txn_create(sfs->sfs_jnl);
+    if (txn == NULL) {
+        result = ENOMEM;
+        goto die_total;
+    }
+    result = txn_start(txn);
+    if (result) {
+        goto die_total;
+    }
+    
 	result = sfs_dir_unlink(sv, slot);
 	if (result) {
 		goto die_total;
@@ -2698,14 +2787,23 @@ sfs_rmdir(struct vnode *v, const char *name)
 	KASSERT(victim_inodeptr->sfi_linkcount==2);
 
 	dir_inodeptr->sfi_linkcount--;
-	buffer_mark_dirty(sv->sv_buf);
+	txn_attach(txn, sv->sv_buf);
+    buffer_mark_dirty(sv->sv_buf);
 
 	victim_inodeptr->sfi_linkcount -= 2;
+    txn_attach(txn, victim->sv_buf);
 	buffer_mark_dirty(victim->sv_buf);
 	/* buffer released below */
 
 	result = sfs_dotruncate(&victim->sv_v, 0);
 
+    if (result) {
+        txn_abort(txn);
+    }
+    else {
+        result = txn_commit(txn);
+    }
+    
 die_total:
 	sfs_release_inode(victim);
 	lock_release(victim->sv_lock);
@@ -2784,14 +2882,44 @@ sfs_remove(struct vnode *dir, const char *name)
 		return EISDIR;
 	}
 
+    // Start transaction
+    struct transaction *txn = txn_create(sfs->sfs_jnl);
+    if (txn == NULL) {
+		sfs_release_inode(sv);
+		sfs_release_inode(victim);
+		lock_release(victim->sv_lock);
+		lock_release(sv->sv_lock);
+		VOP_DECREF(&victim->sv_v);
+		unreserve_buffers(4, SFS_BLOCKSIZE);
+        return ENOMEM;
+    }
+    result = txn_start(txn);
+    if (result) {
+		sfs_release_inode(sv);
+		sfs_release_inode(victim);
+		lock_release(victim->sv_lock);
+		lock_release(sv->sv_lock);
+		VOP_DECREF(&victim->sv_v);
+		unreserve_buffers(4, SFS_BLOCKSIZE);
+        return result;
+    }
+
 	/* Erase its directory entry. */
 	result = sfs_dir_unlink(sv, slot);
 	if (result==0) {
 		/* If we succeeded, decrement the link count. */
 		KASSERT(victim_inodeptr->sfi_linkcount > 0);
 		victim_inodeptr->sfi_linkcount--;
+        txn_attach(txn, victim->sv_buf);
 		buffer_mark_dirty(victim->sv_buf);
 	}
+    else {
+        txn_commit(txn);
+    }
+    
+    // End transaction
+    result = txn_commit(txn);
+    
 
 	sfs_release_inode(sv);
 	sfs_release_inode(victim);
@@ -3173,6 +3301,17 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	KASSERT(slot1>=0);
 	KASSERT(slot2>=0);
 
+    // Start transaction
+    struct transaction *txn = txn_create(sfs->sfs_jnl);
+    if (txn == NULL) {
+        result = ENOMEM;
+        goto out4;
+    }
+    result = txn_start(txn);
+    if (result) {
+        goto out4;
+    }
+    
 	if (obj2 != NULL) {
 		/*
 		 * Target already exists.
@@ -3183,16 +3322,19 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 		if (obj1_inodeptr->sfi_type == SFS_TYPE_DIR) {
 			if (obj2_inodeptr->sfi_type != SFS_TYPE_DIR) {
 				result = ENOTDIR;
+                txn_abort(txn);
 				goto out4;
 			}
 			result = sfs_dir_checkempty(obj2);
 			if (result) {
+                txn_abort(txn);
 				goto out4;
 			}
 
 			/* Remove the name */
 			result = sfs_dir_unlink(dir2, slot2);
 			if (result) {
+                txn_abort(txn);
 				goto out4;
 			}
 
@@ -3200,29 +3342,34 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			KASSERT(dir2_inodeptr->sfi_linkcount > 1);
 			KASSERT(obj2_inodeptr->sfi_linkcount == 2);
 			dir2_inodeptr->sfi_linkcount--;
+            txn_attach(txn, dir2->sv_buf);
 			buffer_mark_dirty(dir2->sv_buf);
 			obj2_inodeptr->sfi_linkcount -= 2;
-			buffer_mark_dirty(obj2->sv_buf);
+			txn_attach(txn, obj2->sv_buf);
+            buffer_mark_dirty(obj2->sv_buf);
 
 			/* ignore errors on this */
-			sfs_dotruncate(&obj2->sv_v, 0);
+			sfs_dotruncate(&obj2->sv_v, 0, txn);
 		}
 		else {
 			KASSERT(obj1->sv_type == SFS_TYPE_FILE);
 			if (obj2->sv_type != SFS_TYPE_FILE) {
 				result = EISDIR;
+                txn_abort(txn);    
 				goto out4;
 			}
 
 			/* Remove the name */
 			result = sfs_dir_unlink(dir2, slot2);
 			if (result) {
+                txn_abort(txn);
 				goto out4;
 			}
 
 			/* Dispose of the file */
 			KASSERT(obj2_inodeptr->sfi_linkcount > 0);
 			obj2_inodeptr->sfi_linkcount--;
+            txn_attach(txn, obj2->sv_buf);
 			buffer_mark_dirty(obj2->sv_buf);
 		}
 
@@ -3246,10 +3393,12 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	strcpy(sd.sfd_name, name2);
 	result = sfs_writedir(dir2, &sd, slot2);
 	if (result) {
+        txn_abort(txn);
 		goto out4;
 	}
 
 	obj1_inodeptr->sfi_linkcount++;
+    txn_attach(txn, obj1->sv_buf);
 	buffer_mark_dirty(obj1->sv_buf);
 
 	if (obj1->sv_type == SFS_TYPE_DIR) {
@@ -3282,6 +3431,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 		goto recover2;
 	}
 	obj1_inodeptr->sfi_linkcount--;
+    txn_attach(txn, obj1->sv_buf);
 	buffer_mark_dirty(obj1->sv_buf);
 
 	KASSERT(result==0);
@@ -3296,9 +3446,12 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 				recovermsg(result, result2);
 			}
 			dir1_inodeptr->sfi_linkcount++;
+            txn_attach(txn, dir1->sv_buf);
 			buffer_mark_dirty(dir1->sv_buf);
 			dir2_inodeptr->sfi_linkcount--;
+            txn_attach(txn, dir2->sv_buf);
 			buffer_mark_dirty(dir2->sv_buf);
+            txn_abort(txn);
 		}
     recover1:
 		result2 = sfs_dir_unlink(dir2, slot2);
@@ -3306,7 +3459,9 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			recovermsg(result, result2);
 		}
 		obj1_inodeptr->sfi_linkcount--;
+        txn_attach(txn, obj1->sv_buf);
 		buffer_mark_dirty(obj1->sv_buf);
+        txn_abort(txn);
 	}
 
  out4:

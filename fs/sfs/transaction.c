@@ -130,13 +130,23 @@ txn_abort(struct transaction *txn)
 int
 txn_attach(struct transaction *txn, struct buf *b)
 {
+    int err;
+    // Place transaction onto buffer
+    err = buffer_txn_touch(b, txn);
+    // Buffer and transaction have already been attached
+    if (err == EINVAL) {
+        return 0;
+    }
+    else if (err) {
+        return err;
+    }
+    
+    // Place buffer onto transaction
     int index;
-    int err = array_add(txn->txn_bufs, b, &index);
+    err = array_add(txn->txn_bufs, b, &index);
     if (err)
         return err;
     
-    // Increment transaction refcount on buffer
-    buffer_txn_touch(b, txn);
     // Increment number of buffers this transaction touches
     txn->txn_bufcount++;
     return 0;
