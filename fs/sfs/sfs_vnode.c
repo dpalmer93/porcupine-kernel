@@ -194,6 +194,23 @@ sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret)
 	return sfs_clearblock(sfs, *diskblock, bufret);
 }
 
+static
+int
+sfs_balloc_specific(struct sfs_fs *sfs, uint32_t diskblock)
+{
+    int result;
+    
+	KASSERT(diskblock < sfs->sfs_super.sp_nblocks);
+    
+	lock_acquire(sfs->sfs_bitlock);
+	bitmap_mark(sfs->sfs_freemap, diskblock);
+	sfs->sfs_freemapdirty = true;
+	lock_release(sfs->sfs_bitlock);
+    
+	/* Clear block before returning it */
+	return sfs_clearblock(sfs, *diskblock, NULL);
+}
+
 /*
  * Free a block.
  */

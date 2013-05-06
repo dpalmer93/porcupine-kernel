@@ -240,6 +240,7 @@ int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t p
 int
 sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
 {
+    int err;
     switch (je->je_type) {
         case JE_INVAL:
         case JE_START:
@@ -253,9 +254,18 @@ sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
             // If not, alloc it.
             // Finally, point inode to it.
             if (!sfs_bused(sfs, je->je_childblk)) {
-                if ()
+                err = sfs_balloc_specific(sfs, je->je_childblk);
+                if (err)
+                    return err;
             }
             
+            struct buf *inodebuf;
+            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inobuf);
+            if (err)
+                return err;
+            
+            
+            return 0;
         case JE_ADD_DATABLOCK_INDIRECT:
             
         case JE_WRITE_DIR:
