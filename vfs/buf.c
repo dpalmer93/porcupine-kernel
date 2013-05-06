@@ -838,7 +838,6 @@ buffer_put_busy(struct buf *b)
 /*
  * Write a buffer (found on attached_buffers[]) out.
  */
-static
 int
 buffer_sync(struct buf *b)
 {

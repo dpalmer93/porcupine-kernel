@@ -36,6 +36,8 @@
 #include <buf.h>
 #include <journal.h>
 
+#define MAX_JNLBUFS 128
+
 int 
 jnl_write_start(struct journal *jnl, uint64_t txnid, daddr_t *written_blk)
 {    
@@ -109,7 +111,12 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     buffer_mark_dirty(iobuffer);
     int index;
     array_add(jnl->jnl_blks, iobuffer, &index);
-
+    // if there are too many buffers on the journal buffer, flush it
+    if (array_num(jnl->jnl_blks) > MAX_JNLBUFS) {
+        jnl_sync(jnl);
+    }
+    
+    
     buffer_release(iobuffer);
     lock_release(jnl->jnl_lock);
     
@@ -154,7 +161,7 @@ jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr
 }
 
 int 
-jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot)
+jnl_add_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot)
 {
     struct jnl_entry je;
     je.je_type = JE_ADD_DATABLOCK_INDIRECT;
@@ -163,4 +170,38 @@ jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, 
     je.je_slot = slot;
     
     return jnl_write_entry(jnl, &je, NULL);
+}
+
+int
+jnl_new_inode(struct journal *jnl, uint64_t, txnid, uint32_t ino, uint16_t inotype)
+{
+    struct jnl_entry je;
+    je.je_type = JE_NEW_INODE;
+    je.je_txnid = txnid;
+    je.je_ino = ino;
+    je.je_inotype = inotype
+    
+    return jnl_write_entry(jnl, &je, NULL);
+}
+
+int 
+jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir)
+{
+    struct jnl_entry je;
+    je.je_type = JE_WRITE_DIR
+    je.je_txnid = txnid;
+    je.je_ino = ino;
+    je.je_slot = slot;
+    je.je_dir.sfd_ino = dir->sfd_ino;
+    strcpy(je.je_dir.sfd_name, dir->sfd_name)
+    
+    return jnl_write_entry(jnl, &je, NULL);
+}
+
+int 
+jnl_sync(struct journal *jnl)
+{
+    for (unsigned i = 0; i < array_num(jnl->jnl_blks); i++) {
+        buffer_sync(array_get(jnl->jnl_blks, i));
+    }
 }
