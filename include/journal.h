@@ -92,6 +92,7 @@ int jnl_new_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, uint16_t in
 int jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir);
 int jnl_remove_inode(struct journal *jnl, uint64_t txnid, uint32_t ino);
 int jnl_remove_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot); 
+int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot); 
 // Sync all journal buffers to disk
 int jnl_syn(struct journal *jnl);
 

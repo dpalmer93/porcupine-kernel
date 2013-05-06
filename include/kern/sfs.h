@@ -41,6 +41,7 @@
 #define SFS_VOLNAME_SIZE  32            /* max length of volume name */
 #define SFS_NDIRECT       15            /* # of direct blocks in inode */
 #define SFS_DBPERIDB      128           /* # direct blks per indirect blk */
+#define SFS_JNLFRACTION   10            /* # disk blks per journal blk */
 #define SFS_NAMELEN       60            /* max length of filename */
 #define SFS_SB_LOCATION    0            /* block the superblock lives in */
 #define SFS_ROOT_LOCATION  1            /* loc'n of the root dir inode */
@@ -59,6 +60,12 @@
 /* Size of bitmap (in blocks) */
 #define SFS_BITBLOCKS(nblocks)  (SFS_BITMAPSIZE(nblocks)/SFS_BLOCKBITS)
 
+/* Size of journal (in blocks) */
+#define SFS_JNLSIZE(nblocks) ((nblocks)/SFS_JNLFRACTION)
+
+/* Start of journal */
+#define SFS_JNLSTART(nblocks) ((nblocks) - SFS_JNLSIZE(nblocks))
+
 /* File types for sfi_type */
 #define SFS_TYPE_INVAL    0       /* Should not appear on disk */
 #define SFS_TYPE_FILE     1
@@ -68,9 +75,10 @@
  * On-disk superblock
  */
 struct sfs_super {
-	uint32_t sp_magic;		/* Magic number, should be SFS_MAGIC */
-	uint32_t sp_nblocks;			/* Number of blocks in fs */
-	char sp_volname[SFS_VOLNAME_SIZE];	/* Name of this volume */
+	uint32_t sp_magic;                  // Magic number, should be SFS_MAGIC
+	uint32_t sp_nblocks;                // Number of blocks in fs
+    uint32_t sp_ckpoint;                // Last journal checkpoint
+	char sp_volname[SFS_VOLNAME_SIZE];	// Name of this volume
 	uint32_t reserved[118];
 };
 

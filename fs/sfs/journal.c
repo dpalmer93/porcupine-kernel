@@ -153,6 +153,7 @@ jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr
 {
     struct jnl_entry je;
     je.je_type = JE_ADD_DATABLOCK_INODE;
+    je.je_txnid = txnid;
     je.je_ino = ino;
     je.je_childblk = childblk;
     je.je_slot = slot;
@@ -165,6 +166,7 @@ jnl_add_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t parentbl
 {
     struct jnl_entry je;
     je.je_type = JE_ADD_DATABLOCK_INDIRECT;
+    je.je_txnid = txnid;
     je.je_parentblk = parentblk;
     je.je_childblk = childblk;
     je.je_slot = slot;
@@ -205,6 +207,31 @@ jnl_remove_inode(struct journal *jnl, uint64_t txnid, uint32_t ino)
     je.je_type = JE_REMOVE_INODE;
     je.je_txnid = txnid;
     je.je_ino = ino;
+    
+    return jnl_write_entry(jnl, &je, NULL);
+}
+
+int 
+jnl_remove_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot)
+{
+    struct jnl_entry je;
+    je.je_type = JE_REMOVE_DATABLOCK_INODE;
+    je.je_txnid = txnid;
+    je.je_ino = ino;    
+    je.je_childblk = childblk;
+    je.je_slot = slot;
+    
+    return jnl_write_entry(jnl, &je, NULL);
+}
+
+int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot); 
+{
+    struct jnl_entry je;
+    je.je_type = JE_REMOVE_DATABLOCK_INDIRECT;
+    je.je_txnid = txnid;
+    je.je_parentblk = parentblk;
+    je.je_childblk = childblk;
+    je.je_slot = slot;
     
     return jnl_write_entry(jnl, &je, NULL);
 }
