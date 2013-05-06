@@ -75,7 +75,7 @@ typedef enum {
     JE_WRITE_DIR,
     // Remove inode at block je_ino, with inumber je_ino
     JE_REMOVE_INODE,
-    
+    // Remove data bloclk je_childblk from inode je_ino.  It is the je_slot word in the inode.
     JE_REMOVE_DATABLOCK_INODE,
     
     JE_REMOVE_DATABLOCK_INDIRECT
@@ -91,6 +91,7 @@ int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentb
 int jnl_new_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, uint16_t inotype);
 int jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir);
 int jnl_remove_inode(struct journal *jnl, uint64_t txnid, uint32_t ino);
+int jnl_remove_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot); 
 // Sync all journal buffers to disk
 int jnl_syn(struct journal *jnl);
 

@@ -1784,7 +1784,7 @@ sfs_mmap(struct vnode *v   /* add stuff as needed */)
  */
 static
 int
-sfs_dotruncate(struct vnode *v, off_t len)
+sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 {
 	struct sfs_vnode *sv = v->vn_data;
 	struct sfs_fs *sfs = sv->sv_v.vn_fs->fs_data;
@@ -1815,6 +1815,8 @@ sfs_dotruncate(struct vnode *v, off_t len)
 	for (i=0; i<SFS_NDIRECT; i++) {
 		block = inodeptr->sfi_direct[i];
 		if (i >= blocklen && block != 0) {
+            // Log journal entry
+            jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, block, 2+i);
 			sfs_bfree(sfs, block);
 			inodeptr->sfi_direct[i] = 0;
 		}
@@ -2049,7 +2051,10 @@ sfs_dotruncate(struct vnode *v, off_t len)
 							int block = iddata[level1];
 							iddata[level1] = 0;
 							id_modified = 1;
-
+                            
+                            // Log journal entry
+                            jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, idblock, block, level1);
+                            
 							sfs_bfree(sfs, block);
 						}
 
@@ -2062,6 +2067,14 @@ sfs_dotruncate(struct vnode *v, off_t len)
 
 					if (!id_hasnonzero)
 					{
+                        // Log journal entry
+                        if (indir == 1) {
+                            jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, idblock, 2 + SFS_NDIRECT);
+                        }
+                        if (indir != 1) {
+                            jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, didblock, idblock, level2);
+                        }
+                    
 						/* The whole indirect block is empty now; free it */
 						sfs_bfree(sfs, idblock);
 						if(indir == 1)
@@ -2077,6 +2090,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 					else if(id_modified)
 					{
 						/* The indirect block has been modified */
+                        txn_attach(txn, tidbuf);
 						buffer_mark_dirty(idbuf);
 						if(indir != 1)
 						{
@@ -2105,11 +2119,19 @@ sfs_dotruncate(struct vnode *v, off_t len)
 
 				if (!did_hasnonzero)
 				{
+                    // Log journal entry
+                    if (indir == 2) {
+                        jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, didblock, 3 + SFS_NDIRECT);
+                    }
+                    if (indir == 3) {
+                        jnl_remove_datablock_indirect(txn->txn_jnl, txn->txn_id, tidblock, didblock, level3);
+                    }
 					/* The whole double indirect block is empty now; free it */
 					sfs_bfree(sfs, didblock);
 					if(indir == 2)
 					{
 						inodeptr->sfi_dindirect = 0;
+                        txn_attach(txn, tidbuf);
 						buffer_mark_dirty(sv->sv_buf);
 					}
 					if(indir == 3)
@@ -2121,6 +2143,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 				else if(did_modified)
 				{
 					/* The double indirect block has been modified */
+                    txn_attach(txn, tidbuf);
 					buffer_mark_dirty(didbuf);
 					if(indir == 3)
 					{
@@ -2141,6 +2164,9 @@ sfs_dotruncate(struct vnode *v, off_t len)
 			}
 			if (!tid_hasnonzero)
 			{
+                // Log journal entry
+                jnl_remove_datablock_inode(txn->txn_jnl, txn->txn_id, sv->sv_ino, tidblock, 4 + NDIRECT);
+            
 				/* The whole triple indirect block is empty now; free it */
 				sfs_bfree(sfs, tidblock);
 				inodeptr->sfi_tindirect = 0;
@@ -2148,6 +2174,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 			else if(tid_modified)
 			{
 				/* The triple indirect block has been modified */
+                txn_attach(txn, tidbuf);
 				buffer_mark_dirty(tidbuf);
 			}
 			buffer_release(tidbuf);
@@ -2160,6 +2187,7 @@ sfs_dotruncate(struct vnode *v, off_t len)
 	inodeptr->sfi_size = len;
 
 	/* Mark the inode dirty */
+    txn_attach(txn, sv->sv_buf);
 	buffer_mark_dirty(sv->sv_buf);
 
 	/* release the inode buffer */
