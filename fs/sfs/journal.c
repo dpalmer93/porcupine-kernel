@@ -236,6 +236,7 @@ int jnl_remove_datablock_indirect(struct journal *jnl, uint64_t txnid, daddr_t p
     return jnl_write_entry(jnl, &je, NULL);
 }
 
+
 int
 sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
 {
@@ -258,8 +259,8 @@ sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
             // this slot exists.  Fill in slot.
             uint32_t dirblock = je->je_slot * / SFS_BLOCKSIZE;
             daddr_t diskblock;
-            if (
-    }
+            if () {
+            }
 }
 
 int 
