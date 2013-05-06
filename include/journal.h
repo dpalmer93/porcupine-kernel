@@ -55,8 +55,9 @@ struct jnl_entry {
     daddr_t             je_parentblk;
     daddr_t             je_childblk;
     int                 je_slot;
+
+    struct sfs_dir      je_dir;
     uint16_t            je_inotype;
-    char                je_name[SFS_NAMELEN];
     uint8_t             je_padding[SOME_PADDING_SIZE];
 };
 
@@ -69,7 +70,9 @@ typedef enum {
     // Add data block je_childblk to indirect block je_parentblk.  It is the je_slot block in indirect.
     JE_ADD_DATABLOCK_INDIRECT,
     // Allocated a new inode block at block je_ino, with inumber je_ino, and type je_inotype;
-    JE_NEW_INODE
+    JE_NEW_INODE,
+    // Write je_dir into je_slot of the directory with inumber je_ino
+    JE_WRITE_DIR
 } je_type_t;
 
 int jnl_write_start(struct journal *jnl, uint64_t txn_id, daddr_t *written_blk);
@@ -80,6 +83,7 @@ int jnl_write_entry(struct journal *jnl, struct jnl_entry *je, daddr_t *written_
 int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot);
 int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot);
 int jnl_new_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, uint16_t inotype);
+int jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir);
 
 // Flush all journal buffers up to the commit entry of txn_id and sets checkpoint
 int jnl_sync(struct journal *, uint64_t txn_id);

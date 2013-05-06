@@ -294,7 +294,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 				return result;
 			}
 
-            // Log into journal
+            // Log journal entry
             int slot = fileblock = 2 + fileblock;
             result = jnl_add_datablock_inode(txn->txn_jnl, txn->txn_txnid, sv->sv_ino, block, slot);
             if (result) {
@@ -365,7 +365,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 			return result;
 		}
 
-        // Log into journal
+        // Log journal entry
         int slot = fileblock = 2 + SFS_NDIRECT + (indir - 1);
         result = jnl_add_datablock_inode(txn->txn_jnl, txn->txn_txnid, sv->sv_ino, next_block, slot);
         if (result) {
@@ -447,7 +447,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 				return result;
 			}
 
-            // Log into journal
+            // Log journal entry
             int slot = idoff;
             result = jnl_add_datablock_indirect(txn->txn_jnl, txn->txn_txnid, cur_block, next_block, slot);
             if (result) {
@@ -840,6 +840,12 @@ sfs_writedir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot)
 		return result;
 	}
 
+    // Log journal entry
+    result = jnl_write_dir(txn->txn_jnl, txn->txn_id, sv->sv_ino, slot, sd)
+    if (result) {
+        return result;
+    }
+    
 	/* Should not end up with a partial entry! */
 	if (ku.uio_resid > 0) {
 		panic("sfs: writedir: Short write (ino %u)\n", sv->sv_ino);
@@ -1012,7 +1018,7 @@ sfs_dir_findino(struct sfs_vnode *sv, uint32_t ino,
  */
 static
 int
-sfs_dir_link(struct sfs_vnode *sv, const char *name, uint32_t ino, int *slot)
+sfs_dir_link(struct sfs_vnode *sv, const char *name, uint32_t ino, int *slot, struct transaction *txn)
 {
 	int emptyslot = -1;
 	int result;
@@ -1052,7 +1058,7 @@ sfs_dir_link(struct sfs_vnode *sv, const char *name, uint32_t ino, int *slot)
 	}
 
 	/* Write the entry. */
-	return sfs_writedir(sv, &sd, emptyslot);
+	return sfs_writedir(sv, &sd, emptyslot, txn);
 
 }
 
@@ -1067,7 +1073,7 @@ sfs_dir_link(struct sfs_vnode *sv, const char *name, uint32_t ino, int *slot)
  */
 static
 int
-sfs_dir_unlink(struct sfs_vnode *sv, int slot)
+sfs_dir_unlink(struct sfs_vnode *sv, int slot, struct transaction *txn)
 {
 	struct sfs_dir sd;
 
@@ -1079,7 +1085,7 @@ sfs_dir_unlink(struct sfs_vnode *sv, int slot)
 	sd.sfd_ino = SFS_NOINO;
 
 	/* ... and write it */
-	return sfs_writedir(sv, &sd, slot);
+	return sfs_writedir(sv, &sd, slot, txn);
 }
 
 /*
@@ -1206,6 +1212,7 @@ sfs_makeobj(struct sfs_fs *sfs, int type, struct sfs_vnode **ret, struct transac
     result = jnl_new_inode(txn->txn_jnl, txn->txn_id, ino, type)
     if (result) {
         sfs_bfree(sfs, ino)
+        return result;
     }
     
 	/*
@@ -2555,26 +2562,26 @@ sfs_mkdir(struct vnode *v, const char *name, mode_t mode)
         return result;
     }
     
-	result = sfs_makeobj(sfs, SFS_TYPE_DIR, &newguy);
+	result = sfs_makeobj(sfs, SFS_TYPE_DIR, &newguy, txn);
 	if (result) {
         txn_abort(txn);
 		goto die_simple;
 	}
 	new_inodeptr = buffer_map(newguy->sv_buf);
 
-	result = sfs_dir_link(newguy, ".", newguy->sv_ino, NULL);
+	result = sfs_dir_link(newguy, ".", newguy->sv_ino, NULL, txn);
 	if (result) {
         txn_abort(txn);
 		goto die_uncreate;
 	}
 
-	result = sfs_dir_link(newguy, "..", sv->sv_ino, NULL);
+	result = sfs_dir_link(newguy, "..", sv->sv_ino, NULL, txn);
 	if (result) {
         txn_abort(txn);
 		goto die_uncreate;
 	}
 
-	result = sfs_dir_link(sv, name, newguy->sv_ino, NULL);
+	result = sfs_dir_link(sv, name, newguy->sv_ino, NULL, txn);
 	if (result) {
         txn_abort(txn);
 		goto die_uncreate;
