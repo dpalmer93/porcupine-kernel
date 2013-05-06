@@ -84,7 +84,8 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
         jnl_next_block(jnl);
         jnl->jnl_num_entries = 0;
     }
-    *written_blk = jnl->jnl_current;
+    if (written_blk != NULL)
+        *written_blk = jnl->jnl_current;
     
     int offset = jnl->jnl_num_entries * JE_SIZE;
     
@@ -138,4 +139,28 @@ jnl_next_block(struct journal *jnl)
     jnl->jnl_current = next_block;
     
     return;
+}
+
+int
+jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot) 
+{
+    struct jnl_entry je;
+    je.je_type = JE_ADD_DATABLOCK_INODE;
+    je.je_ino = ino;
+    je.je_childblk = childblk;
+    je.je_slot = slot;
+    
+    return jnl_write_entry(jnl, &je, NULL);
+}
+
+int 
+jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot)
+{
+    struct jnl_entry je;
+    je.je_type = JE_ADD_DATABLOCK_INDIRECT;
+    je.je_parentblk = parentblk;
+    je.je_childblk = childblk;
+    je.je_slot = slot;
+    
+    return jnl_write_entry(jnl, &je, NULL);
 }

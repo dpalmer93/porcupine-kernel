@@ -38,14 +38,6 @@
 
 #define TXN_MAX 128
 
-struct transaction {
-    struct journal *txn_jnl;        // journal transaction belongs to
-    uint64_t        txn_id;         // unique & monotonic ID
-    uint32_t        txn_bufcount;   // # of modified buffers not yet synced
-    daddr_t         txn_startblk;   // disk block containing start entry
-    daddr_t         txn_endblk;     // disk block containing commit/abort entry
-    struct bufarray txn_bufs;       // array of modified buffers
-};
 
 struct transaction *txn_queue[TXN_MAX]; // transaction tracking
 int txn_qhead;  // first item in q

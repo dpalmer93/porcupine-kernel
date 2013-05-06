@@ -33,9 +33,19 @@
 #include <array.h>
 #include <buf.h>
 
+struct transaction {
+    struct journal *txn_jnl;        // journal transaction belongs to
+    uint64_t        txn_id;         // unique & monotonic ID
+    uint32_t        txn_bufcount;   // # of modified buffers not yet synced
+    daddr_t         txn_startblk;   // disk block containing start entry
+    daddr_t         txn_endblk;     // disk block containing commit/abort entry
+    struct bufarray txn_bufs;       // array of modified buffers
+};
+
 struct transaction *txn_create(struct journal *jnl);
 void                txn_close(struct transaction *txn); // call on buffer sync
 void                txn_docheckpoint(void);
+// Attaches a transaction to a buffer.  Touches the buffer
 int                 txn_attach(struct transaction *txn, struct buf *b);
 int                 txn_commit(struct transaction *txn);
 int                 txn_abort(struct transaction *txn);

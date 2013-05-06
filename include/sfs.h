@@ -69,6 +69,7 @@ struct sfs_fs {
 	struct lock *sfs_vnlock;	/* lock for vnode table */
 	struct lock *sfs_bitlock;	/* lock for bitmap/superblock */
 	struct lock *sfs_renamelock;	/* lock for sfs_rename() */
+    struct journal *sfs_jnl;        /* journal for sfs */
 };
 
 /*
