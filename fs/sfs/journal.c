@@ -36,6 +36,8 @@
 #include <buf.h>
 #include <journal.h>
 
+#define MAX_JNLBUFS 128
+
 int 
 jnl_write_start(struct journal *jnl, uint64_t txnid, daddr_t *written_blk)
 {    
@@ -109,7 +111,12 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     buffer_mark_dirty(iobuffer);
     int index;
     array_add(jnl->jnl_blks, iobuffer, &index);
-
+    // if there are too many buffers on the journal buffer, flush it
+    if (array_num(jnl->jnl_blks) > MAX_JNLBUFS) {
+        jnl_sync(jnl);
+    }
+    
+    
     buffer_release(iobuffer);
     lock_release(jnl->jnl_lock);
     
@@ -189,4 +196,12 @@ jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struc
     strcpy(je.je_dir.sfd_name, dir->sfd_name)
     
     return jnl_write_entry(jnl, &je, NULL);
+}
+
+int 
+jnl_sync(struct journal *jnl)
+{
+    for (unsigned i = 0; i < array_num(jnl->jnl_blks); i++) {
+        buffer_sync(array_get(jnl->jnl_blks, i));
+    }
 }

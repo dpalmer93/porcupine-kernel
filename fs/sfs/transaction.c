@@ -102,7 +102,16 @@ txn_commit(struct transaction *txn)
         buffer_txn_yield(array_get(txn->txn_bufs, i));
     }
 
-    return jnl_write_commit(txn->jnl, txn->txn_id, &txn->txn_endblk);
+    // Write commit message
+    err =  jnl_write_commit(txn->jnl, txn->txn_id, &txn->txn_endblk);
+    if (err)
+        return err;
+        
+    struct journal *jnl = txn->txn_jnl;
+    // Flush all the journal buffers
+    jnl_sync(jnl);
+    
+    return 0;
 }
 
 int

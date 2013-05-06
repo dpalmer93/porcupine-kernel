@@ -55,13 +55,13 @@ struct jnl_entry {
     daddr_t             je_parentblk;
     daddr_t             je_childblk;
     int                 je_slot;
-
     struct sfs_dir      je_dir;
     uint16_t            je_inotype;
     uint8_t             je_padding[SOME_PADDING_SIZE];
 };
 
 typedef enum {
+    JE_INVAL,           // invalid journal entry
     JE_START,           // first journal entry in a transaction
     JE_ABORT,           // last journal entry in a failed transaction
     JE_COMMIT,          // last journal entry in a successful transaction
@@ -75,18 +75,18 @@ typedef enum {
     JE_WRITE_DIR
 } je_type_t;
 
+/* Commands to write entries */
+int jnl_write_entry(struct journal *jnl, struct jnl_entry *je, daddr_t *written_blk);
 int jnl_write_start(struct journal *jnl, uint64_t txn_id, daddr_t *written_blk);
 int jnl_write_commit(struct journal *jnl, uint64_t txn_id, daddr_t *written_blk);
 int jnl_write_abort(struct journal *jnl, uint64_t txn_id, daddr_t *written_blk);
-int jnl_write_entry(struct journal *jnl, struct jnl_entry *je, daddr_t *written_blk);
-
 int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, daddr_t childblk, int slot);
 int jnl_add_datablock_inode(struct journal *jnl, uint64_t txnid, daddr_t parentblk, daddr_t childblk, int slot);
 int jnl_new_inode(struct journal *jnl, uint64_t txnid, uint32_t ino, uint16_t inotype);
 int jnl_write_dir(struct journal *jnl, uint64_t txnid, uint32_t ino, int slot, struct sfs_dir *dir);
 
-// Flush all journal buffers up to the commit entry of txn_id and sets checkpoint
-int jnl_sync(struct journal *, uint64_t txn_id);
+// Sync all journal buffers to disk
+int jnl_syn(struct journal *jnl);
 
 void journal_bootstrap(void);
 
