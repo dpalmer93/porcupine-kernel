@@ -39,35 +39,6 @@
 #include <synch.h>
 #include <transaction.h>
 
-#define TXN_MAX 128
-
-struct transaction *txn_queue[TXN_MAX]; // transaction tracking
-int txn_qhead;  // first item in q
-int txn_qcount;  // next available spot in q
-
-uint64_t txnid_next;
-struct lock *txn_lock;
-struct cv *txn_cv;
-
-// EVIL KLUDGE
-void
-txn_bootstrap(void)
-{
-    txn_lock = lock_create("Transaction Lock");
-    if (txn_lock == NULL)
-        panic("txn_bootstrap: Out of memory\n");
-    
-    txn_cv = cv_create("Transaction CV");
-    if (txn_cv == NULL) {
-        lock_destroy(txn_lock);
-        panic("txn_bootstrap: Out of memory\n");
-    }
-    
-    txn_qhead = 0;
-    txn_qcount = 0;
-    txnid_next = 0;
-}
-
 // Allocates a transaction and writes it to disk
 int
 txn_start(struct journal *jnl, struct transaction **ret)
@@ -85,27 +56,27 @@ txn_start(struct journal *jnl, struct transaction **ret)
     txn->txn_bufcount = 0;
     txn->txn_jnl = jnl;
     
-    lock_acquire(txn_lock);
+    lock_acquire(jnl->jnl_lock);
     // Wait until there is room in our transaction queue
     while (txn_qcount == TXN_MAX)
-        cv_wait(txn_cv, txn_lock);
+        cv_wait(jnl_txncv, jnl_lock);
     
     // Acquire a transaction ID
-    txn->txn_id = txnid_next;
-    txnid_next++;
+    txn->txn_id = jnl->jnl_txnid_next;
+    jnl->jnl_txnid_next++;
     
     // Place transaction in txn_queue
-    txn_queue[(txn_qhead + txn_qcount) % TXN_MAX] = txn;
-    txn_qcount++;
+    jnl->jnl_txnqueue[(jnl->jnl_txnqhead + jnl->jnl_txnqcount) % TXN_MAX] = txn;
+    jnl->jnl_txnqcount++;
     
     // Write start journal entry to journal
     int err = jnl_write_start(txn, &txn->txn_startblk);
     if (err) {
-        lock_release(txn_lock);
+        lock_release(jnl->jnl_lock);
         return err;
     }
     
-    lock_release(txn_lock);
+    lock_release(jnl->jnl_lock);
     
     *ret = txn;
     return 0;
@@ -184,7 +155,7 @@ txn_close(struct transaction *txn)
 {
     txn->txn_bufcount--;
     if (txn->txn_bufcount == 0) {
-        txn_docheckpoint(txn->txn_jnl);
+        jnl_docheckpoint(txn->txn_jnl);
     }
 }
 
@@ -192,47 +163,5 @@ bool
 txn_issynced(struct transaction *txn)
 {
     return (txn->txn_bufcount == 0);
-}
-
-
-void
-txn_docheckpoint(struct journal *jnl)
-{
-    lock_acquire(txn_lock);
-    lock_acquire(jnl->jnl_lock);
-    
-    // Searches through the queue
-    // Frees any transactions that are done
-    // Moves the checkpoint up accordingly
-    int i = txn_qhead;
-    daddr_t checkpoint = jnl->jnl_checkpoint;
-    
-    for (i = txn_qhead; i != (txn_qhead + txn_qcount) % TXN_MAX; i = (i + 1) % TXN_MAX) {
-        struct transaction *txn = txn_queue[i];
-        if (txn_issynced(txn)) {
-            // Update checkpoint if transaction is synced
-            checkpoint = txn->txn_startblk;           
-            txn_destroy(txn);
-            txn_qcount--;
-            cv_signal(txn_cv, txn_lock);
-        }
-        else {
-            break;
-        }
-    }
-    txn_qhead = i;
-    
-    // Update checkpoint on superblock and write it
-    struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
-    sfs->sfs_super.sp_ckpoint = checkpoint;
-    sfs->sfs_superdirty = true;
-    int err = sfs_writesuper(sfs);
-            
-    // Update checkpoint in journal
-    if (err == 0)
-        jnl->jnl_checkpoint = checkpoint;
-    
-    lock_release(jnl->jnl_lock);
-    lock_release(txn_lock);
 }
 
