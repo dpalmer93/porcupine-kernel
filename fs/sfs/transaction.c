@@ -58,8 +58,8 @@ txn_start(struct journal *jnl, struct transaction **ret)
     
     lock_acquire(jnl->jnl_lock);
     // Wait until there is room in our transaction queue
-    while (txn_qcount == TXN_MAX)
-        cv_wait(jnl_txncv, jnl_lock);
+    while (jnl->jnl_txnqcount == TXN_MAX)
+        cv_wait(jnl->jnl_txncv, jnl->jnl_lock);
     
     // Acquire a transaction ID
     txn->txn_id = jnl->jnl_txnid_next;
@@ -82,7 +82,6 @@ txn_start(struct journal *jnl, struct transaction **ret)
     return 0;
 }
 
-static
 void
 txn_destroy(struct transaction *txn)
 {

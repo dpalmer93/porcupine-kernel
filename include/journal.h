@@ -72,7 +72,7 @@ int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount)
 int jnl_sync(struct journal *jnl);
 
 // Checkpoint
-int jnl_docheckpoint(struct journal *jnl);
+void jnl_docheckpoint(struct journal *jnl);
 
 int sfs_jnlmount(struct sfs_fs *sfs);
 void jnl_destroy(struct journal *jnl);

@@ -316,7 +316,7 @@ jnl_destroy(struct journal *jnl)
     kfree(jnl);
 }
 
-int
+void
 jnl_docheckpoint(struct journal *jnl)
 {
     lock_acquire(jnl->jnl_lock);
@@ -327,7 +327,7 @@ jnl_docheckpoint(struct journal *jnl)
     int i = jnl->jnl_txnqhead;
     daddr_t checkpoint = jnl->jnl_checkpoint;
     
-    for (i = txn_qhead;
+    for (i = jnl->jnl_txnqhead;
          i != (jnl->jnl_txnqhead + jnl->jnl_txnqcount) % TXN_MAX;
          i = (i + 1) % TXN_MAX) {
         struct transaction *txn = jnl->jnl_txnqueue[i];
