@@ -460,10 +460,10 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
 	sfs->sfs_freemapdirty = false;
     
 	lock_release(sfs->sfs_bitlock);
+	lock_release(sfs->sfs_vnlock);
 
     result = sfs_jnlmount(sfs);
     if (result) {
-        lock_release(sfs->sfs_vnlock);
 		lock_destroy(sfs->sfs_vnlock);
 		lock_destroy(sfs->sfs_bitlock);
 		lock_destroy(sfs->sfs_renamelock);
@@ -479,7 +479,6 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
     result = sfs_writesuper(sfs);
     if (result) {
         jnl_destroy(sfs->sfs_jnl);
-        lock_release(sfs->sfs_vnlock);
 		lock_destroy(sfs->sfs_vnlock);
 		lock_destroy(sfs->sfs_bitlock);
 		lock_destroy(sfs->sfs_renamelock);
@@ -491,8 +490,6 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
     
 	/* Hand back the abstract fs */
 	*ret = &sfs->sfs_absfs;
-
-	lock_release(sfs->sfs_vnlock);
 
 	return 0;
 }
