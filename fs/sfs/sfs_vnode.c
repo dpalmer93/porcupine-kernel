@@ -129,7 +129,7 @@ sfs_destroy_vnode(struct sfs_vnode *victim)
  */
 static
 int
-sfs_clearblock(struct sfs_fs *sfs, uint32_t block, struct buf **bufret, transaction *txn)
+sfs_clearblock(struct sfs_fs *sfs, uint32_t block, struct buf **bufret, struct transaction *txn)
 {
 	struct buf *buf;
 	void *ptr;
@@ -199,9 +199,7 @@ static
 int
 sfs_balloc_specific(struct sfs_fs *sfs, uint32_t diskblock)
 {
-    int result;
-    
-	KASSERT(diskblock < sfs->sfs_super.sp_nblocks);
+    KASSERT(diskblock < sfs->sfs_super.sp_nblocks);
     
 	lock_acquire(sfs->sfs_bitlock);
 	bitmap_mark(sfs->sfs_freemap, diskblock);
@@ -209,7 +207,7 @@ sfs_balloc_specific(struct sfs_fs *sfs, uint32_t diskblock)
 	lock_release(sfs->sfs_bitlock);
     
 	/* Clear block before returning it */
-	return sfs_clearblock(sfs, *diskblock, NULL, NULL);
+	return sfs_clearblock(sfs, diskblock, NULL, NULL);
 }
 
 /*
@@ -306,7 +304,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 		 * Do we need to allocate?
 		 */
 		if (block==0 && doalloc) {
-			result = sfs_balloc(sfs, &block, NULL);
+			result = sfs_balloc(sfs, &block, NULL, txn);
 			if (result) {
 				sfs_release_inode(sv);
 				return result;
@@ -376,7 +374,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 	}
 	else if(next_block == 0)
 	{
-		result = sfs_balloc(sfs, &next_block, &kbuf);
+		result = sfs_balloc(sfs, &next_block, &kbuf, txn);
 		if(result)
 		{
 			sfs_release_inode(sv);
@@ -457,7 +455,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 		}
 		else if(next_block == 0)
 		{
-			result = sfs_balloc(sfs, &next_block, &kbuf2);
+			result = sfs_balloc(sfs, &next_block, &kbuf2, txn);
 			if(result)
 			{
 				buffer_release(kbuf);
@@ -470,7 +468,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
             result = jnl_add_datablock_indirect(txn, cur_block, next_block, slot);
             if (result) {
                 sfs_bfree(sfs, next_block);
-                buffer_release(kbuf)
+                buffer_release(kbuf);
                 sfs_release_inode(sv);
                 return result;
             }
@@ -822,7 +820,7 @@ sfs_readdir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot)
 	uio_kinit(&iov, &ku, sd, sizeof(struct sfs_dir), actualpos, UIO_READ);
 
 	/* do it */
-	result = sfs_io(sv, &ku);
+	result = sfs_io(sv, &ku, NULL);
 	if (result) {
 		return result;
 	}
@@ -846,7 +844,7 @@ sfs_readdir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot)
  */
 static
 int
-sfs_writedir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot)
+sfs_writedir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot, struct transaction *txn)
 {
 	struct iovec iov;
 	struct uio ku;
@@ -863,13 +861,13 @@ sfs_writedir(struct sfs_vnode *sv, struct sfs_dir *sd, int slot)
 	uio_kinit(&iov, &ku, sd, sizeof(struct sfs_dir), actualpos, UIO_WRITE);
 
 	/* do it */
-	result = sfs_io(sv, &ku);
+	result = sfs_io(sv, &ku, txn);
 	if (result) {
 		return result;
 	}
 
     // Log journal entry
-    result = jnl_write_dir(txn, sv->sv_ino, slot, sd)
+    result = jnl_write_dir(txn, sv->sv_ino, slot, sd);
     if (result) {
         return result;
     }
@@ -1231,15 +1229,15 @@ sfs_makeobj(struct sfs_fs *sfs, int type, struct sfs_vnode **ret, struct transac
 	 * number is the block number, so just get a block.)
 	 */
 
-	result = sfs_balloc(sfs, &ino, NULL);
+	result = sfs_balloc(sfs, &ino, NULL, txn);
 	if (result) {
 		return result;
 	}
     
     // Log journal entry
-    result = jnl_new_inode(txn, ino, type)
+    result = jnl_new_inode(txn, ino, type);
     if (result) {
-        sfs_bfree(sfs, ino)
+        sfs_bfree(sfs, ino);
         return result;
     }
     
@@ -1416,7 +1414,7 @@ sfs_reclaim(struct vnode *v)
         
 		result = sfs_dotruncate(&sv->sv_v, 0, txn);
 		if (result) {
-            txn(abort);
+            txn_abort(txn);
 			sfs_release_inode(sv);
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
@@ -1432,7 +1430,7 @@ sfs_reclaim(struct vnode *v)
         // Log journal entry
         result = jnl_remove_inode(txn, sv->sv_ino);
         if (result) {
-            txn(abort);
+            txn_abort(txn);
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
 			if (buffers_needed) {
@@ -1510,7 +1508,7 @@ sfs_read(struct vnode *v, struct uio *uio)
 	lock_acquire(sv->sv_lock);
 	reserve_buffers(3, SFS_BLOCKSIZE);
 
-	result = sfs_io(sv, uio);
+	result = sfs_io(sv, uio, NULL);
 
 	unreserve_buffers(3, SFS_BLOCKSIZE);
 	lock_release(sv->sv_lock);
@@ -2179,7 +2177,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 			if (!tid_hasnonzero)
 			{
                 // Log journal entry
-                jnl_remove_datablock_inode(txn, sv->sv_ino, tidblock, 4 + NDIRECT);
+                jnl_remove_datablock_inode(txn, sv->sv_ino, tidblock, 4 + SFS_NDIRECT);
             
 				/* The whole triple indirect block is empty now; free it */
 				sfs_bfree(sfs, tidblock);
@@ -2491,7 +2489,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 
     int slot;
 	/* Link it into the directory */
-	result = sfs_dir_link(sv, name, newguy->sv_ino, &slot);
+	result = sfs_dir_link(sv, name, newguy->sv_ino, &slot, txn);
 	if (result) {
         txn_abort(txn);
 		sfs_release_inode(newguy);
@@ -2577,6 +2575,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	/* Just create a link */
 	result = sfs_dir_link(sv, name, f->sv_ino, &slot, txn);
 	if (result) {
+	    txn_abort(txn);
 		unreserve_buffers(4, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
@@ -2585,7 +2584,8 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	lock_acquire(f->sv_lock);
 	result = sfs_load_inode(f);
 	if (result) {
-		result2 = sfs_dir_unlink(sv, slot);
+	    txn_abort(txn);
+		result2 = sfs_dir_unlink(sv, slot, NULL);
 		if (result2) { /* eep? */
 			panic("sfs_link: could not unwind link in inode %u, slot %d!\n",
 					sv->sv_ino, slot);
@@ -2597,8 +2597,14 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	}
 
     // Log journal entry
-    result = jnl_set_linkcount(txn, f->sv_ino, inodeptr->sfi_linkcount + 1)
+    result = jnl_set_linkcount(txn, f->sv_ino, inodeptr->sfi_linkcount + 1);
     if (result) {
+	    txn_abort(txn);
+		result2 = sfs_dir_unlink(sv, slot, NULL);
+		if (result2) { /* eep? */
+			panic("sfs_link: could not unwind link in inode %u, slot %d!\n",
+					sv->sv_ino, slot);
+		}
         sfs_release_inode(f);
         unreserve_buffers(4, SFS_BLOCKSIZE);
         lock_release(f->sv_lock);
@@ -2609,6 +2615,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	/* and update the link count, marking the inode dirty */
 	inodeptr = buffer_map(f->sv_buf);
 	inodeptr->sfi_linkcount++;
+	txn_attach(txn, f->sv_buf);
 	buffer_mark_dirty(f->sv_buf);
 
 	sfs_release_inode(f);
@@ -2722,7 +2729,7 @@ sfs_mkdir(struct vnode *v, const char *name, mode_t mode)
     }
     
     result = jnl_set_linkcount(txn, sv->sv_ino, dir_inodeptr->sfi_linkcount + 1);
-    if (resulot) {
+    if (result) {
         txn_abort(txn);
         goto die_uncreate;
     }
@@ -2773,6 +2780,7 @@ static
 int
 sfs_rmdir(struct vnode *v, const char *name)
 {
+    struct sfs_fs *sfs = v->vn_fs->fs_data;
 	struct sfs_vnode *sv = v->vn_data;
 	struct sfs_vnode *victim;
 	struct sfs_inode *dir_inodeptr;
@@ -2828,7 +2836,7 @@ sfs_rmdir(struct vnode *v, const char *name)
         goto die_total;
     }
     
-	result = sfs_dir_unlink(sv, slot);
+	result = sfs_dir_unlink(sv, slot, txn);
 	if (result) {
         txn_abort(txn);
 		goto die_total;
@@ -2838,13 +2846,13 @@ sfs_rmdir(struct vnode *v, const char *name)
 	KASSERT(victim_inodeptr->sfi_linkcount==2);
 
     // Log journal entry
-    result = jnl_set_linkcount(struct transaction *txn, sv->sv_ino, dir_inodeptr->sfi_linkcount - 1);
+    result = jnl_set_linkcount(txn, sv->sv_ino, dir_inodeptr->sfi_linkcount - 1);
     if (result) {
         txn_abort(txn);
         goto die_total;
     }
     
-    result = jnl_set_linkcount(struct transaction *txn, victim->sv_ino, dir_inodeptr->sfi_linkcount - 2);
+    result = jnl_set_linkcount(txn, victim->sv_ino, victim_inodeptr->sfi_linkcount - 2);
     if (result) {
         txn_abort(txn);
         goto die_total;
@@ -2859,7 +2867,7 @@ sfs_rmdir(struct vnode *v, const char *name)
 	buffer_mark_dirty(victim->sv_buf);
 	/* buffer released below */
 
-	result = sfs_dotruncate(&victim->sv_v, 0);
+	result = sfs_dotruncate(&victim->sv_v, 0, txn);
 
     if (result) {
         txn_abort(txn);
@@ -2895,6 +2903,7 @@ static
 int
 sfs_remove(struct vnode *dir, const char *name)
 {
+    struct sfs_fs *sfs = dir->vn_fs->fs_data;
 	struct sfs_vnode *sv = dir->vn_data;
 	struct sfs_vnode *victim;
 	struct sfs_inode *victim_inodeptr;
@@ -2960,7 +2969,7 @@ sfs_remove(struct vnode *dir, const char *name)
     }
 
 	/* Erase its directory entry. */
-	result = sfs_dir_unlink(sv, slot);
+	result = sfs_dir_unlink(sv, slot, txn);
     if (result) {
         txn_abort(txn);
         sfs_release_inode(sv);
@@ -2977,7 +2986,7 @@ sfs_remove(struct vnode *dir, const char *name)
     KASSERT(victim_inodeptr->sfi_linkcount > 0);
     
     // Log journal entry
-    result = jnl_set_linkcount(txn, victim->sv_buf, victim_inodeptr->sfi_linkcount - 1);
+    result = jnl_set_linkcount(txn, victim->sv_ino, victim_inodeptr->sfi_linkcount - 1);
     if (result) {
         txn_abort(txn);
         sfs_release_inode(sv);
@@ -3410,7 +3419,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			}
 
             // Log journal entry
-            result = jnl_set_linkcount(txn, dir2->sv_ino, dir_inodeptr->sfi_linkcount - 1);
+            result = jnl_set_linkcount(txn, dir2->sv_ino, dir2_inodeptr->sfi_linkcount - 1);
             if (result) {
                 txn_abort(txn);
                 goto out4;
@@ -3556,7 +3565,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
     recover2:
 		if (obj1->sv_type == SFS_TYPE_DIR) {
 			sd.sfd_ino = dir1->sv_ino;
-			result2 = sfs_writedir(obj1, &sd, DOTDOTSLOT);
+			result2 = sfs_writedir(obj1, &sd, DOTDOTSLOT, NULL);
 			if (result2) {
 				recovermsg(result, result2);
 			}
@@ -3568,7 +3577,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			buffer_mark_dirty(dir2->sv_buf);
 		}
     recover1:
-		result2 = sfs_dir_unlink(dir2, slot2);
+		result2 = sfs_dir_unlink(dir2, slot2, NULL);
 		if (result2) {
 			recovermsg(result, result2);
 		}
@@ -4024,11 +4033,17 @@ sfs_getroot(struct fs *fs)
 	return &sv->sv_v;
 }
 
+
 // Replay a journal entry (during recovery)
 int
-sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
+sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
 {
+    struct buf *buf;
+    struct sfs_vnode *dir;
+    uint32_t *inodeblk, *indirblk;
+    struct sfs_inode *inodeptr;
     int err;
+    
     switch (je->je_type) {
         case JE_INVAL:
         case JE_START:
@@ -4047,18 +4062,17 @@ sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
                     return err;
             }
             
-            struct buf *inodebuf;
-            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
             
             // access the inode as a flat array of pointers,
             // as the slot number is just an index into
             // the block
-            uint32_t *inodeptr = buffer_map(inodebuf);
-            inodeptr[je->je_slot] = je->je_childblk;
-            buffer_mark_dirty(inodebuf);
-            buffer_release(inodebuf);
+            inodeblk = buffer_map(buf);
+            inodeblk[je->je_slot] = je->je_childblk;
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             return 0;
         case JE_ADD_DATABLOCK_INDIRECT:
             // Approximately the same as above.
@@ -4068,22 +4082,20 @@ sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
                     return err;
             }
             
-            struct buf *indirbuf;
-            err = buffer_read(sfs->sfs_fs, je->je_parentblk, SFS_BLOCKSIZE, &indirbuf);
+            err = buffer_read(&sfs->sfs_absfs, je->je_parentblk, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
             
             // slot number is index into the indirect block
-            uint32_t *indirptr = buffer_map(indirbuf);
-            indirptr[je->je_slot] = je->je_childblk;
-            buffer_mark_dirty(indirbuf);
-            buffer_release(indirbuf);
+            indirblk = buffer_map(buf);
+            indirblk[je->je_slot] = je->je_childblk;
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             return 0;
         case JE_WRITE_DIR:
             // Check that directory block containing
             // this slot exists.  Fill in slot.
-            struct sfs_vnode *dir;
-            err = sfs_load_vnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, false);
+            err = sfs_loadvnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, false);
             if (err)
                 return err;
             
@@ -4093,70 +4105,68 @@ sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
             if (err)
                 return err;
             
-            struct buf *direntbuf;
-            err = buffer_read(sfs->sfs_fs, diskblk, SFS_BLOCKSIZE, &direntbuf);
+            err = buffer_read(&sfs->sfs_absfs, diskblk, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
             
-            struct sfs_dir *entries = buffer_map(direntbuf);
+            struct sfs_dir *entries = buffer_map(buf);
             entries[je->je_slot % SFS_DIRPERBLK] = je->je_dir;
-            buffer_mark_dirty(direntbuf);
-            buffer_release(direntbuf);
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             return 0;
         case JE_REMOVE_INODE:
             sfs_bfree(sfs, je->je_ino);
             return 0;
         case JE_REMOVE_DATABLOCK_INODE:
-            struct buf *inodebuf;
-            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
             
             // access the inode as a flat array of pointers,
             // as the slot number is just an index into
             // the block
-            uint32_t *inodeptr = buffer_map(inodebuf);
-            inodeptr[je->je_slot] = 0;
-            buffer_mark_dirty(inodebuf);
-            buffer_release(inodebuf);
+            inodeblk = buffer_map(buf);
+            inodeblk[je->je_slot] = 0;
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             
             sfs_bfree(sfs, je->je_childblk);
             return 0;
         case JE_REMOVE_DATABLOCK_INDIRECT:
-            struct buf *indirbuf;
-            err = buffer_read(sfs->sfs_fs, je->je_parentblk, SFS_BLOCKSIZE, &indirbuf);
+            err = buffer_read(&sfs->sfs_absfs, je->je_parentblk, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
             
             // slot number is index into the indirect block
-            uint32_t *indirptr = buffer_map(indirbuf);
-            indirptr[je->je_slot] = je->je_childblk;
-            buffer_mark_dirty(indirbuf);
-            buffer_release(indirbuf);
+            indirblk = buffer_map(buf);
+            indirblk[je->je_slot] = je->je_childblk;
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             
             sfs_bfree(sfs, je->je_childblk);
             return 0;
         case JE_SET_SIZE:
-            struct buf *inodebuf;
-            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
             
-            struct sfs_inode *inodeptr = buffer_map(inodebuf);
+            inodeptr = buffer_map(buf);
             inodeptr->sfi_size = je->je_size;
-            buffer_mark_dirty(inodebuf);
-            buffer_release(inodebuf);
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             return 0;
         case JE_SET_LINKCOUNT:
-            struct buf *inodebuf;
-            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
             
-            struct sfs_inode *inodeptr = buffer_map(inodebuf);
+            inodeptr = buffer_map(buf);
             inodeptr->sfi_linkcount = je->je_linkcount;
-            buffer_mark_dirty(inodebuf);
-            buffer_release(inodebuf);
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             return 0;
+        default:
+            return EINVAL;
     }
 }
+

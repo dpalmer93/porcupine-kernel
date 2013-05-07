@@ -33,11 +33,13 @@
  * Transaction Management Routines
  */
 
+#include <kern/errno.h>
 #include <buf.h>
 #include <journal.h>
+#include <synch.h>
+#include <transaction.h>
 
 #define TXN_MAX 128
-
 
 struct transaction *txn_queue[TXN_MAX]; // transaction tracking
 int txn_qhead;  // first item in q
@@ -47,14 +49,8 @@ uint64_t txnid_next;
 struct lock *txn_lock;
 struct cv *txn_cv;
 
-void
-txn_destroy(struct transaction *txn)
-{
-    array_destroy(txn->bufs);
-    kfree(txn);
-}
-
 // Allocates a transaction and writes it to disk
+int
 txn_start(struct journal *jnl, struct transaction **ret)
 {
     struct transaction *txn = kmalloc(sizeof(struct transaction));
@@ -63,12 +59,12 @@ txn_start(struct journal *jnl, struct transaction **ret)
     
     txn->txn_bufs = bufarray_create();
     if (txn->txn_bufs == NULL) {
-        free(txn);
+        kfree(txn);
         return ENOMEM;
     }
     
     txn->txn_bufcount = 0;
-    txn->jnl = jnl;
+    txn->txn_jnl = jnl;
     
     lock_acquire(txn_lock);
     // Wait until there is room in our transaction queue
@@ -82,34 +78,39 @@ txn_start(struct journal *jnl, struct transaction **ret)
     // Place transaction in txn_queue
     txn_queue[txn_qtail] = txn;
     txn_qtail = (txn_qtail + 1) % TXN_MAX;
+    
+    // Write start journal entry to journal
+    int err = jnl_write_start(txn, &txn->txn_startblk);
+    if (err) {
+        lock_release(txn_lock);
+        return err;
+    }
+    
     lock_release(txn_lock);
     
-    return txn;
+    *ret = txn;
+    return 0;
 }
 
+static
 void
 txn_destroy(struct transaction *txn)
 {
-    bufarray_destroy(txn->bufs);
+    bufarray_destroy(txn->txn_bufs);
     kfree(txn);
 }
 
-int
-txn_start(struct transaction *txn)
-{
-    return jnl_write_start(txn, &txn->txn_startblk);
-}
 
 int
 txn_commit(struct transaction *txn)
 {
     // Decrement the refcount on all the buffers this txn modified
-    for (unsigned i = 0; i < array_num(txn->txn_bufs); i++) {
-        buffer_txn_yield(array_get(txn->txn_bufs, i));
+    for (unsigned i = 0; i < bufarray_num(txn->txn_bufs); i++) {
+        buffer_txn_yield(bufarray_get(txn->txn_bufs, i));
     }
 
     // Write commit message
-    err =  jnl_write_commit(txn, &txn->txn_endblk);
+    int err =  jnl_write_commit(txn, &txn->txn_endblk);
     if (err)
         return err;
         
@@ -121,11 +122,11 @@ int
 txn_abort(struct transaction *txn)
 {
     // Decrement the refcount on all the buffers this txn modified
-    for (unsigned i = 0; i < array_num(txn->txn_bufs); i++) {
-        buffer_txn_yield(array_get(txn->txn_bufs, i));
+    for (unsigned i = 0; i < bufarray_num(txn->txn_bufs); i++) {
+        buffer_txn_yield(bufarray_get(txn->txn_bufs, i));
     }
     
-    return jnl_write_abort(txn->txn_jnl, &txn->txn_endblk);
+    return jnl_write_abort(txn, &txn->txn_endblk);
 }
 
 // Buffer must be marked busy
@@ -144,8 +145,8 @@ txn_attach(struct transaction *txn, struct buf *b)
     }
     
     // Place buffer onto transaction
-    int index;
-    err = array_add(txn->txn_bufs, b, &index);
+    unsigned index;
+    err = bufarray_add(txn->txn_bufs, b, &index);
     if (err)
         return err;
     
@@ -161,7 +162,7 @@ txn_close(struct transaction *txn)
 {
     txn->txn_bufcount--;
     if (txn->txn_bufcount == 0) {
-        txn_docheckpoint(txn->jnl);
+        txn_docheckpoint(txn->txn_jnl);
     }
 }
 
@@ -188,7 +189,7 @@ txn_docheckpoint(struct journal *jnl)
         struct transaction *txn = txn_queue[i];
         if (txn_issynced(txn)) {
             // Update checkpoint if transaction is synced
-            checkpoint = txn->txn_startblk            
+            checkpoint = txn->txn_startblk;           
             txn_destroy(txn);
         }
         else {

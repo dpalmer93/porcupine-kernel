@@ -33,7 +33,13 @@
  * Journal Management Routines
  */
 
+#include <types.h>
+#include <kern/iovec.h>
+#include <kern/errno.h>
+#include <transaction.h>
 #include <buf.h>
+#include <uio.h>
+#include <synch.h>
 #include <journal.h>
 
 #define MAX_JNLBUFS 128
@@ -68,13 +74,37 @@ jnl_write_abort(struct transaction *txn, daddr_t *written_blk)
     return jnl_write_entry(txn->txn_jnl, &entry, written_blk);
 }
 
+// Gets the next physical block available for journal and sets jnl->current
+// Must hold the journal lock
+static
+void
+jnl_next_block(struct journal *jnl)
+{
+    KASSERT(lock_do_i_hold(jnl->jnl_lock));
+    
+    daddr_t next_block = jnl->jnl_current + 1;
+    if (next_block >= jnl->jnl_top) {
+        next_block = jnl->jnl_bottom;
+    }
+    
+    // We've hit our checkpoint so next block is unavailable
+    // In this case, flush all the file system buffers
+    if (next_block == jnl->jnl_checkpoint) {
+        sync_fs_buffers(jnl->jnl_fs);
+    }
+    
+    jnl->jnl_current = next_block;
+    
+    return;
+}
+
 int
 jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_blk)
 {
-    struct *buf iobuffer;
+    struct buf *iobuffer;
     int err;
     struct iovec iov;
-    struct uio *ku;
+    struct uio ku;
     
     // set up a uio to do the journal write
     uio_kinit(&iov, &ku, entry, JE_SIZE, 0, UIO_WRITE);
@@ -97,8 +127,8 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
         lock_release(jnl->jnl_lock);
         return err;
     }
-    ioptr = buffer_map(iobuffer);
-    err = uiomove(ioptr + offset, JE_SIZE, ku);
+    void *ioptr = buffer_map(iobuffer);
+    err = uiomove(ioptr + offset, JE_SIZE, &ku);
     if (err) {
         buffer_release(iobuffer);
         lock_release(jnl->jnl_lock);
@@ -109,10 +139,10 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     
     // mark the buffer as dirty and place it in the journal's bufarray
     buffer_mark_dirty(iobuffer);
-    int index;
-    array_add(jnl->jnl_blks, iobuffer, &index);
+    unsigned index;
+    bufarray_add(jnl->jnl_blks, iobuffer, &index);
     // if there are too many buffers on the journal buffer, flush it
-    if (array_num(jnl->jnl_blks) > MAX_JNLBUFS) {
+    if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
         jnl_sync(jnl);
     }
     
@@ -121,33 +151,6 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     lock_release(jnl->jnl_lock);
     
     return 0;
-}
-
-// Gets the next physical block available for journal and sets jnl->current
-// Must hold the journal lock
-void
-jnl_next_block(struct journal *jnl)
-{
-    if (txn == NULL)
-        return 0;
-    KASSERT(lock_do_i_hold(jnl->jnl_lock));
-    
-    daddr_t next_block = jnl->jnl_current + 1;
-    if (next_block >= JOURNAL_TOP) {
-        next_block = JOURNAL_BOTTOM;
-    }
-    
-    // We've hit our checkpoint so next block is unavailable
-    // In this case, flush all the file system buffers
-    if (next_block == jnl->checkpoint) {
-        sync_fs_buffers(jnl->fs);
-        jnl->checkpoint = JOURNAL_BOTTOM;
-        next_block = JOURNAL_BOTTOM;
-    }
-    
-    jnl->jnl_current = next_block;
-    
-    return;
 }
 
 int
@@ -181,7 +184,7 @@ jnl_add_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t c
 }
 
 int
-jnl_new_inode(struct transaction *txn, txnid, uint32_t ino, uint16_t inotype)
+jnl_new_inode(struct transaction *txn, uint32_t ino, uint16_t inotype)
 {
     if (txn == NULL)
         return 0;
@@ -189,7 +192,7 @@ jnl_new_inode(struct transaction *txn, txnid, uint32_t ino, uint16_t inotype)
     je.je_type = JE_NEW_INODE;
     je.je_txnid = txn->txn_id;
     je.je_ino = ino;
-    je.je_inotype = inotype
+    je.je_inotype = inotype;
     
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
 }
@@ -205,7 +208,7 @@ jnl_write_dir(struct transaction *txn, uint32_t ino, int slot, struct sfs_dir *d
     je.je_ino = ino;
     je.je_slot = slot;
     je.je_dir.sfd_ino = dir->sfd_ino;
-    strcpy(je.je_dir.sfd_name, dir->sfd_name)
+    strcpy(je.je_dir.sfd_name, dir->sfd_name);
     
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
 }
@@ -239,7 +242,7 @@ jnl_remove_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childb
 }
 
 int 
-jnl_remove_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot); 
+jnl_remove_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot)
 {
     if (txn == NULL)
         return 0;
@@ -261,6 +264,7 @@ jnl_set_size(struct transaction *txn, uint32_t ino, uint32_t size)
     struct jnl_entry je;
     je.je_type = JE_SET_SIZE;
     je.je_txnid = txn->txn_id;
+    je.je_ino = ino;
     je.je_size = size;
     
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
@@ -274,6 +278,7 @@ jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t size)
     struct jnl_entry je;
     je.je_type = JE_SET_LINKCOUNT;
     je.je_txnid = txn->txn_id;
+    je.je_ino = ino;
     je.je_size = size;
     
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
@@ -283,8 +288,8 @@ int
 jnl_sync(struct journal *jnl)
 {
     int result;
-    for (unsigned i = 0; i < array_num(jnl->jnl_blks); i++) {
-        result = buffer_sync(array_get(jnl->jnl_blks, i));
+    for (unsigned i = 0; i < bufarray_num(jnl->jnl_blks); i++) {
+        result = buffer_sync(bufarray_get(jnl->jnl_blks, i));
         if (result)
             return result;
     }
@@ -292,7 +297,7 @@ jnl_sync(struct journal *jnl)
 }
 
 int 
-sfs_jnlbootstrap(struct sfs_fs *sfs)
+sfs_jnlmount(struct sfs_fs *sfs)
 {
     struct journal *jnl = kmalloc(sizeof(struct journal));
     if (jnl == NULL)
@@ -310,6 +315,9 @@ sfs_jnlbootstrap(struct sfs_fs *sfs)
     }    
     
     // Set other fields
+    jnl->jnl_bottom = SFS_JNLSTART(sfs->sfs_super.sp_nblocks);
+    jnl->jnl_top = jnl->jnl_bottom + SFS_JNLSIZE(sfs->sfs_super.sp_nblocks);
+    
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
     if (!sfs->sfs_super.sp_clean) {    
@@ -318,8 +326,9 @@ sfs_jnlbootstrap(struct sfs_fs *sfs)
     }
 
     jnl->jnl_blkoffset = 0;
-    jnl->jnl_fs = sfs->sfs_absfs;
+    jnl->jnl_fs = &sfs->sfs_absfs;
     jnl->jnl_current = jnl->jnl_checkpoint;
      
     return 0;
 }
+

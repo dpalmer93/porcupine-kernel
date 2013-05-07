@@ -44,6 +44,7 @@
 #include <device.h>
 #include <sfs.h>
 #include <synch.h>
+#include <journal.h>
 
 /* Shortcuts for the size macros in kern/sfs.h */
 #define SFS_FS_BITMAPSIZE(sfs)  SFS_BITMAPSIZE((sfs)->sfs_super.sp_nblocks)
@@ -197,8 +198,8 @@ sfs_writesuper(struct sfs_fs *sfs)
 {
     lock_acquire(sfs->sfs_bitlock);
 	if (sfs->sfs_superdirty) {
-		result = sfs_writeblock(&sfs->sfs_absfs, SFS_SB_LOCATION,
-					&sfs->sfs_super, SFS_BLOCKSIZE);
+		int result = sfs_writeblock(&sfs->sfs_absfs, SFS_SB_LOCATION,
+					                &sfs->sfs_super, SFS_BLOCKSIZE);
 		if (result) {
 			lock_release(sfs->sfs_bitlock);
 			return result;
@@ -206,7 +207,7 @@ sfs_writesuper(struct sfs_fs *sfs)
 		sfs->sfs_superdirty = false;
 	}
     lock_release(sfs->sfs_bitlock);
-
+    return 0;
 }
 
 /*

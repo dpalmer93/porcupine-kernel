@@ -30,8 +30,10 @@
 #ifndef _JOURNAL_H_
 #define _JOURNAL_H_
 
+#include <types.h>
+#include <array.h>
 #include <buf.h>
-#include <kern/sfs.h>
+#include <sfs.h>
 
 // Assume, for sanity, that journal entries will be 128 bytes,
 // independent of file system.  (VFS already makes a similar
@@ -40,27 +42,14 @@
 #define JE_SIZE 128
 
 struct journal {
-    struct bufarray *jnl_blks;     // dynamic array of journal blocks
-    daddr_t          jnl_current;     // current journal block on disk being written to
+    struct bufarray *jnl_blks;       // dynamic array of journal blocks
+    daddr_t          jnl_top;
+    daddr_t          jnl_bottom;
+    daddr_t          jnl_current;    // current journal block on disk being written to
     daddr_t          jnl_checkpoint; // address of first dirty journal block
-    int              jnl_num_entry; // number of entries in jnl_entries
+    int              jnl_blkoffset;  // number of entries in jnl_entries
     struct fs       *jnl_fs;
-    struct lock     *jnl_lock;     // journal lock
-};
-
-// 128 Bytes
-struct jnl_entry {
-    je_type_t           je_type; // type of operation
-    uint64_t            je_txnid;
-    uint32_t            je_ino;
-    daddr_t             je_parentblk;
-    daddr_t             je_childblk;
-    int                 je_slot;
-    uint32_t            je_size;
-    uint16_t            je_inotype;
-    uint16_t            je_linkcount;
-    struct sfs_dir      je_dir;
-    uint8_t             je_padding[28];
+    struct lock     *jnl_lock;       // journal lock
 };
 
 typedef enum {
@@ -91,13 +80,28 @@ typedef enum {
     JE_SET_LINKCOUNT
 } je_type_t;
 
+// 128 Bytes
+struct jnl_entry {
+    je_type_t           je_type; // type of operation
+    uint64_t            je_txnid;
+    uint32_t            je_ino;
+    daddr_t             je_parentblk;
+    daddr_t             je_childblk;
+    int                 je_slot;
+    uint32_t            je_size;
+    uint16_t            je_inotype;
+    uint16_t            je_linkcount;
+    struct sfs_dir      je_dir;
+    uint8_t             je_padding[JE_SIZE - 100];
+};
+
 /* Commands to write entries */
 int jnl_write_entry(struct journal *jnl, struct jnl_entry *je, daddr_t *written_blk);
 int jnl_write_start(struct transaction *txn, daddr_t *written_blk);
 int jnl_write_commit(struct transaction *txn, daddr_t *written_blk);
 int jnl_write_abort(struct transaction *txn, daddr_t *written_blk);
 int jnl_add_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk, int slot);
-int jnl_add_datablock_inode(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot);
+int jnl_add_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot);
 int jnl_new_inode(struct transaction *txn, uint32_t ino, uint16_t inotype);
 int jnl_write_dir(struct transaction *txn, uint32_t ino, int slot, struct sfs_dir *dir);
 int jnl_remove_inode(struct transaction *txn, uint32_t ino);
@@ -109,11 +113,7 @@ int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount)
 // Sync all journal buffers to disk
 int jnl_sync(struct journal *jnl);
 
-<<<<<<< HEAD
 int sfs_jnlmount(struct sfs_fs *sfs);
-=======
-int jnl_bootstrap(void);
->>>>>>> df337b29bf3993eaac075dfcfe7243042013f88a
 
 
 #endif /* _JOURNAL_H_ */

@@ -31,6 +31,7 @@
 #define _TRANSACTION_H_
 
 #include <array.h>
+#include <journal.h>
 #include <buf.h>
 
 struct transaction {
@@ -42,14 +43,14 @@ struct transaction {
     struct bufarray *txn_bufs;       // array of modified buffers
 };
 
-int                 txn_start(struct journal *jnl, struct transaction **ret);
-void                txn_close(struct transaction *txn); // call on buffer sync
-void                txn_docheckpoint(void);
+int txn_start(struct journal *jnl, struct transaction **ret);
+void txn_close(struct transaction *txn); // call on buffer sync
+void txn_docheckpoint(struct journal *jnl);
 // Attaches a transaction to a buffer.  Touches the buffer
-int                 txn_attach(struct transaction *txn, struct buf *b);
-int                 txn_commit(struct transaction *txn);
-int                 txn_abort(struct transaction *txn);
-bool                txn_issynced(struct transaction *txn);
+int txn_attach(struct transaction *txn, struct buf *b);
+int txn_commit(struct transaction *txn);
+int txn_abort(struct transaction *txn);
+bool txn_issynced(struct transaction *txn);
 
 int txn_bootstrap(void);
 

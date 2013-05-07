@@ -37,10 +37,13 @@
 #include <mainbus.h>
 #include <vfs.h>
 #include <fs.h>
+#include <transaction.h>
 #include <buf.h>
 
-DECLARRAY(buf);
 DEFARRAY(buf, /*noinline*/);
+
+DECLARRAY(transaction);
+DEFARRAY(transaction, /* noinline */);
 
 /*
  * The required size for all buffers.
@@ -57,12 +60,12 @@ DEFARRAY(buf, /*noinline*/);
  */
 struct buf {
 	/* maintenance */
-	unsigned        b_tableindex    // index into {{de,at}tached,busy}_buffers
+	unsigned        b_tableindex;   // index into {{de,at}tached,busy}_buffers
 	unsigned        b_bucketindex;	// index into buffer_hash bucket
     
     /* transaction tracking */
     unsigned        b_txncount;     // # uncommitted txns touching buf
-    struct txnarray b_txns;         // list of txns
+    struct transactionarray *b_txns; // list of txns
 
 	/* status flags */
 	unsigned        b_attached:1;	// key fields are valid
@@ -861,8 +864,8 @@ buffer_sync(struct buf *b)
 	result = buffer_writeout(b);
     
     // Go to each transaction and decrement the refcount
-    for (unsigned i = 0; i < array_num(b->txns); i++) {
-        txn_close(array_get(b->txns, i));
+    for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
+        txn_close(transactionarray_get(b->b_txns, i));
     }
 
 	buffer_unmark_busy(b);
@@ -1105,24 +1108,32 @@ buffer_drop(struct fs *fs, daddr_t block, size_t size)
 	lock_release(buffer_lock);
 }
 
+// must be called while holding the buffer lock
 int
-buffer_txn_touch(struct buf *buf, struct transaction *txn)
+buffer_txn_touch(struct buf *b, struct transaction *txn)
 {    
     int err;
     // Check to make sure the txn and buffer have not been attached
-    for (unsigned i = 0; i < array_num(b->b_txns); i++) {
-        if (txn == array_get(b->b_txns, i))
+    for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
+        if (txn == transactionarray_get(b->b_txns, i))
             return EINVAL;
     }
     
-    int index;
-    err = array_add(buf->b_txns, txn, &index);
+    unsigned index;
+    err = transactionarray_add(b->b_txns, txn, &index);
     if (err)
         return err;
         
     // Increment number of buffers this transaction touches    
     b->b_txncount++;
     return 0;
+}
+
+// must be called while holding the buffer lock
+void
+buffer_txn_yield(struct buf *b)
+{
+    b->b_txncount--;
 }
 
 static

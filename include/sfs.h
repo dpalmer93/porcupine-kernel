@@ -43,6 +43,8 @@
 #include <fs.h>
 #include <vnode.h>
 
+struct jnl_entry;
+
 /*
  * Get on-disk structures and constants that are made available to
  * userland for the benefit of mksfs, dumpsfs, etc.
@@ -90,6 +92,9 @@ int sfs_mount(const char *device);
 int sfs_readblock(struct fs *fs, daddr_t block, void *data, size_t len);
 int sfs_writeblock(struct fs *fs, daddr_t block, void *data, size_t len);
 int sfs_writesuper(struct sfs_fs *sfs);
+
+/* Replay a journal entry */
+int sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs);
 
 /* Get root vnode */
 struct vnode *sfs_getroot(struct fs *fs);

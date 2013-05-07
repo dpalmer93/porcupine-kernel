@@ -30,6 +30,9 @@
 #ifndef _BUF_H_
 #define _BUF_H_
 
+#include <types.h>
+#include <array.h>
+
 struct fs;          /* fs.h */
 struct transaction; /* transaction.h */
 
@@ -53,6 +56,8 @@ struct transaction; /* transaction.h */
  */
 
 struct buf; /* Opaque. */
+
+DECLARRAY(buf);
 
 /*
  * Get-a-buffer operations.
