@@ -82,7 +82,7 @@ struct sfs_super {
     uint32_t sp_ckpoint;                // Last journal checkpoint
     uint32_t sp_commit;                 // Block of last transaction commit
 	char sp_volname[SFS_VOLNAME_SIZE];	// Name of this volume
-	uint32_t reserved[118];
+	uint32_t reserved[80];
 };
 
 /*

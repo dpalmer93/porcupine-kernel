@@ -40,12 +40,12 @@
 #define JE_SIZE 128
 
 struct journal {
-    struct bufarray jnl_blks;     // dynamic array of journal blocks
-    daddr_t         jnl_current;     // current journal block on disk being written to
+    struct bufarray jnl_blks;       // dynamic array of journal blocks
+    daddr_t         jnl_current;    // current journal block on disk being written to
     daddr_t         jnl_checkpoint; // address of first dirty journal block
-    int             jnl_num_entry; // number of entries in jnl_entries
-    struct fs      *jnl_fs;
-    struct lock    *jnl_lock;     // journal lock
+    int             jnl_blk_offset; // number of entries written to current block
+    struct fs      *jnl_fs;         // journal file system
+    struct lock    *jnl_lock;       // journal lock
 };
 
 // 128 Bytes
@@ -107,9 +107,9 @@ int jnl_set_size(struct transaction *txn, uint32_t ino, uint32_t size);
 int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount);
 
 // Sync all journal buffers to disk
-int jnl_syn(struct journal *jnl);
+int jnl_sync(struct journal *jnl);
 
-void journal_bootstrap(void);
+int jnl_bootstrap(void);
 
 
 #endif /* _JOURNAL_H_ */
