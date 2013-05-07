@@ -4147,7 +4147,8 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             return 0;
         case JE_REMOVE_INODE:
             buffer_drop(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE);
-            sfs_bfree(sfs, je->je_ino);
+            if (sfs_bused(sfs, je->je_ino))
+                sfs_bfree(sfs, je->je_ino);
             
             // Remove the corresponding vnode from the table in sfs
             lock_acquire(sfs->sfs_vnlock);
