@@ -43,10 +43,12 @@
 #define SFS_DBPERIDB      128           /* # direct blks per indirect blk */
 #define SFS_JNLFRACTION   10            /* # disk blks per journal blk */
 #define SFS_NAMELEN       60            /* max length of filename */
-#define SFS_SB_LOCATION    0            /* block the superblock lives in */
-#define SFS_ROOT_LOCATION  1            /* loc'n of the root dir inode */
-#define SFS_MAP_LOCATION   2            /* 1st block of the freemap */
-#define SFS_NOINO          0            /* inode # for free dir entry */
+#define SFS_DIRLEN        64            /* length of directory entry in bytes */
+#define SFS_DIRPERBLK     8             /* number of directory entries per block */
+#define SFS_SB_LOCATION   0             /* block the superblock lives in */
+#define SFS_ROOT_LOCATION 1             /* loc'n of the root dir inode */
+#define SFS_MAP_LOCATION  2             /* 1st block of the freemap */
+#define SFS_NOINO         0             /* inode # for free dir entry */
 
 /* Number of bits in a block */
 #define SFS_BLOCKBITS (SFS_BLOCKSIZE * CHAR_BIT)
