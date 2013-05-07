@@ -191,6 +191,24 @@ sfs_sync(struct fs *fs)
 	return 0;
 }
 
+// Writes the super block
+int
+sfs_writesuper(struct sfs_fs *sfs)
+{
+    lock_acquire(sfs->sfs_bitlock);
+	if (sfs->sfs_superdirty) {
+		result = sfs_writeblock(&sfs->sfs_absfs, SFS_SB_LOCATION,
+					&sfs->sfs_super, SFS_BLOCKSIZE);
+		if (result) {
+			lock_release(sfs->sfs_bitlock);
+			return result;
+		}
+		sfs->sfs_superdirty = false;
+	}
+    lock_release(sfs->sfs_bitlock);
+
+}
+
 /*
  * Routine to retrieve the volume name. Filesystems can be referred
  * to by their volume name followed by a colon as well as the name
