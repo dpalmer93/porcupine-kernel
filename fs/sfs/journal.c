@@ -140,7 +140,15 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     // mark the buffer as dirty and place it in the journal's bufarray
     buffer_mark_dirty(iobuffer);
     unsigned index;
-    bufarray_add(jnl->jnl_blks, iobuffer, &index);
+    int added = 0;
+    for (unsigned i = 0; i < bufarray_num(jnl->jnl_blks); i++) {
+        if (iobuffer == bufarray_get(jnl->jnl_blks, i))
+            added = 1;
+    }
+    if (!added)    
+        bufarray_add(jnl->jnl_blks, iobuffer, &index);
+    
+    
     // if there are too many buffers on the journal buffer, flush it
     if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
         jnl_sync(jnl);
