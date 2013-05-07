@@ -405,7 +405,7 @@ sfs_jnlmount(struct sfs_fs *sfs)
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
     if (!sfs->sfs_super.sp_clean) {    
-        sfs_recover(sfs);
+        sfs_recover(sfs, &jnl->jnl_checkpoint, &jnl->jnl_txnid_next);
     }
 
     jnl->jnl_blkoffset = 0;

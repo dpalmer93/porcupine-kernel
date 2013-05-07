@@ -69,7 +69,7 @@ on_txnid_list(struct txnid_node *head, uint64_t txnid) {
 }
 
 int
-sfs_recover(struct sfs_fs *sfs)
+sfs_recover(struct sfs_fs *sfs, uint32_t *new_checkpoint, uint64_t *new_txnid)
 {
     int err;
     struct buf *iterator;
@@ -93,17 +93,23 @@ sfs_recover(struct sfs_fs *sfs)
     je_blk = buffer_map(iterator);
     
     uint64_t first_txnid;
+    uint64_t max_txnid = 0;
     bool found = false;
     for (int i = 0; i < SFS_JE_PER_BLOCK; i++) {
         if (!found) {
             if (je_blk[i].je_type == JE_START) {
                 first_txnid = je_blk[i].je_txnid;
+                max_txnid = first_txnid;
                 found = true;
             }
         }
         else {
             // Record committed transactions
             if (je_blk[i].je_type == JE_COMMIT) {
+                // record the maximum transaction ID
+                if (je_blk[i].je_txnid > max_txnid)
+                    max_txnid = je_blk[i].je_txnid;
+                
                 struct txnid_node *n = txnid_node_create(je_blk[i].je_txnid);
                 if (n == NULL){
                     buffer_release(iterator);
@@ -150,6 +156,10 @@ sfs_recover(struct sfs_fs *sfs)
             
             // Record committed transactions
             if (je_blk[i].je_type == JE_COMMIT) {
+                // record the maximum transaction ID
+                if (je_blk[i].je_txnid > max_txnid)
+                    max_txnid = je_blk[i].je_txnid;
+                
                 struct txnid_node *n = txnid_node_create(je_blk[i].je_txnid);
                 if (n == NULL){
                     buffer_release(iterator);
@@ -176,6 +186,9 @@ sfs_recover(struct sfs_fs *sfs)
     }
     
 foundall:
+    // Set the next transaction ID
+    *new_txnid = max_txnid + 1;
+    
     // Now loop through the journal and replay all the journal entries
     // that were part of committed transactions
     curblk = checkpoint;
@@ -193,7 +206,13 @@ foundall:
             // then replay it
             if (on_txnid_list(txnid_head, je_blk[i].je_txnid)) {
                 // REPLAY
-                sfs_replay(&je_blk[i], sfs);
+                err = sfs_replay(&je_blk[i], sfs);
+                if (err) {
+                    txnid_list_destroy(txnid_head);
+                    buffer_release(iterator);
+                    unreserve_buffers(4, SFS_BLOCKSIZE);
+                    return err;
+                }
              
                 // Remove txnid from list if we reach the commit message
                 // It should always be at the head
@@ -209,6 +228,9 @@ foundall:
         if (curblk == fsblocks)
             curblk = SFS_JNLSTART(fsblocks);
     }
+    
+    // The new checkpoint should be immediately after the last commit
+    *new_checkpoint = curblk;
     
     txnid_list_destroy(txnid_head);
     unreserve_buffers(4, SFS_BLOCKSIZE);
