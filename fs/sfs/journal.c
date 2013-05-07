@@ -416,7 +416,21 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
             return err;
         }
         
+        // sync the changes to disk
         err = FSOP_SYNC(&sfs->sfs_absfs);
+        if (err) {
+            bufarray_destroy(jnl->jnl_blks);
+            cv_destroy(jnl->jnl_txncv);
+            lock_destroy(jnl->jnl_lock);
+            kfree(jnl);
+            return err;
+        }
+        
+        // update the superblock
+        sfs->sfs_super.sp_ckpoint = jnl->jnl_checkpoint;
+        sfs->sfs_super.sp_txnid = jnl->jnl_txnid_next;
+        sfs->sfs_superdirty = true;
+        err = sfs_writesuper(sfs);
         if (err) {
             bufarray_destroy(jnl->jnl_blks);
             cv_destroy(jnl->jnl_txncv);
