@@ -86,7 +86,7 @@ struct sfs_super {
     uint32_t sp_ckpoint;                // Last journal checkpoint
     uint32_t sp_clean;                  // Was cleanly unmounted
 	char sp_volname[SFS_VOLNAME_SIZE];	// Name of this volume
-	uint32_t reserved[80];
+	uint32_t reserved[116];
 };
 
 /*
