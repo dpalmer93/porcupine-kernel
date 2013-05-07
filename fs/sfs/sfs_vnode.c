@@ -4152,19 +4152,26 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             
             // Remove the corresponding vnode from the table in sfs
             lock_acquire(sfs->sfs_vnlock);
-            num = vnodearray_num(sfs->sfs_vnodes);
-            for (i=0; i<num; i++) {
+            unsigned num = vnodearray_num(sfs->sfs_vnodes);
+            for (unsigned i = 0; i < num; i++) {
                 struct vnode *v = vnodearray_get(sfs->sfs_vnodes, i);
                 struct sfs_vnode *sv = v->vn_data;
                 lock_acquire(sv->sv_lock);
                 if (sv->sv_ino == je->je_ino) {
                     vnodearray_remove(sfs->sfs_vnodes, i);
+                    
+                    // hack to enable freeing of this vnode--
+                    // there should not be any reason to keep this
+                    // past recovery
+                    sv->sv_v.vn_refcount = 1;
                     VOP_CLEANUP(&sv->sv_v);
+                    
                     lock_release(sv->sv_lock);
                     sfs_destroy_vnode(sv);
+                    lock_release(sfs->sfs_vnlock);
+                    return 0;
                 }
-                else
-                    lock_release(sv->sv_lock);
+                lock_release(sv->sv_lock);
             }
             lock_release(sfs->sfs_vnlock);
             return 0;
