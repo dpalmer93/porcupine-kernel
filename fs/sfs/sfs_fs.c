@@ -442,6 +442,19 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
 	sfs->sfs_superdirty = false;
 	sfs->sfs_freemapdirty = false;
 
+    result = sfs_jnlmount(sfs);
+    if (result) {
+        lock_release(sfs->sfs_vnlock);
+		lock_release(sfs->sfs_bitlock);
+		lock_destroy(sfs->sfs_vnlock);
+		lock_destroy(sfs->sfs_bitlock);
+		lock_destroy(sfs->sfs_renamelock);
+		bitmap_destroy(sfs->sfs_freemap);
+		vnodearray_destroy(sfs->sfs_vnodes);
+		kfree(sfs);
+        return result;
+    }
+    
 	/* Hand back the abstract fs */
 	*ret = &sfs->sfs_absfs;
 

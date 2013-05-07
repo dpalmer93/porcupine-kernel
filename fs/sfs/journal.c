@@ -290,3 +290,36 @@ jnl_sync(struct journal *jnl)
     }
     return 0;
 }
+
+int 
+sfs_jnlbootstrap(struct sfs_fs *sfs)
+{
+    struct journal *jnl = kmalloc(sizeof(struct journal));
+    if (jnl == NULL)
+        return ENOMEM;
+    jnl->jnl_blks = bufarray_create();
+    if (jnl->jnl_blks == NULL) {
+        kfree(jnl);
+        return ENOMEM;
+    }
+    jnl->jnl_lock = lock_create("SFS Journal Lock");
+    if (jnl->jnl_lock == NULL) {
+        bufarray_destroy(jnl->jnl_blks);
+        kfree(jnl);
+        return ENOMEM;
+    }    
+    
+    // Set other fields
+    jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
+    
+    if (!sfs->sfs_super.sp_clean) {    
+        // Recovery
+    
+    }
+
+    jnl->jnl_blkoffset = 0;
+    jnl->jnl_fs = sfs->sfs_absfs;
+    jnl->jnl_current = jnl->jnl_checkpoint;
+     
+    return 0;
+}
