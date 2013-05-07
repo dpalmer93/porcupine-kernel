@@ -80,7 +80,7 @@ static
 void
 jnl_next_block(struct journal *jnl)
 {
-    KASSERT(lock_do_i_hold(jnl->jnl_lock));
+//    KASSERT(lock_do_i_hold(jnl->jnl_lock));
     
     daddr_t next_block = jnl->jnl_current + 1;
     if (next_block >= jnl->jnl_top) {
@@ -148,15 +148,13 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     if (!added)    
         bufarray_add(jnl->jnl_blks, iobuffer, &index);
     
+    buffer_release(iobuffer);
+    lock_release(jnl->jnl_lock);
     
     // if there are too many buffers on the journal buffer, flush it
     if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
         jnl_sync(jnl);
     }
-    
-    
-    buffer_release(iobuffer);
-    lock_release(jnl->jnl_lock);
     
     return 0;
 }
@@ -329,7 +327,8 @@ sfs_jnlmount(struct sfs_fs *sfs)
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
     if (!sfs->sfs_super.sp_clean) {    
-        // sfs_recover(sfs);
+        // Recovery
+    
     }
 
     jnl->jnl_blkoffset = 0;

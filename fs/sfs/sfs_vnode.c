@@ -82,7 +82,7 @@
 /* At bottom of file */
 static
 int sfs_loadvnode(struct sfs_fs *sfs, uint32_t ino, int forcetype,
-		 struct sfs_vnode **ret, bool load_inode);
+		 struct sfs_vnode **ret, bool load_inode, struct transaction *txn);
 
 /* needed by reclaim */
 static
@@ -1201,7 +1201,7 @@ sfs_lookonce(struct sfs_vnode *sv, const char *name, struct sfs_vnode **ret,
 		return result;
 	}
 
-	return sfs_loadvnode(sfs, ino, SFS_TYPE_INVAL, ret, load_inode);
+	return sfs_loadvnode(sfs, ino, SFS_TYPE_INVAL, ret, load_inode, NULL);
 }
 
 ////////////////////////////////////////////////////////////
@@ -1245,7 +1245,7 @@ sfs_makeobj(struct sfs_fs *sfs, int type, struct sfs_vnode **ret, struct transac
 	 * Now load a vnode for it.
 	 */
 
-	result = sfs_loadvnode(sfs, ino, type, ret, true);
+	result = sfs_loadvnode(sfs, ino, type, ret, true, txn);
 	if (result) {
 		sfs_bfree(sfs, ino);
 	}
@@ -1377,7 +1377,7 @@ sfs_reclaim(struct vnode *v)
 	 */
 	buffers_needed = curthread->t_reserved_buffers == 0;
 	if (buffers_needed) {
-		reserve_buffers(4, SFS_BLOCKSIZE);
+		reserve_buffers(5, SFS_BLOCKSIZE);
 	}
 
 	/* Get the on-disk inode. */
@@ -1390,7 +1390,7 @@ sfs_reclaim(struct vnode *v)
 		lock_release(sfs->sfs_vnlock);
 		lock_release(sv->sv_lock);
 		if (buffers_needed) {
-			unreserve_buffers(4, SFS_BLOCKSIZE);
+			unreserve_buffers(5, SFS_BLOCKSIZE);
 		}
 		return result;
 	}
@@ -1407,7 +1407,7 @@ sfs_reclaim(struct vnode *v)
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
 			if (buffers_needed) {
-				unreserve_buffers(4, SFS_BLOCKSIZE);
+				unreserve_buffers(5, SFS_BLOCKSIZE);
 			}
             return result;
         }
@@ -1419,26 +1419,27 @@ sfs_reclaim(struct vnode *v)
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
 			if (buffers_needed) {
-				unreserve_buffers(4, SFS_BLOCKSIZE);
+				unreserve_buffers(5, SFS_BLOCKSIZE);
 			}
             
 			return result;
 		}
-		sfs_release_inode(sv);
-		/* Discard the inode */
-        
+		
         // Log journal entry
         result = jnl_remove_inode(txn, sv->sv_ino);
         if (result) {
             txn_abort(txn);
+            sfs_release_inode(sv);
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
 			if (buffers_needed) {
-				unreserve_buffers(4, SFS_BLOCKSIZE);
+				unreserve_buffers(5, SFS_BLOCKSIZE);
 			}
 			return result;
         }
         
+        sfs_release_inode(sv);
+		/* Discard the inode */
 		buffer_drop(&sfs->sfs_absfs, sv->sv_ino, SFS_BLOCKSIZE);
 		sfs_bfree(sfs, sv->sv_ino);
         
@@ -1447,7 +1448,7 @@ sfs_reclaim(struct vnode *v)
 			lock_release(sfs->sfs_vnlock);
 			lock_release(sv->sv_lock);
 			if (buffers_needed) {
-				unreserve_buffers(4, SFS_BLOCKSIZE);
+				unreserve_buffers(5, SFS_BLOCKSIZE);
 			}
 			return result;
         }
@@ -1458,7 +1459,7 @@ sfs_reclaim(struct vnode *v)
 	}
 
 	if (buffers_needed) {
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 	}
 
 	/* Remove the vnode structure from the table in the struct sfs_fs. */
@@ -1534,13 +1535,13 @@ sfs_write(struct vnode *v, struct uio *uio)
 	KASSERT(uio->uio_rw==UIO_WRITE);
 
 	lock_acquire(sv->sv_lock);
-	reserve_buffers(3, SFS_BLOCKSIZE);
+	reserve_buffers(4, SFS_BLOCKSIZE);
     
     // Start transaction
     struct transaction *txn;
     result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
-        unreserve_buffers(3, SFS_BLOCKSIZE);
+        unreserve_buffers(4, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
         return result;
     }
@@ -1555,7 +1556,7 @@ sfs_write(struct vnode *v, struct uio *uio)
         result = txn_commit(txn);
     }   
     
-	unreserve_buffers(3, SFS_BLOCKSIZE);
+	unreserve_buffers(4, SFS_BLOCKSIZE);
 	lock_release(sv->sv_lock);
 
 	return result;
@@ -2232,13 +2233,13 @@ sfs_truncate(struct vnode *v, off_t len)
 	int result;
 
 	lock_acquire(sv->sv_lock);
-	reserve_buffers(4, SFS_BLOCKSIZE);
+	reserve_buffers(5, SFS_BLOCKSIZE);
     
     // Start transaction
     struct transaction *txn;
     result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
-        unreserve_buffers(4, SFS_BLOCKSIZE);
+        unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
         return result;
     }
@@ -2253,7 +2254,7 @@ sfs_truncate(struct vnode *v, off_t len)
         result = txn_commit(txn);
     }
     
-    unreserve_buffers(4, SFS_BLOCKSIZE);
+    unreserve_buffers(5, SFS_BLOCKSIZE);
 	lock_release(sv->sv_lock);
 
 	return result;
@@ -2417,11 +2418,11 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 
 	lock_acquire(sv->sv_lock);
 	
-	reserve_buffers(4, SFS_BLOCKSIZE);
+	reserve_buffers(5, SFS_BLOCKSIZE);
 
 	result = sfs_load_inode(sv);
 	if (result) {
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
 	}
@@ -2429,7 +2430,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 	
 	if (sv_inodebuf->sfi_linkcount == 0) {
 		sfs_release_inode(sv);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return ENOENT;
 	}
@@ -2439,28 +2440,28 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 	/* Look up the name */
 	result = sfs_dir_findname(sv, name, &ino, NULL, NULL);
 	if (result!=0 && result!=ENOENT) {
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
 	}
 
 	/* If it exists and we didn't want it to, fail */
 	if (result==0 && excl) {
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return EEXIST;
 	}
 
 	if (result==0) {
 		/* We got a file; load its vnode and return */
-		result = sfs_loadvnode(sfs, ino, SFS_TYPE_INVAL, &newguy,false);
+		result = sfs_loadvnode(sfs, ino, SFS_TYPE_INVAL, &newguy,false, NULL);
 		if (result) {
-			unreserve_buffers(4, SFS_BLOCKSIZE);
+			unreserve_buffers(5, SFS_BLOCKSIZE);
 			lock_release(sv->sv_lock);
 			return result;
 		}
 		*ret = &newguy->sv_v;
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return 0;
 	}
@@ -2469,7 +2470,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
     struct transaction *txn;
     result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
-        unreserve_buffers(4, SFS_BLOCKSIZE);
+        unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
         return result;
     }    
@@ -2478,7 +2479,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 	result = sfs_makeobj(sfs, SFS_TYPE_FILE, &newguy, txn);
 	if (result) {
         txn_abort(txn);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
 	}
@@ -2495,7 +2496,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 		sfs_release_inode(newguy);
 		lock_release(newguy->sv_lock);
 		VOP_DECREF(&newguy->sv_v);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
 	}
@@ -2507,7 +2508,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
         txn_abort(txn);
         sfs_release_inode(newguy);
         lock_release(newguy->sv_lock);
-        unreserve_buffers(4, SFS_BLOCKSIZE);
+        unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
         return result;
     }
@@ -2526,7 +2527,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 
 	*ret = &newguy->sv_v;
 
-	unreserve_buffers(4, SFS_BLOCKSIZE);
+	unreserve_buffers(5, SFS_BLOCKSIZE);
 	lock_release(newguy->sv_lock);
 	lock_release(sv->sv_lock);
 	return 0;
@@ -2558,7 +2559,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 
 	KASSERT(file->vn_fs == dir->vn_fs);
 
-	reserve_buffers(4, SFS_BLOCKSIZE);
+	reserve_buffers(5, SFS_BLOCKSIZE);
 
 	/* directory must be locked first */
 	lock_acquire(sv->sv_lock);
@@ -2567,7 +2568,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
     struct transaction *txn;
     result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
-        unreserve_buffers(4, SFS_BLOCKSIZE);
+        unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
         return result;
     }
@@ -2576,7 +2577,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	result = sfs_dir_link(sv, name, f->sv_ino, &slot, txn);
 	if (result) {
 	    txn_abort(txn);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
 	}
@@ -2590,7 +2591,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 			panic("sfs_link: could not unwind link in inode %u, slot %d!\n",
 					sv->sv_ino, slot);
 		}
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(f->sv_lock);
 		lock_release(sv->sv_lock);
 		return result;
@@ -2606,7 +2607,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 					sv->sv_ino, slot);
 		}
         sfs_release_inode(f);
-        unreserve_buffers(4, SFS_BLOCKSIZE);
+        unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(f->sv_lock);
         lock_release(sv->sv_lock);
         return result;
@@ -2622,7 +2623,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
     result = txn_commit(txn);
     
 	sfs_release_inode(f);
-	unreserve_buffers(4, SFS_BLOCKSIZE);
+	unreserve_buffers(5, SFS_BLOCKSIZE);
 	lock_release(f->sv_lock);
 	lock_release(sv->sv_lock);
 
@@ -2657,7 +2658,7 @@ sfs_mkdir(struct vnode *v, const char *name, mode_t mode)
 	(void)mode;
 
 	lock_acquire(sv->sv_lock);
-	reserve_buffers(4, SFS_BLOCKSIZE);
+	reserve_buffers(5, SFS_BLOCKSIZE);
 	
 	result = sfs_load_inode(sv);
 	if (result) {
@@ -2753,7 +2754,7 @@ sfs_mkdir(struct vnode *v, const char *name, mode_t mode)
 	lock_release(sv->sv_lock);
 	VOP_DECREF(&newguy->sv_v);
 
-	unreserve_buffers(4, SFS_BLOCKSIZE);
+	unreserve_buffers(5, SFS_BLOCKSIZE);
 
 	KASSERT(result==0);
 	return result;
@@ -2767,7 +2768,7 @@ die_simple:
 	sfs_release_inode(sv);
 
 die_early:
-	unreserve_buffers(4, SFS_BLOCKSIZE);
+	unreserve_buffers(5, SFS_BLOCKSIZE);
 	lock_release(sv->sv_lock);
 	return result;
 }
@@ -2800,7 +2801,7 @@ sfs_rmdir(struct vnode *v, const char *name)
 	}
 
 	lock_acquire(sv->sv_lock);
-	reserve_buffers(4, SFS_BLOCKSIZE);
+	reserve_buffers(5, SFS_BLOCKSIZE);
 
 	result = sfs_load_inode(sv);
 	if (result) {
@@ -2889,7 +2890,7 @@ die_total:
 die_simple:
 	sfs_release_inode(sv);
 die_early:
- 	unreserve_buffers(4, SFS_BLOCKSIZE);
+ 	unreserve_buffers(5, SFS_BLOCKSIZE);
  	lock_release(sv->sv_lock);
 
 	return result;
@@ -2923,11 +2924,11 @@ sfs_remove(struct vnode *dir, const char *name)
 	}
 
 	lock_acquire(sv->sv_lock);
-	reserve_buffers(4, SFS_BLOCKSIZE);
+	reserve_buffers(5, SFS_BLOCKSIZE);
 
 	result = sfs_load_inode(sv);
 	if (result) {
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
 	}
@@ -2935,7 +2936,7 @@ sfs_remove(struct vnode *dir, const char *name)
 
 	if (dir_inodeptr->sfi_linkcount == 0) {
 		sfs_release_inode(sv);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return ENOENT;
 	}
@@ -2944,7 +2945,7 @@ sfs_remove(struct vnode *dir, const char *name)
 	result = sfs_lookonce(sv, name, &victim, true, &slot);
 	if (result) {
 		sfs_release_inode(sv);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		lock_release(sv->sv_lock);
 		return result;
 	}
@@ -2957,7 +2958,7 @@ sfs_remove(struct vnode *dir, const char *name)
 		lock_release(victim->sv_lock);
 		lock_release(sv->sv_lock);
 		VOP_DECREF(&victim->sv_v);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
 		return EISDIR;
 	}
 
@@ -2970,7 +2971,7 @@ sfs_remove(struct vnode *dir, const char *name)
 		lock_release(victim->sv_lock);
 		lock_release(sv->sv_lock);
 		VOP_DECREF(&victim->sv_v);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
+		unreserve_buffers(5, SFS_BLOCKSIZE);
         return result;
     }
 
@@ -2982,7 +2983,7 @@ sfs_remove(struct vnode *dir, const char *name)
         sfs_release_inode(victim);
         lock_release(victim->sv_lock);
         VOP_DECREF(&victim->sv_v);
-        unreserve_buffers(4, SFS_BLOCKSIZE);
+        unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
         return result;
     }
@@ -2999,7 +3000,7 @@ sfs_remove(struct vnode *dir, const char *name)
         sfs_release_inode(victim);
         lock_release(victim->sv_lock);
         VOP_DECREF(&victim->sv_v);
-        unreserve_buffers(4, SFS_BLOCKSIZE);
+        unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
         return result;
     }
@@ -3017,7 +3018,7 @@ sfs_remove(struct vnode *dir, const char *name)
 
 	/* Discard the reference that sfs_lookonce got us */
 	VOP_DECREF(&victim->sv_v);
-	unreserve_buffers(4, SFS_BLOCKSIZE);
+	unreserve_buffers(5, SFS_BLOCKSIZE);
 
 	lock_release(sv->sv_lock);
 	return result;
@@ -3146,7 +3147,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	 * need, the rename lock goes outside all the vnode locks.
 	 */
 
-	reserve_buffers(7, SFS_BLOCKSIZE);
+	reserve_buffers(8, SFS_BLOCKSIZE);
 
 	lock_acquire(sfs->sfs_renamelock);
 
@@ -3620,7 +3621,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 		VOP_DECREF(&obj1->sv_v);
 	}
 
-	unreserve_buffers(7, SFS_BLOCKSIZE);
+	unreserve_buffers(8, SFS_BLOCKSIZE);
 
 	lock_release(sfs->sfs_renamelock);
 
@@ -3866,7 +3867,7 @@ static const struct vnode_ops sfs_dirops = {
 static
 int
 sfs_loadvnode(struct sfs_fs *sfs, uint32_t ino, int forcetype,
-		 struct sfs_vnode **ret, bool load_inode)
+		 struct sfs_vnode **ret, bool load_inode, struct transaction *txn)
 {
 	struct vnode *v;
 	struct sfs_vnode *sv;
@@ -3954,6 +3955,7 @@ sfs_loadvnode(struct sfs_fs *sfs, uint32_t ino, int forcetype,
 	if (forcetype != SFS_TYPE_INVAL) {
 		KASSERT(inodeptr->sfi_type == SFS_TYPE_INVAL);
 		inodeptr->sfi_type = forcetype;
+        txn_attach(txn, sv->sv_buf);
 		buffer_mark_dirty(sv->sv_buf);
 	}
 
@@ -4032,7 +4034,7 @@ sfs_getroot(struct fs *fs)
 	reserve_buffers(1, SFS_BLOCKSIZE);
 
 	result = sfs_loadvnode(sfs, SFS_ROOT_LOCATION, SFS_TYPE_INVAL,
-			       &sv, false);
+			       &sv, false, NULL);
 	if (result) {
 		panic("sfs: getroot: Cannot load root vnode\n");
 	}
@@ -4104,7 +4106,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_WRITE_DIR:
             // Check that directory block containing
             // this slot exists.  Fill in slot.
-            err = sfs_loadvnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, false);
+            err = sfs_loadvnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, false, NULL);
             if (err)
                 return err;
             
