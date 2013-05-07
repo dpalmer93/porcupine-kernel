@@ -848,6 +848,7 @@ buffer_put_busy(struct buf *b)
 /*
  * Write a buffer (found on attached_buffers[]) out.
  */
+static
 int
 buffer_sync(struct buf *b)
 {
@@ -882,12 +883,11 @@ buffer_sync(struct buf *b)
 }
 
 int
-buffer_sync_extern(struct buf *b)
+buffer_force_sync(struct buf *b)
 {
 	int result;
 
     lock_acquire(buffer_lock);
-	KASSERT(b->b_dirty == 1);
 
 	/*
 	 * Mark it busy while we do I/O, but do *not* move it to the
@@ -896,7 +896,7 @@ buffer_sync_extern(struct buf *b)
     
     // Cannot sync a buffer that still has uncommited transactions
     if(b->b_txncount > 0) {
-        return ENOSYNC;
+        return EINVAL;
     }
      
 	buffer_mark_busy(b);

@@ -81,7 +81,6 @@ int buffer_get(struct fs *fs, daddr_t block, size_t size, struct buf **ret);
 int buffer_read(struct fs *fs, daddr_t block, size_t size, struct buf **ret);
 void buffer_drop(struct fs *fs, daddr_t block, size_t size);
 int buffer_txn_touch(struct buf *buf, struct transaction *txn); // called in txn_attach();
-int buffer_sync_extern(struct buf *buf);
 
 /*
  * Release-a-buffer operations.
@@ -95,10 +94,14 @@ int buffer_sync_extern(struct buf *buf);
  *
  * buffer_txn_yield decrements the buffer's count of 'attached' transactions.
  * This should be called on transaction commit.
+ *
+ * buffer_force_sync syncs a specific buffer synchronously without
+ * checking whether it is dirty
  */
 void buffer_release(struct buf *buf);
 void buffer_release_and_invalidate(struct buf *buf);
 void buffer_txn_yield(struct buf *buf);
+int buffer_force_sync(struct buf *buf);
 
 /*
  * Other operations on buffers.
