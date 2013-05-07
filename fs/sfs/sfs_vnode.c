@@ -4062,12 +4062,14 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_COMMIT:
             return 0;
         case JE_NEW_INODE:
-            err = sfs_balloc_specific(sfs, je->je_ino);
-            if (err)
-                return err;
-            err = sfs_loadvnode(sfs, je->je_ino, je->je_inotype, &dir, false, NULL);
-            if (err)
-                return err;
+            if (!sfs_bused(sfs, je->je_ino)) {
+                err = sfs_balloc_specific(sfs, je->je_ino);
+                if (err)
+                    return err;
+                err = sfs_loadvnode(sfs, je->je_ino, je->je_inotype, &dir, false, NULL);
+                if (err)
+                    return err;
+            }
             return 0;
         case JE_ADD_DATABLOCK_INODE:
             // Check whether block is allocated.
