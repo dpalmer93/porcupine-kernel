@@ -2618,6 +2618,9 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	txn_attach(txn, f->sv_buf);
 	buffer_mark_dirty(f->sv_buf);
 
+    // End transaction
+    result = txn_commit(txn);
+    
 	sfs_release_inode(f);
 	unreserve_buffers(4, SFS_BLOCKSIZE);
 	lock_release(f->sv_lock);
@@ -2743,6 +2746,9 @@ sfs_mkdir(struct vnode *v, const char *name, mode_t mode)
 	buffer_mark_dirty(sv->sv_buf);
 	sfs_release_inode(sv);
 
+    // End transaction
+    result = txn_commit(txn);
+    
 	lock_release(newguy->sv_lock);
 	lock_release(sv->sv_lock);
 	VOP_DECREF(&newguy->sv_v);
@@ -3560,6 +3566,9 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 
 	KASSERT(result==0);
 
+    // End transaction
+    result = txn_commit(txn);
+    
 	if (0) {
 		/* Only reached on error */
     recover2:

@@ -152,7 +152,7 @@ struct jnl_entry {
     uint16_t            je_inotype;
     uint16_t            je_linkcount;
     struct sfs_dir      je_dir;
-    uint8_t             je_padding[SFS_JE_SIZE - 100];
+    uint8_t             je_padding[SFS_JE_SIZE - 108];
 };
 
 
