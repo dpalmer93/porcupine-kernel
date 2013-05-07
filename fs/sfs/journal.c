@@ -279,7 +279,7 @@ jnl_set_size(struct transaction *txn, uint32_t ino, uint32_t size)
 }
 
 int
-jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t size)
+jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount)
 {
     if (txn == NULL)
         return 0;
@@ -287,7 +287,7 @@ jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t size)
     je.je_type = JE_SET_LINKCOUNT;
     je.je_txnid = txn->txn_id;
     je.je_ino = ino;
-    je.je_size = size;
+    je.je_linkcount = linkcount;
     
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
 }
