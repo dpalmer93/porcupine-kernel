@@ -1325,8 +1325,6 @@ sfs_close(struct vnode *v)
 	return 0;
 }
 
-// TODO
-
 /*
  * Called when the vnode refcount (in-memory usage count) hits zero.
  *
@@ -4148,6 +4146,24 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_REMOVE_INODE:
             buffer_drop(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE);
             sfs_bfree(sfs, je->je_ino);
+            
+            // Remove the corresponding vnode from the table in sfs
+            lock_acquire(sfs->sfs_vnlock);
+            num = vnodearray_num(sfs->sfs_vnodes);
+            for (i=0; i<num; i++) {
+                struct vnode *v = vnodearray_get(sfs->sfs_vnodes, i);
+                struct sfs_vnode *sv = v->vn_data;
+                lock_acquire(sv->sv_lock);
+                if (sv->sv_ino == je->je_ino) {
+                    vnodearray_remove(sfs->sfs_vnodes, i);
+                    VOP_CLEANUP(&sv->sv_v);
+                    lock_release(sv->sv_lock);
+                    sfs_destroy_vnode(sv);
+                }
+                else
+                    lock_release(sv->sv_lock);
+            }
+            lock_release(sfs->sfs_vnlock);
             return 0;
         case JE_REMOVE_DATABLOCK_INODE:
             err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
