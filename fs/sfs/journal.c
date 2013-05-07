@@ -107,19 +107,19 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     struct uio ku;
     
     // set up a uio to do the journal write
-    uio_kinit(&iov, &ku, entry, JE_SIZE, 0, UIO_WRITE);
+    uio_kinit(&iov, &ku, entry, SFS_JE_SIZE, 0, UIO_WRITE);
     
     lock_acquire(jnl->jnl_lock);
     
     // get next journal block if current is full
-    if (jnl->jnl_blkoffset == JE_PER_BLOCK) {
+    if (jnl->jnl_blkoffset == SFS_JE_PER_BLOCK) {
         jnl_next_block(jnl);
         jnl->jnl_blkoffset = 0;
     }
     if (written_blk != NULL)
         *written_blk = jnl->jnl_current;
     
-    int offset = jnl->jnl_blkoffset * JE_SIZE;
+    int offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
     
     // write journal entry to proper buffer
     err = buffer_get(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
@@ -128,7 +128,7 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
         return err;
     }
     void *ioptr = buffer_map(iobuffer);
-    err = uiomove(ioptr + offset, JE_SIZE, &ku);
+    err = uiomove(ioptr + offset, SFS_JE_SIZE, &ku);
     if (err) {
         buffer_release(iobuffer);
         lock_release(jnl->jnl_lock);

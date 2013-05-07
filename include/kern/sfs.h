@@ -49,6 +49,8 @@
 #define SFS_ROOT_LOCATION 1             /* loc'n of the root dir inode */
 #define SFS_MAP_LOCATION  2             /* 1st block of the freemap */
 #define SFS_NOINO         0             /* inode # for free dir entry */
+#define SFS_JE_SIZE       128           /* journal entry size in bytes */
+#define SFS_JE_PER_BLOCK  4             /* # of journal entries per disk block */
 
 /* Number of bits in a block */
 #define SFS_BLOCKBITS (SFS_BLOCKSIZE * CHAR_BIT)
@@ -72,6 +74,8 @@
 #define SFS_TYPE_INVAL    0       /* Should not appear on disk */
 #define SFS_TYPE_FILE     1
 #define SFS_TYPE_DIR      2
+
+
 
 /*
  * On-disk superblock
@@ -148,7 +152,7 @@ struct jnl_entry {
     uint16_t            je_inotype;
     uint16_t            je_linkcount;
     struct sfs_dir      je_dir;
-    uint8_t             je_padding[JE_SIZE - 100];
+    uint8_t             je_padding[SFS_JE_SIZE - 100];
 };
 
 

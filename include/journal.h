@@ -35,12 +35,6 @@
 #include <buf.h>
 #include <sfs.h>
 
-// Assume, for sanity, that journal entries will be 128 bytes,
-// independent of file system.  (VFS already makes a similar
-// assumption for buffers.)
-#define JE_PER_BLOCK 4
-#define JE_SIZE 128
-
 struct journal {
     struct bufarray *jnl_blks;       // dynamic array of journal blocks
     daddr_t          jnl_top;
