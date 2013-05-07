@@ -115,6 +115,9 @@ static
 void
 txn_destroy(struct transaction *txn)
 {
+    // "empty" the array---we do not need to actually
+    // free any buffers here
+    bufarray_setsize(txn->txn_bufs, 0);
     bufarray_destroy(txn->txn_bufs);
     kfree(txn);
 }
