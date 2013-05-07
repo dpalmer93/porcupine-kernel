@@ -4124,6 +4124,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             buffer_release(buf);
             return 0;
         case JE_REMOVE_INODE:
+            buffer_drop(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE);
             sfs_bfree(sfs, je->je_ino);
             return 0;
         case JE_REMOVE_DATABLOCK_INODE:
