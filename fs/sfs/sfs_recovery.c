@@ -78,7 +78,7 @@ sfs_recover(struct sfs_fs *sfs)
     struct txnid_node *txnid_head = NULL;
     struct txnid_node *txnid_tail = NULL;
     
-    reserve_buffers(2, SFS_BLOCKSIZE);
+    reserve_buffers(4, SFS_BLOCKSIZE);
     
     uint32_t fsblocks = sfs->sfs_super.sp_nblocks;
     
@@ -87,7 +87,7 @@ sfs_recover(struct sfs_fs *sfs)
     
     err = buffer_read(&sfs->sfs_absfs, checkpoint, SFS_BLOCKSIZE, &iterator);
     if (err) {
-        unreserve_buffers(2, SFS_BLOCKSIZE);
+        unreserve_buffers(4, SFS_BLOCKSIZE);
         return err;
     }
     je_blk = buffer_map(iterator);
@@ -132,7 +132,7 @@ sfs_recover(struct sfs_fs *sfs)
         err = buffer_read(&sfs->sfs_absfs, curblk, SFS_BLOCKSIZE, &iterator);
         if (err) {
             txnid_list_destroy(txnid_head);
-            unreserve_buffers(2, SFS_BLOCKSIZE);
+            unreserve_buffers(4, SFS_BLOCKSIZE);
             return err;
         }
         je_blk = buffer_map(iterator);
@@ -184,7 +184,7 @@ foundall:
         err = buffer_read(&sfs->sfs_absfs, curblk, SFS_BLOCKSIZE, &iterator);
         if (err) {
             txnid_list_destroy(txnid_head);
-            unreserve_buffers(2, SFS_BLOCKSIZE);
+            unreserve_buffers(4, SFS_BLOCKSIZE);
             return err;
         }
         je_blk = buffer_map(iterator);
@@ -211,7 +211,7 @@ foundall:
     }
     
     txnid_list_destroy(txnid_head);
-    unreserve_buffers(2, SFS_BLOCKSIZE);
+    unreserve_buffers(4, SFS_BLOCKSIZE);
     
     return 0;
 }
