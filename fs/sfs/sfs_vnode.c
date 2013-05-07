@@ -129,7 +129,7 @@ sfs_destroy_vnode(struct sfs_vnode *victim)
  */
 static
 int
-sfs_clearblock(struct sfs_fs *sfs, uint32_t block, struct buf **bufret)
+sfs_clearblock(struct sfs_fs *sfs, uint32_t block, struct buf **bufret, transaction *txn)
 {
 	struct buf *buf;
 	void *ptr;
@@ -142,6 +142,7 @@ sfs_clearblock(struct sfs_fs *sfs, uint32_t block, struct buf **bufret)
 
 	ptr = buffer_map(buf);
 	bzero(ptr, SFS_BLOCKSIZE);
+    txn_attach(txn, buf);
 	buffer_mark_valid(buf);
 	buffer_mark_dirty(buf);
 
@@ -176,7 +177,7 @@ sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret, struct 
 
 	lock_acquire(sfs->sfs_bitlock);
 
-	result = bitmap_alloc(sfs->sfs_freemap, diskblock, txn);
+	result = bitmap_alloc(sfs->sfs_freemap, diskblock);
 	if (result) {
 		lock_release(sfs->sfs_bitlock);
 		return result;
@@ -208,7 +209,7 @@ sfs_balloc_specific(struct sfs_fs *sfs, uint32_t diskblock)
 	lock_release(sfs->sfs_bitlock);
     
 	/* Clear block before returning it */
-	return sfs_clearblock(sfs, *diskblock, NULL);
+	return sfs_clearblock(sfs, *diskblock, NULL, NULL);
 }
 
 /*
@@ -216,10 +217,10 @@ sfs_balloc_specific(struct sfs_fs *sfs, uint32_t diskblock)
  */
 static
 void
-sfs_bfree(struct sfs_fs *sfs, uint32_t diskblock, struct transaction *txn)
+sfs_bfree(struct sfs_fs *sfs, uint32_t diskblock)
 {
 	lock_acquire(sfs->sfs_bitlock);
-	bitmap_unmark(sfs->sfs_freemap, diskblock, txn);
+	bitmap_unmark(sfs->sfs_freemap, diskblock);
 	sfs->sfs_freemapdirty = true;
 	lock_release(sfs->sfs_bitlock);
 }
@@ -2201,6 +2202,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 
 
 	/* Set the file size */
+    
 	inodeptr->sfi_size = len;
 
 	/* Mark the inode dirty */

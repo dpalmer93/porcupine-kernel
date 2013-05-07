@@ -48,6 +48,7 @@ struct journal {
     struct lock    *jnl_lock;     // journal lock
 };
 
+// 128 Bytes
 struct jnl_entry {
     je_type_t           je_type; // type of operation
     uint64_t            je_txnid;
@@ -55,9 +56,11 @@ struct jnl_entry {
     daddr_t             je_parentblk;
     daddr_t             je_childblk;
     int                 je_slot;
-    struct sfs_dir      je_dir;
+    uint32_t            je_size;
     uint16_t            je_inotype;
-    uint8_t             je_padding[SOME_PADDING_SIZE];
+    uint16_t            je_linkcount;
+    struct sfs_dir      je_dir;
+    uint8_t             je_padding[28];
 };
 
 typedef enum {
@@ -69,7 +72,7 @@ typedef enum {
     // It is the je_slot word in inode.
     JE_ADD_DATABLOCK_INODE,
     // Add data block je_childblk to indirect block je_parentblk.
-    // It is the je_slot block in indirect.
+    // It is the je_slot pointer in indirect.
     JE_ADD_DATABLOCK_INDIRECT,
     // Allocated a new inode block at block je_ino, with inumber je_ino, and type je_inotype
     JE_NEW_INODE,
@@ -77,10 +80,15 @@ typedef enum {
     JE_WRITE_DIR,
     // Remove inode at block je_ino, with inumber je_ino
     JE_REMOVE_INODE,
-    // Remove data bloclk je_childblk from inode je_ino.  It is the je_slot word in the inode.
+    // Remove data block je_childblk from inode je_ino.  It is the je_slot word in the inode.
     JE_REMOVE_DATABLOCK_INODE,
-    
-    JE_REMOVE_DATABLOCK_INDIRECT
+    // Remove data block je_childblk from indirect block je_parentblk.
+    // It is in the je_slot pointer in indirect.
+    JE_REMOVE_DATABLOCK_INDIRECT,
+    // Set the size of the file with inumber je_ino to je_size
+    JE_SET_SIZE,
+    // Set the linkcount of the file with inumber je_ino to je_linkcount
+    JE_SET_LINKCOUNT
 } je_type_t;
 
 /* Commands to write entries */
@@ -95,6 +103,9 @@ int jnl_write_dir(struct transaction *txn, uint32_t ino, int slot, struct sfs_di
 int jnl_remove_inode(struct transaction *txn, uint32_t ino);
 int jnl_remove_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk, int slot); 
 int jnl_remove_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot); 
+int jnl_set_size(struct transaction *txn, uint32_t ino, uint32_t size);
+int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t size);
+
 // Sync all journal buffers to disk
 int jnl_syn(struct journal *jnl);
 
