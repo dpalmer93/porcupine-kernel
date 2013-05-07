@@ -407,7 +407,23 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
     if (!sfs->sfs_super.sp_clean) {    
-        sfs_recover(sfs, &jnl->jnl_checkpoint, &jnl->jnl_txnid_next);
+        int err = sfs_recover(sfs, &jnl->jnl_checkpoint, &jnl->jnl_txnid_next);
+        if (err) {
+            bufarray_destroy(jnl->jnl_blks);
+            cv_destroy(jnl->jnl_txncv);
+            lock_destroy(jnl->jnl_lock);
+            kfree(jnl);
+            return err;
+        }
+        
+        err = FSOP_SYNC(&sfs->sfs_absfs);
+        if (err) {
+            bufarray_destroy(jnl->jnl_blks);
+            cv_destroy(jnl->jnl_txncv);
+            lock_destroy(jnl->jnl_lock);
+            kfree(jnl);
+            return err;
+        }
     }
 
     jnl->jnl_blkoffset = 0;

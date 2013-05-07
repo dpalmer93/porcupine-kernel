@@ -218,7 +218,9 @@ foundall:
                 // It should always be at the head
                 if (je_blk[i].je_type == JE_COMMIT) {
                     KASSERT(txnid_head->txnid == je_blk[i].je_txnid);
+                    struct txnid_node *victim = txnid_head;
                     txnid_head = txnid_head->next;
+                    kfree(victim);
                 }
             }
             
