@@ -73,7 +73,7 @@ int jnl_sync(struct journal *jnl);
 // Checkpoint
 void jnl_docheckpoint(struct journal *jnl);
 
-int sfs_jnlmount(struct sfs_fs *sfs);
+int sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next);
 void jnl_destroy(struct journal *jnl);
 
 

@@ -358,6 +358,7 @@ jnl_docheckpoint(struct journal *jnl)
     // Update checkpoint on superblock and write it
     struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
     sfs->sfs_super.sp_ckpoint = checkpoint;
+    sfs->sfs_super.sp_txnid = jnl->jnl_txnid_next;
     sfs->sfs_superdirty = true;
     int err = sfs_writesuper(sfs);
     
@@ -369,7 +370,7 @@ jnl_docheckpoint(struct journal *jnl)
 }
 
 int
-sfs_jnlmount(struct sfs_fs *sfs)
+sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
 {
     struct journal *jnl = kmalloc(sizeof(struct journal));
     if (jnl == NULL)
@@ -399,7 +400,7 @@ sfs_jnlmount(struct sfs_fs *sfs)
     // Set other fields
     jnl->jnl_txnqhead = 0;
     jnl->jnl_txnqcount = 0;
-    jnl->jnl_txnid_next = 0;
+    jnl->jnl_txnid_next = txnid_next;
     jnl->jnl_bottom = SFS_JNLSTART(sfs->sfs_super.sp_nblocks);
     jnl->jnl_top = jnl->jnl_bottom + SFS_JNLSIZE(sfs->sfs_super.sp_nblocks);
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;

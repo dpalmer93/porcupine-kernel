@@ -249,7 +249,9 @@ sfs_unmount(struct fs *fs)
 {
 	struct sfs_fs *sfs = fs->fs_data;
 
-
+    // destroy the journal
+    jnl_destroy(sfs->sfs_jnl);
+    
 	lock_acquire(sfs->sfs_vnlock);
 	lock_acquire(sfs->sfs_bitlock);
 
@@ -462,7 +464,7 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
 	lock_release(sfs->sfs_bitlock);
 	lock_release(sfs->sfs_vnlock);
 
-    result = sfs_jnlmount(sfs);
+    result = sfs_jnlmount(sfs, sfs->sfs_super.sp_txnid);
     if (result) {
 		lock_destroy(sfs->sfs_vnlock);
 		lock_destroy(sfs->sfs_bitlock);

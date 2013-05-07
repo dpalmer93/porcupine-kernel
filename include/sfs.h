@@ -95,7 +95,7 @@ int sfs_writesuper(struct sfs_fs *sfs);
 
 /* Replay journal entries */
 int sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs);
-int sfs_recover(struct sfs_fs *sfs);
+int sfs_recover(struct sfs_fs *sfs, uint32_t *new_checkpoint, uint64_t *new_txnid);
 
 /* Get root vnode */
 struct vnode *sfs_getroot(struct fs *fs);
