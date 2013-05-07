@@ -328,7 +328,8 @@ sfs_jnlmount(struct sfs_fs *sfs)
     jnl->jnl_blkoffset = 0;
     jnl->jnl_fs = &sfs->sfs_absfs;
     jnl->jnl_current = jnl->jnl_checkpoint;
-     
+    
+    sfs->sfs_jnl = jnl;
     return 0;
 }
 
