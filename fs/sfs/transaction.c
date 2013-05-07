@@ -49,6 +49,24 @@ uint64_t txnid_next;
 struct lock *txn_lock;
 struct cv *txn_cv;
 
+// EVIL KLUDGE
+void
+txn_bootstrap(void)
+{
+    txn_lock = lock_create("Transaction Lock");
+    if (txn_lock == NULL)
+        panic("txn_bootstrap: Out of memory\n");
+    
+    txn_cv = cv_create("Transaction CV");
+    if (txn_cv == NULL) {
+        lock_destroy(txn_lock);
+        panic("txn_bootstrap: Out of memory\n");
+    }
+    
+    txn_qhead = 0;
+    txn_qtail = 0;
+}
+
 // Allocates a transaction and writes it to disk
 int
 txn_start(struct journal *jnl, struct transaction **ret)

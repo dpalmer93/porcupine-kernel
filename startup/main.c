@@ -48,6 +48,7 @@
 #include <buf.h>
 #include <device.h>
 #include <syscall.h>
+#include <transaction.h>
 #include <test.h>
 #include <version.h>
 #include "autoconf.h"  // for pseudoconfig
@@ -130,6 +131,7 @@ boot(void)
 
 	/* Buffer cache */
 	buffer_bootstrap();
+    txn_bootstrap();
 
 	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
 	vfs_setbootfs("emu0");
