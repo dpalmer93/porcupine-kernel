@@ -128,6 +128,8 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
 void
 jnl_next_block(struct journal *jnl)
 {
+    if (txn == NULL)
+        return 0;
     KASSERT(lock_do_i_hold(jnl->jnl_lock));
     
     daddr_t next_block = jnl->jnl_current + 512;
@@ -151,6 +153,8 @@ jnl_next_block(struct journal *jnl)
 int
 jnl_add_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk, int slot) 
 {
+    if (txn == NULL)
+        return 0;
     struct jnl_entry je;
     je.je_type = JE_ADD_DATABLOCK_INODE;
     je.je_txnid = txn->txn_id;
@@ -164,6 +168,8 @@ jnl_add_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk,
 int 
 jnl_add_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot)
 {
+    if (txn == NULL)
+        return 0;
     struct jnl_entry je;
     je.je_type = JE_ADD_DATABLOCK_INDIRECT;
     je.je_txnid = txn->txn_id;
@@ -177,6 +183,8 @@ jnl_add_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t c
 int
 jnl_new_inode(struct transaction *txn, txnid, uint32_t ino, uint16_t inotype)
 {
+    if (txn == NULL)
+        return 0;
     struct jnl_entry je;
     je.je_type = JE_NEW_INODE;
     je.je_txnid = txn->txn_id;
@@ -189,6 +197,8 @@ jnl_new_inode(struct transaction *txn, txnid, uint32_t ino, uint16_t inotype)
 int 
 jnl_write_dir(struct transaction *txn, uint32_t ino, int slot, struct sfs_dir *dir)
 {
+    if (txn == NULL)
+        return 0;
     struct jnl_entry je;
     je.je_type = JE_WRITE_DIR;
     je.je_txnid = txn->txn_id;
@@ -203,6 +213,8 @@ jnl_write_dir(struct transaction *txn, uint32_t ino, int slot, struct sfs_dir *d
 int
 jnl_remove_inode(struct transaction *txn, uint32_t ino)
 {
+    if (txn == NULL)
+        return 0;
     struct jnl_entry je;
     je.je_type = JE_REMOVE_INODE;
     je.je_txnid = txn->txn_id;
@@ -214,6 +226,8 @@ jnl_remove_inode(struct transaction *txn, uint32_t ino)
 int 
 jnl_remove_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk, int slot)
 {
+    if (txn == NULL)
+        return 0;
     struct jnl_entry je;
     je.je_type = JE_REMOVE_DATABLOCK_INODE;
     je.je_txnid = txn->txn_id;
@@ -224,14 +238,43 @@ jnl_remove_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childb
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
 }
 
-int jnl_remove_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot); 
+int 
+jnl_remove_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot); 
 {
+    if (txn == NULL)
+        return 0;
     struct jnl_entry je;
     je.je_type = JE_REMOVE_DATABLOCK_INDIRECT;
     je.je_txnid = txn->txn_id;
     je.je_parentblk = parentblk;
     je.je_childblk = childblk;
     je.je_slot = slot;
+    
+    return jnl_write_entry(txn->txn_jnl, &je, NULL);
+}
+
+int
+jnl_set_size(struct transaction *txn, uint32_t ino, uint32_t size)
+{
+    if (txn == NULL)
+        return 0;
+    struct jnl_entry je;
+    je.je_type = JE_SET_SIZE;
+    je.je_txnid = txn->txn_id;
+    je.je_size = size;
+    
+    return jnl_write_entry(txn->txn_jnl, &je, NULL);
+}
+
+int
+jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t size)
+{
+    if (txn == NULL)
+        return 0;
+    struct jnl_entry je;
+    je.je_type = JE_SET_LINKCOUNT;
+    je.je_txnid = txn->txn_id;
+    je.je_size = size;
     
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
 }
