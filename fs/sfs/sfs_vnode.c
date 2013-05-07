@@ -311,7 +311,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 			}
 
             // Log journal entry
-            int slot = fileblock = 2 + fileblock;
+            int slot = 2 + fileblock;
             result = jnl_add_datablock_inode(txn, sv->sv_ino, block, slot);
             if (result) {
                 sfs_bfree(sfs, block);
@@ -382,7 +382,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 		}
 
         // Log journal entry
-        int slot = fileblock = 2 + SFS_NDIRECT + (indir - 1);
+        int slot = 2 + SFS_NDIRECT + (indir - 1);
         result = jnl_add_datablock_inode(txn, sv->sv_ino, next_block, slot);
         if (result) {
             sfs_bfree(sfs, next_block);
@@ -2501,7 +2501,7 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 	}
     
     // Log journal entry
-    result = jnl_set_linkcount(txn, newguy->sv_ino, new_inodeptr->sfi_linkcount + 1);
+    result = jnl_set_linkcount(txn, newguy->sv_ino, (new_inodeptr->sfi_linkcount) + 1);
     if (result) {
         sfs_dir_unlink(sv, slot, txn);
         txn_abort(txn);
@@ -2597,7 +2597,7 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	}
 
     // Log journal entry
-    result = jnl_set_linkcount(txn, f->sv_ino, inodeptr->sfi_linkcount + 1);
+    result = jnl_set_linkcount(txn, f->sv_ino, (inodeptr->sfi_linkcount) + 1);
     if (result) {
 	    txn_abort(txn);
 		result2 = sfs_dir_unlink(sv, slot, NULL);
@@ -2725,13 +2725,13 @@ sfs_mkdir(struct vnode *v, const char *name, mode_t mode)
          * remove it.
          */
 
-    result = jnl_set_linkcount(txn, newguy->sv_ino, new_inodeptr->sfi_linkcount + 2);
+    result = jnl_set_linkcount(txn, newguy->sv_ino, (new_inodeptr->sfi_linkcount) + 2);
     if (result) {
         txn_abort(txn);
         goto die_uncreate;
     }
     
-    result = jnl_set_linkcount(txn, sv->sv_ino, dir_inodeptr->sfi_linkcount + 1);
+    result = jnl_set_linkcount(txn, sv->sv_ino, (dir_inodeptr->sfi_linkcount) + 1);
     if (result) {
         txn_abort(txn);
         goto die_uncreate;
@@ -2852,13 +2852,13 @@ sfs_rmdir(struct vnode *v, const char *name)
 	KASSERT(victim_inodeptr->sfi_linkcount==2);
 
     // Log journal entry
-    result = jnl_set_linkcount(txn, sv->sv_ino, dir_inodeptr->sfi_linkcount - 1);
+    result = jnl_set_linkcount(txn, sv->sv_ino, (dir_inodeptr->sfi_linkcount) - 1);
     if (result) {
         txn_abort(txn);
         goto die_total;
     }
     
-    result = jnl_set_linkcount(txn, victim->sv_ino, victim_inodeptr->sfi_linkcount - 2);
+    result = jnl_set_linkcount(txn, victim->sv_ino, (victim_inodeptr->sfi_linkcount) - 2);
     if (result) {
         txn_abort(txn);
         goto die_total;
@@ -2992,7 +2992,7 @@ sfs_remove(struct vnode *dir, const char *name)
     KASSERT(victim_inodeptr->sfi_linkcount > 0);
     
     // Log journal entry
-    result = jnl_set_linkcount(txn, victim->sv_ino, victim_inodeptr->sfi_linkcount - 1);
+    result = jnl_set_linkcount(txn, victim->sv_ino, (victim_inodeptr->sfi_linkcount) - 1);
     if (result) {
         txn_abort(txn);
         sfs_release_inode(sv);
@@ -3425,12 +3425,12 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			}
 
             // Log journal entry
-            result = jnl_set_linkcount(txn, dir2->sv_ino, dir2_inodeptr->sfi_linkcount - 1);
+            result = jnl_set_linkcount(txn, dir2->sv_ino, (dir2_inodeptr->sfi_linkcount) - 1);
             if (result) {
                 txn_abort(txn);
                 goto out4;
             }
-            result = jnl_set_linkcount(txn, obj2->sv_ino, obj2_inodeptr->sfi_linkcount - 2);
+            result = jnl_set_linkcount(txn, obj2->sv_ino, (obj2_inodeptr->sfi_linkcount) - 2);
             if (result) {
                 txn_abort(txn);
                 goto out4;
@@ -3465,7 +3465,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 			}
 
             // Log journal entry
-            result = jnl_set_linkcount(txn, obj2->sv_ino, obj2_inodeptr->sfi_linkcount - 1);
+            result = jnl_set_linkcount(txn, obj2->sv_ino, (obj2_inodeptr->sfi_linkcount) - 1);
             if (result) {
                 txn_abort(txn);
                 goto out4;
@@ -3503,7 +3503,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	}
 
     // Log journal entry
-    result = jnl_set_linkcount(txn, obj1->sv_ino, obj1_inodeptr->sfi_linkcount + 1);
+    result = jnl_set_linkcount(txn, obj1->sv_ino, (obj1_inodeptr->sfi_linkcount) + 1);
     if (result) {
         txn_abort(txn);
         goto out4;
@@ -3533,11 +3533,11 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 		}
         
         // Log journal entry
-        result = jnl_set_linkcount(txn, dir1->sv_ino, dir1_inodeptr->sfi_linkcount - 1);
+        result = jnl_set_linkcount(txn, dir1->sv_ino, (dir1_inodeptr->sfi_linkcount) - 1);
         if (result) {
             goto recover1;
         }
-        result = jnl_set_linkcount(txn, dir2->sv_ino, dir2_inodeptr->sfi_linkcount + 1);
+        result = jnl_set_linkcount(txn, dir2->sv_ino, (dir2_inodeptr->sfi_linkcount) + 1);
         if (result) {
             goto recover1;
         }
@@ -3556,7 +3556,7 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	}
     
     // Log journal entry
-    result = jnl_set_linkcount(txn, obj1->sv_ino, obj1_inodeptr->sfi_linkcount - 1);
+    result = jnl_set_linkcount(txn, obj1->sv_ino, (obj1_inodeptr->sfi_linkcount) - 1);
     if (result) {
         goto recover2;
     }    
