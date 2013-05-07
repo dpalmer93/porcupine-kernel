@@ -209,10 +209,11 @@ sfs_sync(struct fs *fs)
 int
 sfs_writesuper(struct sfs_fs *sfs)
 {
+    int err = 0;
     lock_acquire(sfs->sfs_bitlock);
-	sfs_writesuper_internal(sfs);
+	err = sfs_writesuper_internal(sfs);
 	lock_release(sfs->sfs_bitlock);
-    return 0;
+    return err;
 }
 
 /*
