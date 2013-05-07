@@ -93,8 +93,9 @@ int sfs_readblock(struct fs *fs, daddr_t block, void *data, size_t len);
 int sfs_writeblock(struct fs *fs, daddr_t block, void *data, size_t len);
 int sfs_writesuper(struct sfs_fs *sfs);
 
-/* Replay a journal entry */
+/* Replay journal entries */
 int sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs);
+int sfs_recover(struct sfs_fs *sfs);
 
 /* Get root vnode */
 struct vnode *sfs_getroot(struct fs *fs);

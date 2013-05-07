@@ -304,12 +304,6 @@ jnl_sync(struct journal *jnl)
     return 0;
 }
 
-int
-sfs_recover(struct sfs_fs *sfs)
-{
-    // get last checkpoint
-}
-
 int 
 sfs_jnlmount(struct sfs_fs *sfs)
 {
@@ -335,8 +329,7 @@ sfs_jnlmount(struct sfs_fs *sfs)
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
     if (!sfs->sfs_super.sp_clean) {    
-        // Recovery
-    
+        // sfs_recover(sfs);
     }
 
     jnl->jnl_blkoffset = 0;
