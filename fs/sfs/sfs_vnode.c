@@ -4079,7 +4079,9 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             buffer_mark_dirty(buf);
             buffer_release(buf);
             return 0;
-        case JE_ADD_DATABLOCK_INODE:
+        case JE_ADD_DATABLOCK_INODE:    
+            KASSERT(je->je_slot < 5 + SFS_NDIRECT);
+        
             // Check whether block is allocated.
             // If not, alloc it.
             // Finally, point inode to it.
@@ -4166,6 +4168,8 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             lock_release(sfs->sfs_vnlock);
             return 0;
         case JE_REMOVE_DATABLOCK_INODE:
+            KASSERT(je->je_slot < 5 + SFS_NDIRECT);
+            
             err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
             if (err)
                 return err;
@@ -4178,7 +4182,8 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             buffer_mark_dirty(buf);
             buffer_release(buf);
             
-            sfs_bfree(sfs, je->je_childblk);
+            if (sfs_bused(sfs, je->je_childblk))
+                sfs_bfree(sfs, je->je_childblk);
             return 0;
         case JE_REMOVE_DATABLOCK_INDIRECT:
             err = buffer_read(&sfs->sfs_absfs, je->je_parentblk, SFS_BLOCKSIZE, &buf);
@@ -4191,7 +4196,8 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             buffer_mark_dirty(buf);
             buffer_release(buf);
             
-            sfs_bfree(sfs, je->je_childblk);
+            if (sfs_bused(sfs, je->je_childblk))
+                sfs_bfree(sfs, je->je_childblk);
             return 0;
         case JE_SET_SIZE:
             err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
