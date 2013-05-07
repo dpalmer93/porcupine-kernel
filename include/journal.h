@@ -43,7 +43,7 @@ struct journal {
     struct bufarray jnl_blks;       // dynamic array of journal blocks
     daddr_t         jnl_current;    // current journal block on disk being written to
     daddr_t         jnl_checkpoint; // address of first dirty journal block
-    int             jnl_blk_offset; // number of entries written to current block
+    int             jnl_blkoffset;  // number of entries written to current block
     struct fs      *jnl_fs;         // journal file system
     struct lock    *jnl_lock;       // journal lock
 };

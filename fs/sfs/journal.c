@@ -82,14 +82,14 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     lock_acquire(jnl->jnl_lock);
     
     // get next journal block if current is full
-    if (jnl->jnl_blk_offset == JE_PER_BLOCK) {
+    if (jnl->jnl_blkoffset == JE_PER_BLOCK) {
         jnl_next_block(jnl);
-        jnl->jnl_blk_offset = 0;
+        jnl->jnl_blkoffset = 0;
     }
     if (written_blk != NULL)
         *written_blk = jnl->jnl_current;
     
-    int offset = jnl->jnl_blk_offset * JE_SIZE;
+    int offset = jnl->jnl_blkoffset * JE_SIZE;
     
     // write journal entry to proper buffer
     err = buffer_get(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
@@ -105,7 +105,7 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
         return err;
     }
     
-    jnl->jnl_blk_offset++;
+    jnl->jnl_blkoffset++;
     
     // mark the buffer as dirty and place it in the journal's bufarray
     buffer_mark_dirty(iobuffer);
@@ -132,7 +132,7 @@ jnl_next_block(struct journal *jnl)
         return 0;
     KASSERT(lock_do_i_hold(jnl->jnl_lock));
     
-    daddr_t next_block = jnl->jnl_current + 512;
+    daddr_t next_block = jnl->jnl_current + 1;
     if (next_block >= JOURNAL_TOP) {
         next_block = JOURNAL_BOTTOM;
     }

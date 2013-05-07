@@ -55,7 +55,7 @@ txn_create(struct journal *jnl)
     if (txn == NULL)
         return NULL;
     
-    txn->txn_bufs = array_create();
+    txn->txn_bufs = bufarray_create();
     if (txn->txn_bufs == NULL) {
         free(txn);
         return NULL;
@@ -84,7 +84,7 @@ txn_create(struct journal *jnl)
 void
 txn_destroy(struct transaction *txn)
 {
-    array_destroy(txn->bufs);
+    bufarray_destroy(txn->bufs);
     kfree(txn);
 }
 
