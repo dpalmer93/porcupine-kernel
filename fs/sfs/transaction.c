@@ -47,18 +47,24 @@ uint64_t txnid_next;
 struct lock *txn_lock;
 struct cv *txn_cv;
 
-// Create a transaction and place it in the txn_queue
-struct transaction *
-txn_create(struct journal *jnl)
+void
+txn_destroy(struct transaction *txn)
+{
+    array_destroy(txn->bufs);
+    kfree(txn);
+}
+
+// Allocates a transaction and writes it to disk
+txn_start(struct journal *jnl, struct transaction **ret)
 {
     struct transaction *txn = kmalloc(sizeof(struct transaction));
     if (txn == NULL)
-        return NULL;
+        return ENOMEM;
     
     txn->txn_bufs = array_create();
     if (txn->txn_bufs == NULL) {
         free(txn);
-        return NULL;
+        return ENOMEM;
     }
     
     txn->txn_bufcount = 0;
@@ -78,20 +84,16 @@ txn_create(struct journal *jnl)
     txn_qtail = (txn_qtail + 1) % TXN_MAX;
     lock_release(txn_lock);
     
-    return txn;
-}
-
-void
-txn_destroy(struct transaction *txn)
-{
-    array_destroy(txn->bufs);
-    kfree(txn);
-}
-
-int
-txn_start(struct transaction *txn)
-{
-    return jnl_write_start(txn, &txn->txn_startblk);
+    // Write the start message
+    int err = jnl_write_start(txn, &txn->txn_startblk);
+    if (err) {
+        lock_release(txn_lock);
+        return err;
+    }
+    lock_release(txn_lock);
+    *ret = txn;
+    
+    return 0;
 }
 
 int

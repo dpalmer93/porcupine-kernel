@@ -42,7 +42,7 @@ struct transaction {
     struct bufarray txn_bufs;       // array of modified buffers
 };
 
-struct transaction *txn_create(struct journal *jnl);
+int                 txn_start(struct journal *jnl, struct transaction **ret);
 void                txn_close(struct transaction *txn); // call on buffer sync
 void                txn_docheckpoint(void);
 // Attaches a transaction to a buffer.  Touches the buffer
