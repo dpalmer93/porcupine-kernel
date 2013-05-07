@@ -61,7 +61,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
     if (txn == NULL)
         return ENOMEM;
     
-    txn->txn_bufs = array_create();
+    txn->txn_bufs = bufarray_create();
     if (txn->txn_bufs == NULL) {
         free(txn);
         return ENOMEM;
@@ -84,16 +84,20 @@ txn_start(struct journal *jnl, struct transaction **ret)
     txn_qtail = (txn_qtail + 1) % TXN_MAX;
     lock_release(txn_lock);
     
-    // Write the start message
-    int err = jnl_write_start(txn, &txn->txn_startblk);
-    if (err) {
-        lock_release(txn_lock);
-        return err;
-    }
-    lock_release(txn_lock);
-    *ret = txn;
-    
-    return 0;
+    return txn;
+}
+
+void
+txn_destroy(struct transaction *txn)
+{
+    bufarray_destroy(txn->bufs);
+    kfree(txn);
+}
+
+int
+txn_start(struct transaction *txn)
+{
+    return jnl_write_start(txn, &txn->txn_startblk);
 }
 
 int

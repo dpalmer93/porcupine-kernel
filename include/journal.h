@@ -107,9 +107,13 @@ int jnl_set_size(struct transaction *txn, uint32_t ino, uint32_t size);
 int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount);
 
 // Sync all journal buffers to disk
-int jnl_syn(struct journal *jnl);
+int jnl_sync(struct journal *jnl);
 
+<<<<<<< HEAD
 int sfs_jnlmount(struct sfs_fs *sfs);
+=======
+int jnl_bootstrap(void);
+>>>>>>> df337b29bf3993eaac075dfcfe7243042013f88a
 
 
 #endif /* _JOURNAL_H_ */
