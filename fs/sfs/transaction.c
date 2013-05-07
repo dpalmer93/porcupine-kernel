@@ -47,18 +47,24 @@ uint64_t txnid_next;
 struct lock *txn_lock;
 struct cv *txn_cv;
 
-// Create a transaction and place it in the txn_queue
-struct transaction *
-txn_create(struct journal *jnl)
+void
+txn_destroy(struct transaction *txn)
+{
+    array_destroy(txn->bufs);
+    kfree(txn);
+}
+
+// Allocates a transaction and writes it to disk
+txn_start(struct journal *jnl, struct transaction **ret)
 {
     struct transaction *txn = kmalloc(sizeof(struct transaction));
     if (txn == NULL)
-        return NULL;
+        return ENOMEM;
     
     txn->txn_bufs = bufarray_create();
     if (txn->txn_bufs == NULL) {
         free(txn);
-        return NULL;
+        return ENOMEM;
     }
     
     txn->txn_bufcount = 0;
@@ -170,15 +176,19 @@ void
 txn_docheckpoint(struct journal *jnl)
 {
     lock_acquire(txn_lock);
+    lock_acquire(jnl->jnl_lock);
     
     // Searches through the queue
     // Frees any transactions that are done
     // Moves the checkpoint up accordingly
     int i = txn_qhead;
+    daddr_t checkpoint = jnl->jnl_checkpoint;
+    
     while (i != txn_qtail) {
         struct transaction *txn = txn_queue[i];
         if (txn_issynced(txn)) {
-            jnl->jnl_checkpoint = txn->txn_startblk;
+            // Update checkpoint if transaction is synced
+            checkpoint = txn->txn_startblk            
             txn_destroy(txn);
         }
         else {
@@ -187,6 +197,17 @@ txn_docheckpoint(struct journal *jnl)
     }
     txn_qhead = i;
     
+    // Update checkpoint on superblock and write it
+    struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
+    sfs->sfs_super.sp_ckpoint = checkpoint;
+    sfs->sfs_superdirty = true;
+    int err = sfs_writesuper(sfs);
+            
+    // Update checkpoint in journal
+    if (err == 0)
+        jnl->jnl_checkpoint = checkpoint;
+    
+    lock_release(jnl->jnl_lock);
     lock_release(txn_lock);
 }
 

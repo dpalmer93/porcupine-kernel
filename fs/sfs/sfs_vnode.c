@@ -1402,17 +1402,8 @@ sfs_reclaim(struct vnode *v)
 	if (iptr->sfi_linkcount==0) {
     
         // Start transaction
-        struct transaction *txn = txn_create(sfs->sfs_jnl);
-        if (txn == NULL) {
-			sfs_release_inode(sv);
-			lock_release(sfs->sfs_vnlock);
-			lock_release(sv->sv_lock);
-			if (buffers_needed) {
-				unreserve_buffers(4, SFS_BLOCKSIZE);
-			}
-            return ENOMEM;
-        }
-        result = txn_start(txn);
+        struct transaction *txn;
+        result = txn_start(sfs->sfs_jnl, &txn);
         if (result) {
 			sfs_release_inode(sv);
 			lock_release(sfs->sfs_vnlock);
@@ -1548,13 +1539,8 @@ sfs_write(struct vnode *v, struct uio *uio)
 	reserve_buffers(3, SFS_BLOCKSIZE);
     
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-        unreserve_buffers(3, SFS_BLOCKSIZE);
-        lock_release(sv->sv_lock);
-        return ENOMEM;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
         unreserve_buffers(3, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
@@ -2251,13 +2237,8 @@ sfs_truncate(struct vnode *v, off_t len)
 	reserve_buffers(4, SFS_BLOCKSIZE);
     
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-        unreserve_buffers(4, SFS_BLOCKSIZE);
-        lock_release(sv->sv_lock);
-        return ENOMEM;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
         unreserve_buffers(4, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
@@ -2487,13 +2468,8 @@ sfs_creat(struct vnode *v, const char *name, bool excl, mode_t mode,
 	}
 
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-        unreserve_buffers(4, SFS_BLOCKSIZE);
-        lock_release(sv->sv_lock);
-        return ENOMEM;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
         unreserve_buffers(4, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
@@ -2575,6 +2551,7 @@ static
 int
 sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 {
+    struct sfs_fs *sfs = dir->vn_fs->fs_data;
 	struct sfs_vnode *sv = dir->vn_data;
 	struct sfs_vnode *f = file->vn_data;
 	struct sfs_inode *inodeptr;
@@ -2589,13 +2566,8 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 	lock_acquire(sv->sv_lock);
 
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-        unreserve_buffers(4, SFS_BLOCKSIZE);
-        lock_release(sv->sv_lock);
-        return ENOMEM;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
         unreserve_buffers(4, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
@@ -2701,14 +2673,10 @@ sfs_mkdir(struct vnode *v, const char *name, mode_t mode)
 	}
 
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-        result = ENOMEM;
-        goto die_simple;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
-        goto die_simple
+        goto die_simple;
         return result;
     }
     
@@ -2854,12 +2822,8 @@ sfs_rmdir(struct vnode *v, const char *name)
 	}
 
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-        result = ENOMEM;
-        goto die_total;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
         goto die_total;
     }
@@ -2983,17 +2947,8 @@ sfs_remove(struct vnode *dir, const char *name)
 	}
 
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-		sfs_release_inode(sv);
-		sfs_release_inode(victim);
-		lock_release(victim->sv_lock);
-		lock_release(sv->sv_lock);
-		VOP_DECREF(&victim->sv_v);
-		unreserve_buffers(4, SFS_BLOCKSIZE);
-        return ENOMEM;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
 		sfs_release_inode(sv);
 		sfs_release_inode(victim);
@@ -3422,12 +3377,8 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	KASSERT(slot2>=0);
 
     // Start transaction
-    struct transaction *txn = txn_create(sfs->sfs_jnl);
-    if (txn == NULL) {
-        result = ENOMEM;
-        goto out4;
-    }
-    result = txn_start(txn);
+    struct transaction *txn;
+    result = txn_start(sfs->sfs_jnl, &txn);
     if (result) {
         goto out4;
     }
