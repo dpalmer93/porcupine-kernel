@@ -472,6 +472,11 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
         return result;
     }
     
+    // mark the FS as dirty
+    sfs->sfs_sper.sp_clean = 0;
+    sfs->sfs_superdirty = true;
+    sfs_writesuper(sfs);
+    
 	/* Hand back the abstract fs */
 	*ret = &sfs->sfs_absfs;
 
