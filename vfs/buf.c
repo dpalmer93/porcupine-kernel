@@ -898,6 +898,7 @@ buffer_force_sync(struct buf *b)
     
     // Cannot sync a buffer that still has uncommited transactions
     if(b->b_txncount > 0) {
+        lock_release(buffer_lock);
         return EINVAL;
     }
      
