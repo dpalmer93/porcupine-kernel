@@ -108,4 +108,48 @@ struct sfs_dir {
 };
 
 
+typedef enum {
+    JE_INVAL = 0,       // invalid journal entry
+    JE_START,           // first journal entry in a transaction
+    JE_ABORT,           // last journal entry in a failed transaction
+    JE_COMMIT,          // last journal entry in a successful transaction
+    // Add data block je_childblk to inode je_ino.
+    // It is the je_slot word in inode.
+    JE_ADD_DATABLOCK_INODE,
+    // Add data block je_childblk to indirect block je_parentblk.
+    // It is the je_slot pointer in indirect.
+    JE_ADD_DATABLOCK_INDIRECT,
+    // Allocated a new inode block at block je_ino, with inumber je_ino, and type je_inotype
+    JE_NEW_INODE,
+    // Write je_dir into je_slot of the directory with inumber je_ino
+    JE_WRITE_DIR,
+    // Remove inode at block je_ino, with inumber je_ino
+    JE_REMOVE_INODE,
+    // Remove data block je_childblk from inode je_ino.  It is the je_slot word in the inode.
+    JE_REMOVE_DATABLOCK_INODE,
+    // Remove data block je_childblk from indirect block je_parentblk.
+    // It is in the je_slot pointer in indirect.
+    JE_REMOVE_DATABLOCK_INDIRECT,
+    // Set the size of the file with inumber je_ino to je_size
+    JE_SET_SIZE,
+    // Set the linkcount of the file with inumber je_ino to je_linkcount
+    JE_SET_LINKCOUNT
+} je_type_t;
+
+// 128 Bytes
+struct jnl_entry {
+    je_type_t           je_type; // type of operation
+    uint64_t            je_txnid;
+    uint32_t            je_ino;
+    daddr_t             je_parentblk;
+    daddr_t             je_childblk;
+    int                 je_slot;
+    uint32_t            je_size;
+    uint16_t            je_inotype;
+    uint16_t            je_linkcount;
+    struct sfs_dir      je_dir;
+    uint8_t             je_padding[JE_SIZE - 100];
+};
+
+
 #endif /* _KERN_SFS_H_ */
