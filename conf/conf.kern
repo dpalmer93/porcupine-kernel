@@ -424,6 +424,7 @@ optfile   sfs    fs/sfs/sfs_inode.c
 optfile   sfs    fs/sfs/sfs_io.c
 optfile   sfs    fs/sfs/sfs_vnode.c
 optfile   sfs    fs/sfs/transaction.c
+optfile   sfs    fs/sfs/sfs_recovery.c
 
 #
 # netfs (the networked filesystem - you might write this as one assignment)

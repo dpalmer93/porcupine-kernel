@@ -42,7 +42,7 @@
 #include <synch.h>
 #include <journal.h>
 
-#define MAX_JNLBUFS 128
+#define MAX_JNLBUFS 256
 
 
 // Gets the next physical block available for journal and sets jnl->current
@@ -405,8 +405,7 @@ sfs_jnlmount(struct sfs_fs *sfs)
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
     if (!sfs->sfs_super.sp_clean) {    
-        // Recovery
-    
+        sfs_recover(sfs);
     }
 
     jnl->jnl_blkoffset = 0;
