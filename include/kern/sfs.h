@@ -88,7 +88,7 @@ struct sfs_super {
     uint64_t sp_txnid;                  // Last transaction ID
 	char sp_volname[SFS_VOLNAME_SIZE];	// Name of this volume
 	uint32_t reserved[114];
-};
+}__attribute__((__packed__));
 
 /*
  * On-disk inode

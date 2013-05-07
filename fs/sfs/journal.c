@@ -347,7 +347,6 @@ jnl_docheckpoint(struct journal *jnl)
             checkpoint = txn->txn_startblk;
             txn_destroy(txn);
             jnl->jnl_txnqcount--;
-            cv_signal(jnl->jnl_txncv, jnl->jnl_lock);
         }
         else {
             break;
@@ -366,6 +365,8 @@ jnl_docheckpoint(struct journal *jnl)
     if (err == 0)
         jnl->jnl_checkpoint = checkpoint;
     
+    // Wake up any threads waiting for a transaction
+    cv_broadcast(jnl->jnl_txncv, jnl->jnl_lock);
     lock_release(jnl->jnl_lock);
 }
 
