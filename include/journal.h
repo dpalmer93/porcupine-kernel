@@ -54,7 +54,6 @@ struct journal {
 };
 
 /* Commands to write entries */
-int jnl_write_entry(struct journal *jnl, struct jnl_entry *je, daddr_t *written_blk);
 int jnl_write_start(struct transaction *txn, daddr_t *written_blk);
 int jnl_write_commit(struct transaction *txn, daddr_t *written_blk);
 int jnl_write_abort(struct transaction *txn, daddr_t *written_blk);
