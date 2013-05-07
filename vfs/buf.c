@@ -873,10 +873,11 @@ buffer_sync(struct buf *b)
     
     // Go to each transaction and decrement the refcount
     // Remove it from the buffer
-    for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
+    for (unsigned i = transactionarray_num(b->b_txns) - 1; i >= 0 i--) {
         txn_close(transactionarray_get(b->b_txns, i));
         transactionarray_remove(b->b_txns, i);
     }
+    KASSERT(transactionarray_getsize(b->b_txns) == 0);
 
 	buffer_unmark_busy(b);
 	curthread->t_busy_buffers--;
@@ -908,10 +909,11 @@ buffer_force_sync(struct buf *b)
 	result = buffer_writeout(b);
     
     // Go to each transaction and decrement the refcount
-    for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
+    for (unsigned i = transactionarray_num(b->b_txns) - 1; i >= 0 i--) {
         txn_close(transactionarray_get(b->b_txns, i));
         transactionarray_remove(b->b_txns, i);
     }
+    KASSERT(transactionarray_getsize(b->b_txns) == 0);
 
 	buffer_unmark_busy(b);
 	curthread->t_busy_buffers--;
