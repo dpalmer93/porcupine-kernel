@@ -4062,14 +4062,22 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_COMMIT:
             return 0;
         case JE_NEW_INODE:
+            // alloc the inode if necessary
             if (!sfs_bused(sfs, je->je_ino)) {
                 err = sfs_balloc_specific(sfs, je->je_ino);
                 if (err)
                     return err;
-                err = sfs_loadvnode(sfs, je->je_ino, je->je_inotype, &dir, false, NULL);
-                if (err)
-                    return err;
             }
+            
+            err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
+            if (err)
+                return err;
+            
+            // set the inode type
+            inodeptr = buffer_map(buf);
+            inodeptr->sfi_type = je->je_inotype;
+            buffer_mark_dirty(buf);
+            buffer_release(buf);
             return 0;
         case JE_ADD_DATABLOCK_INODE:
             // Check whether block is allocated.
