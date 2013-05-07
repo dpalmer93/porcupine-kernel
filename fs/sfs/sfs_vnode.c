@@ -4130,6 +4130,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             entries[je->je_slot % SFS_DIRPERBLK] = je->je_dir;
             buffer_mark_dirty(buf);
             buffer_release(buf);
+            lock_release(dir->sv_lock);
             return 0;
         case JE_REMOVE_INODE:
             buffer_drop(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE);
