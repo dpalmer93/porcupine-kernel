@@ -121,12 +121,11 @@ sfs_writesuper_internal(struct sfs_fs *sfs)
 		int result = sfs_writeblock(&sfs->sfs_absfs, SFS_SB_LOCATION,
 					                &sfs->sfs_super, SFS_BLOCKSIZE);
 		if (result) {
-			lock_release(sfs->sfs_bitlock);
 			return result;
 		}
 		sfs->sfs_superdirty = false;
 	}
-    lock_release(sfs->sfs_bitlock);
+    return 0;
 }
 
 /*
@@ -194,13 +193,11 @@ sfs_sync(struct fs *fs)
 
 	/* If the superblock needs to be written, write it. */
 	if (sfs->sfs_superdirty) {
-		result = sfs_writeblock(&sfs->sfs_absfs, SFS_SB_LOCATION,
-					&sfs->sfs_super, SFS_BLOCKSIZE);
+		result = sfs_writesuper_internal(sfs);
 		if (result) {
 			lock_release(sfs->sfs_bitlock);
 			return result;
 		}
-		sfs->sfs_superdirty = false;
 	}
 
 	lock_release(sfs->sfs_bitlock);
@@ -214,6 +211,7 @@ sfs_writesuper(struct sfs_fs *sfs)
 {
     lock_acquire(sfs->sfs_bitlock);
 	sfs_writesuper_internal(sfs);
+	lock_release(sfs->sfs_bitlock);
     return 0;
 }
 
@@ -262,7 +260,7 @@ sfs_unmount(struct fs *fs)
 	}
     
     // Mark the FS as clean in the superblock
-    sfs->sfs_super->sp_clean = 1;
+    sfs->sfs_super.sp_clean = 1;
     sfs->sfs_superdirty = true;
     int err = sfs_writesuper_internal(sfs);
     if (err) {
