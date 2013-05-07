@@ -874,6 +874,41 @@ buffer_sync(struct buf *b)
 	return result;
 }
 
+int
+buffer_sync_extern(struct buf *b)
+{
+	int result;
+
+    lock_acquire(buffer_lock);
+	KASSERT(b->b_dirty == 1);
+
+	/*
+	 * Mark it busy while we do I/O, but do *not* move it to the
+	 * busy list; this preserves its LRU ordering.
+	 */
+    
+    // Cannot sync a buffer that still has uncommited transactions
+    if(b->b_txncount > 0) {
+        return ENOSYNC;
+    }
+     
+	buffer_mark_busy(b);
+	curthread->t_busy_buffers++;
+
+	result = buffer_writeout(b);
+    
+    // Go to each transaction and decrement the refcount
+    for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
+        txn_close(transactionarray_get(b->b_txns, i));
+    }
+
+	buffer_unmark_busy(b);
+	curthread->t_busy_buffers--;
+
+    lock_release(buffer_lock);
+    
+	return result;
+}
 
 
 

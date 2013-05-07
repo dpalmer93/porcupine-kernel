@@ -289,7 +289,7 @@ jnl_sync(struct journal *jnl)
 {
     int result;
     for (unsigned i = 0; i < bufarray_num(jnl->jnl_blks); i++) {
-        result = buffer_sync(bufarray_get(jnl->jnl_blks, i));
+        result = buffer_sync_extern(bufarray_get(jnl->jnl_blks, i));
         if (result)
             return result;
     }

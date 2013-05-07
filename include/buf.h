@@ -81,7 +81,7 @@ int buffer_get(struct fs *fs, daddr_t block, size_t size, struct buf **ret);
 int buffer_read(struct fs *fs, daddr_t block, size_t size, struct buf **ret);
 void buffer_drop(struct fs *fs, daddr_t block, size_t size);
 int buffer_txn_touch(struct buf *buf, struct transaction *txn); // called in txn_attach();
-int buffer_sync(struct buf *buf);
+int buffer_sync_extern(struct buf *buf);
 
 /*
  * Release-a-buffer operations.
