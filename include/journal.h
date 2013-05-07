@@ -35,15 +35,22 @@
 #include <buf.h>
 #include <sfs.h>
 
+#define TXN_MAX 128
+
 struct journal {
-    struct bufarray *jnl_blks;       // dynamic array of journal blocks
-    daddr_t          jnl_top;
-    daddr_t          jnl_bottom;
-    daddr_t          jnl_current;    // current journal block on disk being written to
-    daddr_t          jnl_checkpoint; // address of first dirty journal block
-    int              jnl_blkoffset;  // number of entries in jnl_entries
-    struct fs       *jnl_fs;
-    struct lock     *jnl_lock;       // journal lock
+    struct bufarray    *jnl_blks;               // dynamic array of journal blocks
+    daddr_t             jnl_top;
+    daddr_t             jnl_bottom;
+    daddr_t             jnl_current;            // current journal block on disk being written to
+    daddr_t             jnl_checkpoint;         // address of first dirty journal block
+    int                 jnl_blkoffset;          // number of entries in jnl_entries
+    struct transaction *jnl_txnqueue[TXN_MAX];  // transaction tracking
+    int                 jnl_txnqhead;           // first item in q
+    int                 jnl_txnqcount;          // # txns in q
+    uint64_t            jnl_txnid_next;         // next transaction ID
+    struct lock        *jnl_lock;               // journal lock
+    struct cv          *jnl_txncv;              // transaction tracking CV
+    struct fs          *jnl_fs;
 };
 
 /* Commands to write entries */
@@ -64,7 +71,11 @@ int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount)
 // Sync all journal buffers to disk
 int jnl_sync(struct journal *jnl);
 
+// Checkpoint
+void jnl_docheckpoint(struct journal *jnl);
+
 int sfs_jnlmount(struct sfs_fs *sfs);
+void jnl_destroy(struct journal *jnl);
 
 
 #endif /* _JOURNAL_H_ */
