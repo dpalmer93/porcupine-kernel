@@ -4072,3 +4072,140 @@ sfs_getroot(struct fs *fs)
 
 	return &sv->sv_v;
 }
+
+// Replay a journal entry (during recovery)
+int
+sfs_replay(struct struct jnl_entry *je, struct sfs_fs *sfs)
+{
+    int err;
+    switch (je->je_type) {
+        case JE_INVAL:
+        case JE_START:
+        case JE_ABORT:
+        case JE_COMMIT:
+            return 0;
+        case JE_NEW_INODE:
+            return sfs_makeobj(sfs, je->je_inotype, NULL, NULL);
+        case JE_ADD_DATABLOCK_INODE:
+            // Check whether block is allocated.
+            // If not, alloc it.
+            // Finally, point inode to it.
+            if (!sfs_bused(sfs, je->je_childblk)) {
+                err = sfs_balloc_specific(sfs, je->je_childblk);
+                if (err)
+                    return err;
+            }
+            
+            struct buf *inodebuf;
+            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            if (err)
+                return err;
+            
+            // access the inode as a flat array of pointers,
+            // as the slot number is just an index into
+            // the block
+            uint32_t *inodeptr = buffer_map(inodebuf);
+            inodeptr[je->je_slot] = je->je_childblk;
+            buffer_mark_dirty(inodebuf);
+            buffer_release(inodebuf);
+            return 0;
+        case JE_ADD_DATABLOCK_INDIRECT:
+            // Approximately the same as above.
+            if (!sfs_bused(sfs, je->je_childblk)) {
+                err = sfs_balloc_specific(sfs, je->je_childblk);
+                if (err)
+                    return err;
+            }
+            
+            struct buf *indirbuf;
+            err = buffer_read(sfs->sfs_fs, je->je_parentblk, SFS_BLOCKSIZE, &indirbuf);
+            if (err)
+                return err;
+            
+            // slot number is index into the indirect block
+            uint32_t *indirptr = buffer_map(indirbuf);
+            indirptr[je->je_slot] = je->je_childblk;
+            buffer_mark_dirty(indirbuf);
+            buffer_release(indirbuf);
+            return 0;
+        case JE_WRITE_DIR:
+            // Check that directory block containing
+            // this slot exists.  Fill in slot.
+            struct sfs_vnode *dir;
+            err = sfs_load_vnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, false);
+            if (err)
+                return err;
+            
+            uint32_t dirblk = je->je_slot * SFS_DIRLEN / SFS_BLOCKSIZE;
+            daddr_t diskblk;
+            err = sfs_bmap(dir, dirblk, false, &diskblk, NULL);
+            if (err)
+                return err;
+            
+            struct buf *direntbuf;
+            err = buffer_read(sfs->sfs_fs, diskblk, SFS_BLOCKSIZE, &direntbuf);
+            if (err)
+                return err;
+            
+            struct sfs_dir *entries = buffer_map(direntbuf);
+            entries[je->je_slot % SFS_DIRPERBLK] = je->je_dir;
+            buffer_mark_dirty(direntbuf);
+            buffer_release(direntbuf);
+            return 0;
+        case JE_REMOVE_INODE:
+            sfs_bfree(sfs, je->je_ino);
+            return 0;
+        case JE_REMOVE_DATABLOCK_INODE:
+            struct buf *inodebuf;
+            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            if (err)
+                return err;
+            
+            // access the inode as a flat array of pointers,
+            // as the slot number is just an index into
+            // the block
+            uint32_t *inodeptr = buffer_map(inodebuf);
+            inodeptr[je->je_slot] = 0;
+            buffer_mark_dirty(inodebuf);
+            buffer_release(inodebuf);
+            
+            sfs_bfree(sfs, je->je_childblk);
+            return 0;
+        case JE_REMOVE_DATABLOCK_INDIRECT:
+            struct buf *indirbuf;
+            err = buffer_read(sfs->sfs_fs, je->je_parentblk, SFS_BLOCKSIZE, &indirbuf);
+            if (err)
+                return err;
+            
+            // slot number is index into the indirect block
+            uint32_t *indirptr = buffer_map(indirbuf);
+            indirptr[je->je_slot] = je->je_childblk;
+            buffer_mark_dirty(indirbuf);
+            buffer_release(indirbuf);
+            
+            sfs_bfree(sfs, je->je_childblk);
+            return 0;
+        case JE_SET_SIZE:
+            struct buf *inodebuf;
+            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            if (err)
+                return err;
+            
+            struct sfs_inode *inodeptr = buffer_map(inodebuf);
+            inodeptr->sfi_size = je->je_size;
+            buffer_mark_dirty(inodebuf);
+            buffer_release(inodebuf);
+            return 0;
+        case JE_SET_LINKCOUNT:
+            struct buf *inodebuf;
+            err = buffer_read(sfs->sfs_fs, je->je_ino, SFS_BLOCKSIZE, &inodebuf);
+            if (err)
+                return err;
+            
+            struct sfs_inode *inodeptr = buffer_map(inodebuf);
+            inodeptr->sfi_linkcount = je->je_linkcount;
+            buffer_mark_dirty(inodebuf);
+            buffer_release(inodebuf);
+            return 0;
+    }
+}
