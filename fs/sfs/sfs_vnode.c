@@ -4112,7 +4112,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_WRITE_DIR:
             // Check that directory block containing
             // this slot exists.  Fill in slot.
-            err = sfs_loadvnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, false, NULL);
+            err = sfs_loadvnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, true, NULL);
             if (err)
                 return err;
             
