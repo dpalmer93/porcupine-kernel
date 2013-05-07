@@ -43,7 +43,6 @@ struct transaction {
     struct bufarray *txn_bufs;       // array of modified buffers
 };
 
-void txn_bootstrap(void);
 int txn_start(struct journal *jnl, struct transaction **ret);
 void txn_close(struct transaction *txn); // call on buffer sync
 void txn_docheckpoint(struct journal *jnl);

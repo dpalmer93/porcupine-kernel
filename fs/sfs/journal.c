@@ -304,7 +304,48 @@ jnl_sync(struct journal *jnl)
     return 0;
 }
 
-int 
+void
+jnl_docheckpoint(struct journal *jnl)
+{
+    lock_acquire(jnl->jnl_lock);
+    
+    // Searches through the queue
+    // Frees any transactions that are done
+    // Moves the checkpoint up accordingly
+    int i = jnl->jnl_txnqhead;
+    daddr_t checkpoint = jnl->jnl_checkpoint;
+    
+    for (i = txn_qhead;
+         i != (jnl->jnl_txnqhead + jnl->jnl_txnqcount) % TXN_MAX;
+         i = (i + 1) % TXN_MAX) {
+        struct transaction *txn = jnl->jnl_txnqueue[i];
+        if (txn_issynced(txn)) {
+            // Update checkpoint if transaction is synced
+            checkpoint = txn->txn_startblk;
+            txn_destroy(txn);
+            jnl->jnl_txnqcount--;
+            cv_signal(jnl->jnl_txncv, jnl->jnl_lock);
+        }
+        else {
+            break;
+        }
+    }
+    jnl->jnl_txnqhead = i;
+    
+    // Update checkpoint on superblock and write it
+    struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
+    sfs->sfs_super.sp_ckpoint = checkpoint;
+    sfs->sfs_superdirty = true;
+    int err = sfs_writesuper(sfs);
+    
+    // Update checkpoint in journal
+    if (err == 0)
+        jnl->jnl_checkpoint = checkpoint;
+    
+    lock_release(jnl->jnl_lock);
+}
+
+int
 sfs_jnlmount(struct sfs_fs *sfs)
 {
     struct journal *jnl = kmalloc(sizeof(struct journal));
@@ -320,12 +361,24 @@ sfs_jnlmount(struct sfs_fs *sfs)
         bufarray_destroy(jnl->jnl_blks);
         kfree(jnl);
         return ENOMEM;
-    }    
+    }
+    jnl->jnl_txncv = cv_create("Transaction CV");
+    if (jnl->jnl_txncv == NULL) {
+        bufarray_destroy(jnl->jnl_blks);
+        lock_destroy(jnl->jnl_lock);
+        kfree(jnl);
+        return ENOMEM;
+    }
+    
+    // zero the transaction queue
+    bzero(jnl->jnl_txnqueue, TXN_MAX * sizeof(struct transaction *));
     
     // Set other fields
+    jnl->jnl_txnqhead = 0;
+    jnl->jnl_txnqcount = 0;
+    jnl->jnl_txnid_next = 0;
     jnl->jnl_bottom = SFS_JNLSTART(sfs->sfs_super.sp_nblocks);
     jnl->jnl_top = jnl->jnl_bottom + SFS_JNLSIZE(sfs->sfs_super.sp_nblocks);
-    
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
     if (!sfs->sfs_super.sp_clean) {    
