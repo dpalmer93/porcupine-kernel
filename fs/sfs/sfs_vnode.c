@@ -311,7 +311,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 			}
 
             // Log journal entry
-            int slot = fileblock = 2 + fileblock;
+            int slot = 2 + fileblock;
             result = jnl_add_datablock_inode(txn, sv->sv_ino, block, slot);
             if (result) {
                 sfs_bfree(sfs, block);
@@ -382,7 +382,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 		}
 
         // Log journal entry
-        int slot = fileblock = 2 + SFS_NDIRECT + (indir - 1);
+        int slot = 2 + SFS_NDIRECT + (indir - 1);
         result = jnl_add_datablock_inode(txn, sv->sv_ino, next_block, slot);
         if (result) {
             sfs_bfree(sfs, next_block);
