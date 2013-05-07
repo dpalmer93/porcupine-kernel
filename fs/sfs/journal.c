@@ -124,54 +124,12 @@ static
 int
 jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_blk)
 {
-    struct buf *iobuffer;
-    int err;
-    struct iovec iov;
-    struct uio ku;
-    
-    // set up a uio to do the journal write
-    uio_kinit(&iov, &ku, entry, SFS_JE_SIZE, 0, UIO_WRITE);
-    
     lock_acquire(jnl->jnl_lock);
-    
-    // get next journal block if current is full
-    if (jnl->jnl_blkoffset == SFS_JE_PER_BLOCK) {
-        jnl_next_block(jnl);
-        jnl->jnl_blkoffset = 0;
-    }
-    if (written_blk != NULL)
-        *written_blk = jnl->jnl_current;
-    
-    int offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
-    
-    // write journal entry to proper buffer
-    err = buffer_read(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
+    int err = jnl_write_entry_internal(jnl, entry, written_blk);
     if (err) {
         lock_release(jnl->jnl_lock);
         return err;
     }
-    void *ioptr = buffer_map(iobuffer);
-    err = uiomove(ioptr + offset, SFS_JE_SIZE, &ku);
-    if (err) {
-        buffer_release(iobuffer);
-        lock_release(jnl->jnl_lock);
-        return err;
-    }
-    
-    jnl->jnl_blkoffset++;
-    
-    // mark the buffer as dirty and place it in the journal's bufarray
-    buffer_mark_dirty(iobuffer);
-    unsigned index;
-    int added = 0;
-    for (unsigned i = 0; i < bufarray_num(jnl->jnl_blks); i++) {
-        if (iobuffer == bufarray_get(jnl->jnl_blks, i))
-            added = 1;
-    }
-    if (!added)    
-        bufarray_add(jnl->jnl_blks, iobuffer, &index);
-    
-    buffer_release(iobuffer);
     lock_release(jnl->jnl_lock);
     
     // if there are too many buffers on the journal buffer, flush it
