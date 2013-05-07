@@ -2103,7 +2103,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 					else if(id_modified)
 					{
 						/* The indirect block has been modified */
-                        txn_attach(txn, tidbuf);
+                        txn_attach(txn, idbuf);
 						buffer_mark_dirty(idbuf);
 						if(indir != 1)
 						{
@@ -2144,7 +2144,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 					if(indir == 2)
 					{
 						inodeptr->sfi_dindirect = 0;
-                        txn_attach(txn, tidbuf);
+                        txn_attach(txn, sv->sv_buf);
 						buffer_mark_dirty(sv->sv_buf);
 					}
 					if(indir == 3)
@@ -2156,7 +2156,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 				else if(did_modified)
 				{
 					/* The double indirect block has been modified */
-                    txn_attach(txn, tidbuf);
+                    txn_attach(txn, didbuf);
 					buffer_mark_dirty(didbuf);
 					if(indir == 3)
 					{
@@ -2982,6 +2982,7 @@ sfs_remove(struct vnode *dir, const char *name)
         sfs_release_inode(sv);
         sfs_release_inode(victim);
         lock_release(victim->sv_lock);
+        lock_release(sv->sv_lock);
         VOP_DECREF(&victim->sv_v);
         unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
@@ -2999,6 +3000,7 @@ sfs_remove(struct vnode *dir, const char *name)
         sfs_release_inode(sv);
         sfs_release_inode(victim);
         lock_release(victim->sv_lock);
+        lock_release(sv->sv_lock);
         VOP_DECREF(&victim->sv_v);
         unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
