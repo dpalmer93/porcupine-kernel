@@ -104,7 +104,7 @@ int jnl_remove_inode(struct transaction *txn, uint32_t ino);
 int jnl_remove_datablock_inode(struct transaction *txn, uint32_t ino, daddr_t childblk, int slot); 
 int jnl_remove_datablock_indirect(struct transaction *txn, daddr_t parentblk, daddr_t childblk, int slot); 
 int jnl_set_size(struct transaction *txn, uint32_t ino, uint32_t size);
-int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t size);
+int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount);
 
 // Sync all journal buffers to disk
 int jnl_syn(struct journal *jnl);
