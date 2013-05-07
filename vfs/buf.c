@@ -863,7 +863,7 @@ buffer_sync(struct buf *b)
     
     // Cannot sync a buffer that still has uncommited transactions
     if(b->b_txncount > 0) {
-        return EINVAL;
+        return EBUSY;
     }
      
 	buffer_mark_busy(b);
@@ -899,7 +899,7 @@ buffer_force_sync(struct buf *b)
     // Cannot sync a buffer that still has uncommited transactions
     if(b->b_txncount > 0) {
         lock_release(buffer_lock);
-        return EINVAL;
+        return EBUSY;
     }
      
 	buffer_mark_busy(b);
