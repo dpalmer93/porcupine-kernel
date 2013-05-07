@@ -493,6 +493,13 @@ buffer_create(void)
 		kfree(b);
 		return NULL;
 	}
+	b->b_txns = transactionarray_create();
+	if (b->b_txns == NULL) {
+	    kfree(b->b_data);
+	    kfree(b);
+	    return NULL;
+	}
+	b->b_txncount = 0;
 	b->b_tableindex = INVALID_INDEX;
 	b->b_bucketindex = INVALID_INDEX;
 	b->b_attached = 0;
@@ -855,7 +862,7 @@ buffer_sync(struct buf *b)
     
     // Cannot sync a buffer that still has uncommited transactions
     if(b->b_txncount > 0) {
-        return ENOSYNC;
+        return EINVAL;
     }
      
 	buffer_mark_busy(b);
@@ -1258,8 +1265,8 @@ sync_some_buffers(void)
 			/* lock may be released (and then re-acquired) here */
 			result = buffer_sync(b);
 			if (result) {
-				kprintf("syncer: warning: %s\n",
-					strerror(result));
+				/*kprintf("syncer: warning: %s\n",
+					strerror(result));*/
 			}
 			targetcount--;
 		}

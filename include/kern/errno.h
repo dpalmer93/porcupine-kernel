@@ -106,7 +106,6 @@
 #define ECONNRESET      62     /* Connection reset by peer */
 #define EMSGSIZE        63     /* Message too large */
 #define ENOTSUP         64     /* Threads operation not supported */
-#define ENOSYNC         65     /* Buffer cannot be synced at this time */
 
 
 #endif /* _KERN_ERRNO_H_ */

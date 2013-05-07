@@ -53,6 +53,4 @@ int txn_commit(struct transaction *txn);
 int txn_abort(struct transaction *txn);
 bool txn_issynced(struct transaction *txn);
 
-int txn_bootstrap(void);
-
 #endif /* _TRANSACTION_H_ */
