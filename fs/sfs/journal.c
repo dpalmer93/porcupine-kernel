@@ -122,7 +122,7 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     int offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
     
     // write journal entry to proper buffer
-    err = buffer_get(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
+    err = buffer_read(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
     if (err) {
         lock_release(jnl->jnl_lock);
         return err;
@@ -328,7 +328,8 @@ sfs_jnlmount(struct sfs_fs *sfs)
     jnl->jnl_blkoffset = 0;
     jnl->jnl_fs = &sfs->sfs_absfs;
     jnl->jnl_current = jnl->jnl_checkpoint;
-     
+    
+    sfs->sfs_jnl = jnl;
     return 0;
 }
 
