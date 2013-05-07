@@ -113,6 +113,22 @@ sfs_mapio(struct sfs_fs *sfs, enum uio_rw rw)
 	return 0;
 }
 
+static
+int
+sfs_writesuper_internal(struct sfs_fs *sfs)
+{
+    if (sfs->sfs_superdirty) {
+		int result = sfs_writeblock(&sfs->sfs_absfs, SFS_SB_LOCATION,
+					                &sfs->sfs_super, SFS_BLOCKSIZE);
+		if (result) {
+			lock_release(sfs->sfs_bitlock);
+			return result;
+		}
+		sfs->sfs_superdirty = false;
+	}
+    lock_release(sfs->sfs_bitlock);
+}
+
 /*
  * Sync routine. This is what gets invoked if you do FS_SYNC on the
  * sfs filesystem structure.
@@ -197,16 +213,7 @@ int
 sfs_writesuper(struct sfs_fs *sfs)
 {
     lock_acquire(sfs->sfs_bitlock);
-	if (sfs->sfs_superdirty) {
-		int result = sfs_writeblock(&sfs->sfs_absfs, SFS_SB_LOCATION,
-					                &sfs->sfs_super, SFS_BLOCKSIZE);
-		if (result) {
-			lock_release(sfs->sfs_bitlock);
-			return result;
-		}
-		sfs->sfs_superdirty = false;
-	}
-    lock_release(sfs->sfs_bitlock);
+	sfs_writesuper_internal(sfs);
     return 0;
 }
 
@@ -253,6 +260,16 @@ sfs_unmount(struct fs *fs)
 		lock_release(sfs->sfs_vnlock);
 		return EBUSY;
 	}
+    
+    // Mark the FS as clean in the superblock
+    sfs->sfs_super->sp_clean = 1;
+    sfs->sfs_superdirty = true;
+    int err = sfs_writesuper_internal(sfs);
+    if (err) {
+        lock_release(sfs->sfs_bitlock);
+        lock_release(sfs->sfs_vnlock);
+        return err;
+    }
 
 	/* We should have just had sfs_sync called. */
 	KASSERT(!sfs->sfs_superdirty);
