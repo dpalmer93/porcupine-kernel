@@ -2982,6 +2982,7 @@ sfs_remove(struct vnode *dir, const char *name)
         sfs_release_inode(sv);
         sfs_release_inode(victim);
         lock_release(victim->sv_lock);
+        lock_release(sv->sv_lock);
         VOP_DECREF(&victim->sv_v);
         unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
@@ -2999,6 +3000,7 @@ sfs_remove(struct vnode *dir, const char *name)
         sfs_release_inode(sv);
         sfs_release_inode(victim);
         lock_release(victim->sv_lock);
+        lock_release(sv->sv_lock);
         VOP_DECREF(&victim->sv_v);
         unreserve_buffers(5, SFS_BLOCKSIZE);
         lock_release(sv->sv_lock);
