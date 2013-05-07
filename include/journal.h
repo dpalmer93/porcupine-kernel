@@ -65,6 +65,7 @@ int jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount)
 int jnl_sync(struct journal *jnl);
 
 int sfs_jnlmount(struct sfs_fs *sfs);
+void jnl_destroy(struct journal *jnl);
 
 
 #endif /* _JOURNAL_H_ */

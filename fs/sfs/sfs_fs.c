@@ -475,7 +475,19 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
     // mark the FS as dirty
     sfs->sfs_super.sp_clean = 0;
     sfs->sfs_superdirty = true;
-    sfs_writesuper(sfs);
+    result = sfs_writesuper_internal(sfs);
+    if (result) {
+        jnl_destroy(sfs->sfs_jnl);
+        lock_release(sfs->sfs_vnlock);
+		lock_release(sfs->sfs_bitlock);
+		lock_destroy(sfs->sfs_vnlock);
+		lock_destroy(sfs->sfs_bitlock);
+		lock_destroy(sfs->sfs_renamelock);
+		bitmap_destroy(sfs->sfs_freemap);
+		vnodearray_destroy(sfs->sfs_vnodes);
+		kfree(sfs);
+        return result;
+    }
     
 	/* Hand back the abstract fs */
 	*ret = &sfs->sfs_absfs;

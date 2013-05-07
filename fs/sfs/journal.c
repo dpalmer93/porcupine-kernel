@@ -304,6 +304,16 @@ jnl_sync(struct journal *jnl)
     return 0;
 }
 
+void
+jnl_destroy(struct journal *jnl)
+{
+    jnl_sync(jnl);
+    bufarray_setsize(jnl->jnl_blks, 0);
+    bufarray_destroy(jnl->jnl_blks);
+    lock_destroy(jnl->jnl_lock);
+    kfree(jnl);
+}
+
 int 
 sfs_jnlmount(struct sfs_fs *sfs)
 {
