@@ -126,6 +126,10 @@ txn_abort(struct transaction *txn)
 int
 txn_attach(struct transaction *txn, struct buf *b)
 {
+    // During recover
+    if (txn == NULL)
+        return 0;
+        
     int err;
     // Place transaction onto buffer
     err = buffer_txn_touch(b, txn);
