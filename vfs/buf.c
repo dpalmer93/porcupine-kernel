@@ -1157,12 +1157,13 @@ buffer_drop(struct fs *fs, daddr_t block, size_t size)
 	lock_release(buffer_lock);
 }
 
-// must be called while holding the buffer lock
 int
 buffer_txn_touch(struct buf *b, struct transaction *txn)
-{    
-    lock_acquire(buffer_lock);
+{
     int err;
+    
+    lock_acquire(buffer_lock);
+    
     // Check to make sure the txn and buffer have not been attached
     for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
         if (txn == transactionarray_get(b->b_txns, i)) {
@@ -1313,8 +1314,8 @@ sync_some_buffers(void)
 			/* lock may be released (and then re-acquired) here */
 			result = buffer_sync(b);
 			if (result) {
-				/*kprintf("syncer: warning: %s\n",
-					strerror(result));*/
+				kprintf("syncer: warning: %s\n",
+					strerror(result));
 			}
 			targetcount--;
 		}
