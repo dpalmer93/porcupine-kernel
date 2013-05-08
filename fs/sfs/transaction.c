@@ -86,7 +86,7 @@ void
 txn_destroy(struct transaction *txn)
 {
     // There should not be any pending buffers
-    KASSERT(bufarray_getsize(txn->txn_bufs) == 0);
+    KASSERT(bufarray_num(txn->txn_bufs) == 0);
     
     bufarray_destroy(txn->txn_bufs);
     kfree(txn);
