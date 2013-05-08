@@ -158,7 +158,7 @@ txn_attach(struct transaction *txn, struct buf *b)
     unsigned index;
     err = bufarray_add(txn->txn_bufs, b, &index);
     if (err) {
-        lock_acquire(txn->txn_jnl->jnl_lock);
+        lock_release(txn->txn_jnl->jnl_lock);
         return err;
     }
     
