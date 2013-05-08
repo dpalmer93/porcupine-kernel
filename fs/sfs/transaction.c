@@ -85,9 +85,9 @@ txn_start(struct journal *jnl, struct transaction **ret)
 void
 txn_destroy(struct transaction *txn)
 {
-    // "empty" the array---we do not need to actually
-    // free any buffers here
-    bufarray_setsize(txn->txn_bufs, 0);
+    // There should not be any pending buffers
+    KASSERT(bufarray_getsize(txn->txn_bufs) == 0);
+    
     bufarray_destroy(txn->txn_bufs);
     kfree(txn);
 }
@@ -97,10 +97,11 @@ int
 txn_commit(struct transaction *txn)
 {
     // Decrement the refcount on all the buffers this txn modified
+    // Also remove them from the bufarray
     for (unsigned i = 0; i < bufarray_num(txn->txn_bufs); i++) {
         buffer_txn_yield(bufarray_get(txn->txn_bufs, i));
-        bufarray_remove(txn->txn_bufs,i);
     }
+    bufarray_setsize(txn->txn_bufs, 0);
 
     // Write commit message
     int err =  jnl_write_commit(txn, &txn->txn_endblk);
