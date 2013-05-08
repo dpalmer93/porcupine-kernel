@@ -128,6 +128,7 @@ int
 txn_attach(struct transaction *txn, struct buf *b)
 {
     // During recover
+    
     if (txn == NULL)
         return 0;
         
@@ -142,14 +143,18 @@ txn_attach(struct transaction *txn, struct buf *b)
         return err;
     }
     
+    lock_acquire(txn->txn_jnl->jnl_lock);   
     // Place buffer onto transaction
     unsigned index;
     err = bufarray_add(txn->txn_bufs, b, &index);
-    if (err)
+    if (err) {
+        lock_acquire(txn->txn_jnl->jnl_lock);
         return err;
+    }
     
     // Increment number of buffers this transaction touches
     txn->txn_bufcount++;
+    lock_release(txn->txn_jnl->jnl_lock);
     return 0;
 }
 

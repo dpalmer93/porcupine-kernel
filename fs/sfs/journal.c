@@ -335,24 +335,20 @@ jnl_docheckpoint(struct journal *jnl)
     // Searches through the queue
     // Frees any transactions that are done
     // Moves the checkpoint up accordingly
-    int i = jnl->jnl_txnqhead;
     daddr_t checkpoint = jnl->jnl_checkpoint;
     
-    for (i = jnl->jnl_txnqhead;
-         i != (jnl->jnl_txnqhead + jnl->jnl_txnqcount) % TXN_MAX;
-         i = (i + 1) % TXN_MAX) {
-        struct transaction *txn = jnl->jnl_txnqueue[i];
+    while (jnl->jnl_txnqcount != 0)
+    {
+        struct transaction *txn = jnl->jnl_txnqueue[jnl->jnl_txnqhead];
         if (txn_issynced(txn)) {
-            // Update checkpoint if transaction is synced
             checkpoint = txn->txn_startblk;
             txn_destroy(txn);
             jnl->jnl_txnqcount--;
+            jnl->jnl_txnqhead++;
         }
-        else {
+        else 
             break;
-        }
     }
-    jnl->jnl_txnqhead = i;
     
     // Update checkpoint on superblock and write it
     struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
