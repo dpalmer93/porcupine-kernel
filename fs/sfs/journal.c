@@ -140,8 +140,9 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     return 0;
 }
 
-// unlike the other entries, start must be logged with the lock
-// already held via txn_start
+// unlike the other entries, start, commit, and abort
+// must be logged with the lock
+// already held via txn_start, txn_commit, or txn_abort
 int 
 jnl_write_start(struct transaction *txn, daddr_t *written_blk)
 {   
@@ -159,7 +160,7 @@ jnl_write_commit(struct transaction *txn, daddr_t *written_blk)
     entry.je_type = JE_COMMIT;
     entry.je_txnid = txn->txn_id;
     
-    return jnl_write_entry(txn->txn_jnl, &entry, written_blk);
+    return jnl_write_entry_internal(txn->txn_jnl, &entry, written_blk);
 }
 
 int 
@@ -169,7 +170,7 @@ jnl_write_abort(struct transaction *txn, daddr_t *written_blk)
     entry.je_type = JE_ABORT;
     entry.je_txnid = txn->txn_id;
     
-    return jnl_write_entry(txn->txn_jnl, &entry, written_blk);
+    return jnl_write_entry_internal(txn->txn_jnl, &entry, written_blk);
 }
 
 int

@@ -96,6 +96,7 @@ txn_destroy(struct transaction *txn)
 int
 txn_commit(struct transaction *txn)
 {
+    lock_acquire(txn->txn_jnl->jnl_lock);
     // Decrement the refcount on all the buffers this txn modified
     // Also remove them from the bufarray
     for (unsigned i = 0; i < bufarray_num(txn->txn_bufs); i++) {
@@ -104,10 +105,13 @@ txn_commit(struct transaction *txn)
     bufarray_setsize(txn->txn_bufs, 0);
 
     // Write commit message
-    int err =  jnl_write_commit(txn, &txn->txn_endblk);
-    if (err)
+    int err = jnl_write_commit(txn, &txn->txn_endblk);
+    if (err) {
+        lock_release(txn->txn_jnl->jnl_lock);
         return err;
-        
+    }
+    lock_release(txn->txn_jnl->jnl_lock);
+    
     // Flush all the journal buffers
     return jnl_sync(txn->txn_jnl);
 }
@@ -115,13 +119,18 @@ txn_commit(struct transaction *txn)
 int
 txn_abort(struct transaction *txn)
 {
+    int err = 0;
+    lock_acquire(txn->txn_jnl->jnl_lock);
     // Decrement the refcount on all the buffers this txn modified
     unsigned num = bufarray_num(txn->txn_bufs);
     for (unsigned i = 0; i < num; i++) {
         buffer_txn_yield(bufarray_get(txn->txn_bufs, num - i - 1));
     }
     
-    return jnl_write_abort(txn, &txn->txn_endblk);
+    err = jnl_write_abort(txn, &txn->txn_endblk);
+    
+    lock_release(txn->txn_jnl->jnl_lock);
+    return err;
 }
 
 // Buffer must be marked busy
