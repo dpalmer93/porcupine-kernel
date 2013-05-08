@@ -875,7 +875,7 @@ buffer_sync(struct buf *b)
     // Empty the transaction list
     unsigned num = transactionarray_num(b->b_txns);
     for (unsigned i = 0; i < num; i++) {
-        txn_close(transactionarray_get(b->b_txns, num - i - 1));
+        txn_close(transactionarray_get(b->b_txns, i));
     }
     transactionarray_setsize(b->b_txns, 0);
 
@@ -912,7 +912,7 @@ buffer_force_sync(struct buf *b)
     // Empty the transaction list
     unsigned num = transactionarray_num(b->b_txns);
     for (unsigned i = 0; i < num; i++) {
-        txn_close(transactionarray_get(b->b_txns, num - i - 1));
+        txn_close(transactionarray_get(b->b_txns, i));
     }
     transactionarray_setsize(b->b_txns, 0);
 
