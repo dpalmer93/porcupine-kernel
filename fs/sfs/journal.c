@@ -318,8 +318,9 @@ jnl_sync(struct journal *jnl)
 void
 jnl_destroy(struct journal *jnl)
 {
-    KASSERT(jnl->jnl_txnqcount == 0);
     jnl_sync(jnl);
+    jnl_docheckpoint(jnl);
+    KASSERT(jnl->jnl_txnqcount == 0);
     bufarray_setsize(jnl->jnl_blks, 0);
     bufarray_destroy(jnl->jnl_blks);
     lock_destroy(jnl->jnl_lock);
