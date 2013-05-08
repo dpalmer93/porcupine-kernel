@@ -116,8 +116,9 @@ int
 txn_abort(struct transaction *txn)
 {
     // Decrement the refcount on all the buffers this txn modified
-    for (unsigned i = 0; i < bufarray_num(txn->txn_bufs); i++) {
-        buffer_txn_yield(bufarray_get(txn->txn_bufs, i));
+    unsigned num = bufarray_num(txn->txn_bufs);
+    for (unsigned i = 0; i < num; i++) {
+        buffer_txn_yield(bufarray_get(txn->txn_bufs, num - i - 1));
     }
     
     return jnl_write_abort(txn, &txn->txn_endblk);
