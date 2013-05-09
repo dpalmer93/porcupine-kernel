@@ -854,9 +854,7 @@ buffer_sync(struct buf *b)
 	KASSERT(b->b_dirty == 1);
     
     // Cannot sync a buffer that still has uncommited transactions
-    if(b->b_txncount > 0) {
-        return EBUSY;
-    }
+    KASSERT(b->b_txncount == 0);
 
 	/*
 	 * Mark it busy while we do I/O, but do *not* move it to the
@@ -890,10 +888,7 @@ buffer_force_sync(struct buf *b)
     lock_acquire(buffer_lock);
     
     // Cannot sync a buffer that still has uncommited transactions
-    if(b->b_txncount > 0) {
-        lock_release(buffer_lock);
-        return EBUSY;
-    }
+    KASSERT(b->b_txncount == 0);
 
 	/*
 	 * Mark it busy while we do I/O, but do *not* move it to the
@@ -1305,7 +1300,7 @@ sync_some_buffers(void)
 	/* Don't cache the array size; it might change as we work. */
 	for (i=0; i<bufarray_num(&attached_buffers) && targetcount > 0; i++) {
 		b = bufarray_get(&attached_buffers, i);
-		if (b == NULL || b->b_busy) {
+		if (b == NULL || b->b_busy || b->b_txncount > 0) {
 			continue;
 		}
 		if (b->b_dirty) {
