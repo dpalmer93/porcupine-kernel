@@ -69,17 +69,17 @@ jnl_next_block(struct journal *jnl)
     return;
 }
 
+// must be called while holding the journal lock
+// releases the journal lock on success or failure
 static
 int
 jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_blk)
 {
-    struct buf *iobuffer;
     int err;
+    struct buf *iobuffer;
     struct iovec iov;
     struct uio ku;
-    
-    // set up a uio to do the journal write
-    uio_kinit(&iov, &ku, entry, SFS_JE_SIZE, 0, UIO_WRITE);
+    int offset;
     
     // get next journal block if current is full
     if (jnl->jnl_blkoffset == SFS_JE_PER_BLOCK) {
@@ -90,6 +90,15 @@ jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *
         *written_blk = jnl->jnl_current;
     
     int offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
+    jnl->jnl_blkoffset++;
+    
+    // Release lock now to avoid deadlock, as we will be locking
+    // the buffer.  The journal state has already been updated.
+    lock_release(jnl->jnl_lock);
+    
+    
+    // set up a uio to do the journal write
+    uio_kinit(&iov, &ku, entry, SFS_JE_SIZE, 0, UIO_WRITE);
     
     // write journal entry to proper buffer
     err = buffer_read(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
@@ -102,8 +111,6 @@ jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *
         buffer_release(iobuffer);
         return err;
     }
-    
-    jnl->jnl_blkoffset++;
     
     // mark the buffer as dirty and place it in the journal's bufarray
     buffer_mark_dirty(iobuffer);
@@ -125,17 +132,17 @@ int
 jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_blk)
 {
     lock_acquire(jnl->jnl_lock);
-    int err = jnl_write_entry_internal(jnl, entry, written_blk);
-    if (err) {
-        lock_release(jnl->jnl_lock);
-        return err;
-    }
     
     // if there are too many buffers on the journal buffer, flush it
     if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
         jnl_sync(jnl);
     }
-    lock_release(jnl->jnl_lock);
+    
+    // internal releases the lock
+    int err = jnl_write_entry_internal(jnl, entry, written_blk);
+    if (err) {
+        return err;
+    }
     
     return 0;
 }
