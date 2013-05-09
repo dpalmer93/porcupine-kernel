@@ -35,22 +35,18 @@
 #include <buf.h>
 #include <sfs.h>
 
-#define TXN_MAX 128
-
 struct journal {
-    struct bufarray    *jnl_blks;               // dynamic array of journal blocks
-    daddr_t             jnl_top;
-    daddr_t             jnl_bottom;
-    daddr_t             jnl_current;            // current journal block on disk being written to
-    daddr_t             jnl_checkpoint;         // address of first dirty journal block
-    int                 jnl_blkoffset;          // number of entries in jnl_entries
-    struct transaction *jnl_txnqueue[TXN_MAX];  // transaction tracking
-    int                 jnl_txnqhead;           // first item in q
-    int                 jnl_txnqcount;          // # txns in q
-    uint64_t            jnl_txnid_next;         // next transaction ID
-    struct lock        *jnl_lock;               // journal lock
-    struct cv          *jnl_txncv;              // transaction tracking CV
-    struct fs          *jnl_fs;
+    struct fs               *jnl_fs;         // file system
+    struct bufarray         *jnl_blks;       // dynamic array of journal blocks
+    daddr_t                  jnl_top;        // top block of on-disk journal
+    daddr_t                  jnl_bottom;     // bottom block of on-disk journal
+    daddr_t                  jnl_current;    // current journal block on disk being written to
+    daddr_t                  jnl_checkpoint; // address of first dirty journal block
+    int                      jnl_blkoffset;  // number of entries in jnl_entries
+    struct transactionarray *jnl_txnqueue;   // transaction tracking
+    uint64_t                 jnl_txnid_next; // next transaction ID
+    struct lock             *jnl_lock;       // journal lock
+    struct cv               *jnl_txncv;      // transaction tracking CV
 };
 
 /* Commands to write entries */

@@ -42,9 +42,6 @@
 
 DEFARRAY(buf, /*noinline*/);
 
-DECLARRAY(transaction);
-DEFARRAY(transaction, /* noinline */);
-
 /*
  * The required size for all buffers.
  */

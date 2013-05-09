@@ -35,13 +35,16 @@
 #include <buf.h>
 
 struct transaction {
-    struct journal  *txn_jnl;        // journal transaction belongs to
-    uint64_t         txn_id;         // unique & monotonic ID
-    uint32_t         txn_bufcount;   // # of modified buffers not yet synced
-    daddr_t          txn_startblk;   // disk block containing start entry
-    daddr_t          txn_endblk;     // disk block containing commit/abort entry
-    struct bufarray *txn_bufs;       // array of modified buffers
+    struct journal  *txn_jnl;       // journal transaction belongs to
+    unsigned         txn_qindex     // index into journal transaction queue
+    uint64_t         txn_id;        // unique & monotonic ID
+    uint32_t         txn_bufcount;  // # of modified buffers not yet synced
+    daddr_t          txn_startblk;  // disk block containing start entry
+    daddr_t          txn_endblk;    // disk block containing commit/abort entry
+    struct bufarray *txn_bufs;      // array of modified buffers
 };
+
+DECLARRAY(transaction);
 
 int txn_start(struct journal *jnl, struct transaction **ret);
 void txn_close(struct transaction *txn); // call on buffer sync

@@ -130,12 +130,12 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
         lock_release(jnl->jnl_lock);
         return err;
     }
-    lock_release(jnl->jnl_lock);
     
     // if there are too many buffers on the journal buffer, flush it
     if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
         jnl_sync(jnl);
     }
+    lock_release(jnl->jnl_lock);
     
     return 0;
 }
@@ -304,6 +304,7 @@ jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount)
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
 }
 
+// journal lock must be held
 int
 jnl_sync(struct journal *jnl)
 {
@@ -319,53 +320,40 @@ jnl_sync(struct journal *jnl)
 void
 jnl_destroy(struct journal *jnl)
 {
+    lock_acquire(jnl->jnl_lock);
     jnl_sync(jnl);
     jnl_docheckpoint(jnl);
-    KASSERT(jnl->jnl_txnqcount == 0);
+    KASSERT(transactionarray_num(jnl->jnl_txnqueue) == 0);
+    transactionarray_destroy(jnl->jnl_txnqueue);
     bufarray_setsize(jnl->jnl_blks, 0);
     bufarray_destroy(jnl->jnl_blks);
-    lock_destroy(jnl->jnl_lock);
     cv_destroy(jnl->jnl_txncv);
+    lock_release(jnl->jnl_lock);
+    lock_destroy(jnl->jnl_lock);
     kfree(jnl);
 }
 
+// journal lock must be held
 void
 jnl_docheckpoint(struct journal *jnl)
 {
-    lock_acquire(jnl->jnl_lock);
+    daddr_t old_checkpoint = jnl->jnl_checkpoint;
     
-    // Searches through the queue
-    // Frees any transactions that are done
-    // Moves the checkpoint up accordingly
-    daddr_t checkpoint = jnl->jnl_checkpoint;
+    // get the minimum start block of any active transaction
+    daddr_t new_checkpoint = transactionarray_get(jnl->jnl_txnqueue, 0)->txn_startblk;
     
-    while (jnl->jnl_txnqcount != 0)
-    {
-        struct transaction *txn = jnl->jnl_txnqueue[jnl->jnl_txnqhead];
-        if (txn_issynced(txn)) {
-            checkpoint = txn->txn_startblk;
-            txn_destroy(txn);
-            jnl->jnl_txnqcount--;
-            jnl->jnl_txnqhead++;
-        }
-        else 
-            break;
+    if (new_checkpoint != old_checkpoint) {
+        // Update checkpoint on superblock and try to write it
+        struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
+        sfs->sfs_super.sp_ckpoint = checkpoint;
+        sfs->sfs_super.sp_txnid = jnl->jnl_txnid_next;
+        sfs->sfs_superdirty = true;
+        int err = sfs_writesuper(sfs);
+        
+        // Update checkpoint in journal
+        if (err == 0)
+            jnl->jnl_checkpoint = checkpoint;
     }
-    
-    // Update checkpoint on superblock and write it
-    struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
-    sfs->sfs_super.sp_ckpoint = checkpoint;
-    sfs->sfs_super.sp_txnid = jnl->jnl_txnid_next;
-    sfs->sfs_superdirty = true;
-    int err = sfs_writesuper(sfs);
-    
-    // Update checkpoint in journal
-    if (err == 0)
-        jnl->jnl_checkpoint = checkpoint;
-    
-    // Wake up any threads waiting for a transaction
-    cv_broadcast(jnl->jnl_txncv, jnl->jnl_lock);
-    lock_release(jnl->jnl_lock);
 }
 
 int
@@ -387,29 +375,37 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
     }
     jnl->jnl_txncv = cv_create("Transaction CV");
     if (jnl->jnl_txncv == NULL) {
-        bufarray_destroy(jnl->jnl_blks);
         lock_destroy(jnl->jnl_lock);
+        bufarray_destroy(jnl->jnl_blks);
+        kfree(jnl);
+        return ENOMEM;
+    }
+    jnl->jnl_txnqueue = transactionarray_create();
+    if (jnl->jnl_txnqueue == NULL) {
+        cv_destroy(jnl->jnl_txncv);
+        lock_destroy(jnl->jnl_lock);
+        bufarray_destroy(jnl->jnl_blks);
         kfree(jnl);
         return ENOMEM;
     }
     
-    // zero the transaction queue
-    bzero(jnl->jnl_txnqueue, TXN_MAX * sizeof(struct transaction *));
-    
     // Set other fields
-    jnl->jnl_txnqhead = 0;
-    jnl->jnl_txnqcount = 0;
-    jnl->jnl_txnid_next = txnid_next;
+    jnl->jnl_fs = &sfs->sfs_absfs;
     jnl->jnl_bottom = SFS_JNLSTART(sfs->sfs_super.sp_nblocks);
     jnl->jnl_top = jnl->jnl_bottom + SFS_JNLSIZE(sfs->sfs_super.sp_nblocks);
+    
+    // set default values
+    jnl->jnl_txnid_next = txnid_next;
     jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
     
-    if (!sfs->sfs_super.sp_clean) {    
+    if (!sfs->sfs_super.sp_clean) {
+        // need recovery
         int err = sfs_recover(sfs, &jnl->jnl_checkpoint, &jnl->jnl_txnid_next);
         if (err) {
-            bufarray_destroy(jnl->jnl_blks);
+            transactionarray_destroy(jnl->jnl_txnqueue);
             cv_destroy(jnl->jnl_txncv);
             lock_destroy(jnl->jnl_lock);
+            bufarray_destroy(jnl->jnl_blks);
             kfree(jnl);
             return err;
         }
@@ -417,9 +413,10 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
         // sync the changes to disk
         err = FSOP_SYNC(&sfs->sfs_absfs);
         if (err) {
-            bufarray_destroy(jnl->jnl_blks);
+            transactionarray_destroy(jnl->jnl_txnqueue);
             cv_destroy(jnl->jnl_txncv);
             lock_destroy(jnl->jnl_lock);
+            bufarray_destroy(jnl->jnl_blks);
             kfree(jnl);
             return err;
         }
@@ -430,17 +427,17 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
         sfs->sfs_superdirty = true;
         err = sfs_writesuper(sfs);
         if (err) {
-            bufarray_destroy(jnl->jnl_blks);
+            transactionarray_destroy(jnl->jnl_txnqueue);
             cv_destroy(jnl->jnl_txncv);
             lock_destroy(jnl->jnl_lock);
+            bufarray_destroy(jnl->jnl_blks);
             kfree(jnl);
             return err;
         }
     }
-
-    jnl->jnl_blkoffset = 0;
-    jnl->jnl_fs = &sfs->sfs_absfs;
+    
     jnl->jnl_current = jnl->jnl_checkpoint;
+    jnl->jnl_blkoffset = 0;
     
     sfs->sfs_jnl = jnl;
     return 0;
