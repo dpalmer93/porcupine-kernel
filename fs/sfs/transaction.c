@@ -80,16 +80,15 @@ txn_start(struct journal *jnl, struct transaction **ret)
         return err;
     }
     
-    // Write start journal entry to journal
-    err = jnl_write_start(txn, &txn->txn_startblk);
+
+    // Write START journal entry.
+    // This also releases the journal lock.
+    int err = jnl_write_start(txn, &txn->txn_startblk);
     if (err) {
-        lock_release(jnl->jnl_lock);
         kfree(txn->txn_bufs);
         kfree(txn);
         return err;
     }
-    
-    lock_release(jnl->jnl_lock);
     
     *ret = txn;
     return 0;
@@ -111,8 +110,9 @@ int
 txn_commit(struct transaction *txn)
 {
     int err;
+    struct journal *jnl = txn->txn_jnl;
     
-    lock_acquire(txn->txn_jnl->jnl_lock);
+    lock_acquire(jnl->jnl_lock);
     // Decrement the refcount on all the buffers this txn modified
     // Also remove them from the bufarray
     for (unsigned i = 0; i < bufarray_num(txn->txn_bufs); i++) {
@@ -120,24 +120,24 @@ txn_commit(struct transaction *txn)
     }
     bufarray_setsize(txn->txn_bufs, 0);
 
-    // Write commit message
+    // Write COMMIT journal entry.
+    // This also releases the journal lock.
     err = jnl_write_commit(txn, &txn->txn_endblk);
     if (err) {
-        lock_release(txn->txn_jnl->jnl_lock);
         return err;
     }
     
+    // make sure the COMMIT goes to disk
+    lock_acquire(jnl->jnl_lock)
     err = jnl_sync(txn->txn_jnl);
-    lock_release(txn->txn_jnl->jnl_lock);
+    lock_release(jnl->jnl_lock);
     
-    // Flush all the journal buffers
     return err;
 }
 
 int
 txn_abort(struct transaction *txn)
 {
-    int err = 0;
     lock_acquire(txn->txn_jnl->jnl_lock);
     // Decrement the refcount on all the buffers this txn modified
     // Also remove them from the bufarray
@@ -147,10 +147,9 @@ txn_abort(struct transaction *txn)
     }
     bufarray_setsize(txn->txn_bufs, 0);
     
-    err = jnl_write_abort(txn, &txn->txn_endblk);
-    
-    lock_release(txn->txn_jnl->jnl_lock);
-    return err;
+    // Write ABORT journal entry.
+    // This also releases the journal lock.
+    return jnl_write_abort(txn, &txn->txn_endblk);
 }
 
 // Buffer must be marked busy
