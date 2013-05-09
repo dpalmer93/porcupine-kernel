@@ -47,6 +47,8 @@ DEFARRAY(transaction, /* noinline */);
 int
 txn_start(struct journal *jnl, struct transaction **ret)
 {
+    int err;
+    
     struct transaction *txn = kmalloc(sizeof(struct transaction));
     if (txn == NULL)
         return ENOMEM;
@@ -70,7 +72,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
     jnl->jnl_txnid_next++;
     
     // Place transaction in txn_queue
-    err = transactionarray_add(jnl->jnl_txnqueue, txn, &txn->qindex);
+    err = transactionarray_add(jnl->jnl_txnqueue, txn, &txn->txn_qindex);
     if (err) {
         lock_release(jnl->jnl_lock);
         kfree(txn->txn_bufs);
@@ -79,7 +81,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
     }
     
     // Write start journal entry to journal
-    int err = jnl_write_start(txn, &txn->txn_startblk);
+    err = jnl_write_start(txn, &txn->txn_startblk);
     if (err) {
         lock_release(jnl->jnl_lock);
         kfree(txn->txn_bufs);
@@ -93,6 +95,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
     return 0;
 }
 
+static
 void
 txn_destroy(struct transaction *txn)
 {
@@ -194,8 +197,9 @@ txn_close(struct transaction *txn)
     if (txn->txn_bufcount == 0) {
         lock_acquire(jnl->jnl_lock);
         
-        // remove txn from the queue and trigger a checkpoint
-        transactionarray_remove(jnl->jnl_queue, txn->txn_qindex);
+        // remove txn from the queue, destroy it, and trigger a checkpoint
+        transactionarray_remove(jnl->jnl_txnqueue, txn->txn_qindex);
+        txn_destroy(txn);
         jnl_docheckpoint(jnl);
         
         // Wake up any threads waiting for a transaction

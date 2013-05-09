@@ -36,7 +36,7 @@
 
 struct transaction {
     struct journal  *txn_jnl;       // journal transaction belongs to
-    unsigned         txn_qindex     // index into journal transaction queue
+    unsigned         txn_qindex;    // index into journal transaction queue
     uint64_t         txn_id;        // unique & monotonic ID
     uint32_t         txn_bufcount;  // # of modified buffers not yet synced
     daddr_t          txn_startblk;  // disk block containing start entry
@@ -48,7 +48,6 @@ DECLARRAY(transaction);
 
 int txn_start(struct journal *jnl, struct transaction **ret);
 void txn_close(struct transaction *txn); // call on buffer sync
-void txn_destroy(struct transaction *txn); // destroy a transaction (must be synced)
 // Attaches a transaction to a buffer.  Touches the buffer
 int txn_attach(struct transaction *txn, struct buf *b);
 int txn_commit(struct transaction *txn);

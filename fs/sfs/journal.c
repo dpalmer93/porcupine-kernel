@@ -345,14 +345,14 @@ jnl_docheckpoint(struct journal *jnl)
     if (new_checkpoint != old_checkpoint) {
         // Update checkpoint on superblock and try to write it
         struct sfs_fs *sfs = jnl->jnl_fs->fs_data;
-        sfs->sfs_super.sp_ckpoint = checkpoint;
+        sfs->sfs_super.sp_ckpoint = new_checkpoint;
         sfs->sfs_super.sp_txnid = jnl->jnl_txnid_next;
         sfs->sfs_superdirty = true;
         int err = sfs_writesuper(sfs);
         
         // Update checkpoint in journal
         if (err == 0)
-            jnl->jnl_checkpoint = checkpoint;
+            jnl->jnl_checkpoint = new_checkpoint;
     }
 }
 
