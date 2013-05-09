@@ -1185,7 +1185,6 @@ buffer_txn_touch(struct buf *b, struct transaction *txn)
     return 0;
 }
 
-// must be called while holding the buffer lock
 void
 buffer_txn_yield(struct buf *b)
 {
