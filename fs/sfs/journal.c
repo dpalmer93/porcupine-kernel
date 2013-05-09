@@ -89,7 +89,7 @@ jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *
     if (written_blk != NULL)
         *written_blk = jnl->jnl_current;
     
-    int offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
+    offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
     jnl->jnl_blkoffset++;
     
     // Release lock now to avoid deadlock, as we will be locking
@@ -133,15 +133,15 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
 {
     lock_acquire(jnl->jnl_lock);
     
-    // if there are too many buffers on the journal buffer, flush it
-    if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
-        jnl_sync(jnl);
-    }
-    
     // internal releases the lock
     int err = jnl_write_entry_internal(jnl, entry, written_blk);
     if (err) {
         return err;
+    }
+    
+    // if there are too many buffers on the journal buffer, flush it
+    if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
+        jnl_sync(jnl);
     }
     
     return 0;
@@ -311,7 +311,6 @@ jnl_set_linkcount(struct transaction *txn, uint32_t ino, uint16_t linkcount)
     return jnl_write_entry(txn->txn_jnl, &je, NULL);
 }
 
-// journal lock must be held
 int
 jnl_sync(struct journal *jnl)
 {
@@ -327,8 +326,8 @@ jnl_sync(struct journal *jnl)
 void
 jnl_destroy(struct journal *jnl)
 {
-    lock_acquire(jnl->jnl_lock);
     jnl_sync(jnl);
+    lock_acquire(jnl->jnl_lock);
     jnl_docheckpoint(jnl);
     KASSERT(transactionarray_num(jnl->jnl_txnqueue) == 0);
     transactionarray_destroy(jnl->jnl_txnqueue);

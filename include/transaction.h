@@ -36,7 +36,6 @@
 
 struct transaction {
     struct journal  *txn_jnl;       // journal transaction belongs to
-    unsigned         txn_qindex;    // index into journal transaction queue
     uint64_t         txn_id;        // unique & monotonic ID
     uint32_t         txn_bufcount;  // # of modified buffers not yet synced
     daddr_t          txn_startblk;  // disk block containing start entry

@@ -1185,7 +1185,9 @@ buffer_txn_touch(struct buf *b, struct transaction *txn)
 void
 buffer_txn_yield(struct buf *b)
 {
+    lock_acquire(buffer_lock);
     b->b_txncount--;
+    lock_release(buffer_lock);
 }
 
 static

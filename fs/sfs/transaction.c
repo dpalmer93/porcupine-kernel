@@ -72,7 +72,8 @@ txn_start(struct journal *jnl, struct transaction **ret)
     jnl->jnl_txnid_next++;
     
     // Place transaction in txn_queue
-    err = transactionarray_add(jnl->jnl_txnqueue, txn, &txn->txn_qindex);
+    unsigned index;
+    err = transactionarray_add(jnl->jnl_txnqueue, txn, &index);
     if (err) {
         lock_release(jnl->jnl_lock);
         kfree(txn->txn_bufs);
@@ -83,7 +84,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
 
     // Write START journal entry.
     // This also releases the journal lock.
-    int err = jnl_write_start(txn, &txn->txn_startblk);
+    err = jnl_write_start(txn, &txn->txn_startblk);
     if (err) {
         kfree(txn->txn_bufs);
         kfree(txn);
@@ -128,9 +129,7 @@ txn_commit(struct transaction *txn)
     }
     
     // make sure the COMMIT goes to disk
-    lock_acquire(jnl->jnl_lock)
     err = jnl_sync(txn->txn_jnl);
-    lock_release(jnl->jnl_lock);
     
     return err;
 }
@@ -197,7 +196,17 @@ txn_close(struct transaction *txn)
         lock_acquire(jnl->jnl_lock);
         
         // remove txn from the queue, destroy it, and trigger a checkpoint
-        transactionarray_remove(jnl->jnl_txnqueue, txn->txn_qindex);
+        unsigned i;
+        unsigned num = transactionarray_num(jnl->jnl_txnqueue);
+        for (i = 0; i < num; i++) {
+            if (transactionarray_get(jnl->jnl_txnqueue, i) == txn) {
+                transactionarray_remove(jnl->jnl_txnqueue, i);
+                break;
+            }
+        }
+        // should have removed the txn
+        KASSERT(i < num);
+        
         txn_destroy(txn);
         jnl_docheckpoint(jnl);
         
