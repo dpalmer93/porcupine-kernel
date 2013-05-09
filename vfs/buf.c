@@ -852,16 +852,16 @@ buffer_sync(struct buf *b)
 	int result;
 
 	KASSERT(b->b_dirty == 1);
-
-	/*
-	 * Mark it busy while we do I/O, but do *not* move it to the
-	 * busy list; this preserves its LRU ordering.
-	 */
     
     // Cannot sync a buffer that still has uncommited transactions
     if(b->b_txncount > 0) {
         return EBUSY;
     }
+
+	/*
+	 * Mark it busy while we do I/O, but do *not* move it to the
+	 * busy list; this preserves its LRU ordering.
+	 */
      
 	buffer_mark_busy(b);
 	curthread->t_busy_buffers++;
@@ -888,17 +888,17 @@ buffer_force_sync(struct buf *b)
 	int result;
 
     lock_acquire(buffer_lock);
-
-	/*
-	 * Mark it busy while we do I/O, but do *not* move it to the
-	 * busy list; this preserves its LRU ordering.
-	 */
     
     // Cannot sync a buffer that still has uncommited transactions
     if(b->b_txncount > 0) {
         lock_release(buffer_lock);
         return EBUSY;
     }
+
+	/*
+	 * Mark it busy while we do I/O, but do *not* move it to the
+	 * busy list; this preserves its LRU ordering.
+	 */
      
 	buffer_mark_busy(b);
     curthread->t_busy_buffers++;
