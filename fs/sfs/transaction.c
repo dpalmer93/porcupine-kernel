@@ -138,7 +138,6 @@ int
 txn_attach(struct transaction *txn, struct buf *b)
 {
     // During recover
-    
     if (txn == NULL)
         return 0;
         
@@ -146,7 +145,7 @@ txn_attach(struct transaction *txn, struct buf *b)
     // Place transaction onto buffer
     err = buffer_txn_touch(b, txn);
     // Buffer and transaction have already been attached
-    if (err == EINVAL) {
+    if (err == EAGAIN) {
         return 0;
     }
     else if (err) {

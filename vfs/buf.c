@@ -1168,7 +1168,7 @@ buffer_txn_touch(struct buf *b, struct transaction *txn)
     for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
         if (txn == transactionarray_get(b->b_txns, i)) {
             lock_release(buffer_lock);
-            return EINVAL;
+            return EAGAIN;
         }
     }
     
