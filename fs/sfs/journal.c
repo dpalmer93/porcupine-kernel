@@ -323,12 +323,13 @@ jnl_sync(struct journal *jnl)
     return 0;
 }
 
-void
-jnl_destroy(struct journal *jnl)
+daddr_t
+jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid)
 {
+    *checkpoint = jnl->jnl_current + 1;
+    *txnid = jnl->jnl_txnid_next;
     jnl_sync(jnl);
     lock_acquire(jnl->jnl_lock);
-    jnl_docheckpoint(jnl);
     KASSERT(transactionarray_num(jnl->jnl_txnqueue) == 0);
     transactionarray_destroy(jnl->jnl_txnqueue);
     bufarray_setsize(jnl->jnl_blks, 0);

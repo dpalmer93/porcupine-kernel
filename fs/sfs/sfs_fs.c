@@ -248,9 +248,6 @@ int
 sfs_unmount(struct fs *fs)
 {
 	struct sfs_fs *sfs = fs->fs_data;
-
-    // destroy the journal
-    jnl_destroy(sfs->sfs_jnl);
     
 	lock_acquire(sfs->sfs_vnlock);
 	lock_acquire(sfs->sfs_bitlock);
@@ -261,6 +258,9 @@ sfs_unmount(struct fs *fs)
 		lock_release(sfs->sfs_vnlock);
 		return EBUSY;
 	}
+    
+    // destroy the journal
+    jnl_destroy(sfs->sfs_jnl, &sfs->sfs_super.sp_ckpoint, &sfs->sfs_super.sp_txnid);
     
     // Mark the FS as clean in the superblock
     sfs->sfs_super.sp_clean = 1;
