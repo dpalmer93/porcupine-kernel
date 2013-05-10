@@ -61,14 +61,15 @@ txn_start(struct journal *jnl, struct transaction **ret)
     
     txn->txn_bufcount = 0;
     txn->txn_jnl = jnl;
+    txn->txn_committed = false;
     
     lock_acquire(jnl->jnl_lock);
     // Wait until there is room in our transaction queue
     while (transactionarray_num(jnl->jnl_txnqueue) == TXN_MAX) {
-        lock_release(jnl->jnl_lock);
         // sync the journal to commit transactions
         jnl_sync(jnl);
         
+        lock_release(jnl->jnl_lock);
         // sync the FS to close transactions
         err = FSOP_SYNC(jnl->jnl_fs);
         if (err) {
@@ -98,12 +99,13 @@ txn_start(struct journal *jnl, struct transaction **ret)
     // This also releases the journal lock.
     err = jnl_write_start(txn, &txn->txn_startblk);
     if (err) {
+        lock_release(jnl->jnl_lock);
         bufarray_destroy(txn->txn_bufs);
         kfree(txn);
         return err;
     }
     
-    txn->txn_committed = false;
+    lock_release(jnl->jnl_lock);
     *ret = txn;
     return 0;
 }

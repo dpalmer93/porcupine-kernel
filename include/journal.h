@@ -35,15 +35,15 @@
 #include <buf.h>
 #include <sfs.h>
 
-#define MAX_JNLBLKS 256
+#define MAX_JNLBLKS 256 // number of journal blocks to cache
 #define JNL_BLKSIZE 512
 
-#define JE_PER_BLK 4
-#define JE_SIZE    128
+#define JE_PER_BLK  4
+#define THE_JE_SIZE 128 // must be the same for all file systems
 
 struct journal {
     struct fs               *jnl_fs;         // file system
-    struct jnl_entry         jnl_blks[MAX_JNLBLKS * JNL_BLKSIZE];
+    struct jnl_entry         jnl_blks[MAX_JNLBLKS * JE_PER_BLK];
     daddr_t                  jnl_top;        // top block of on-disk journal
     daddr_t                  jnl_bottom;     // bottom block of on-disk journal
     daddr_t                  jnl_base;       // first block of journal in jnl_blks

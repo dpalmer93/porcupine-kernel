@@ -54,7 +54,7 @@ jnl_next_block(struct journal *jnl)
     KASSERT(lock_do_i_hold(jnl->jnl_lock));
     
     daddr_t next_current = jnl->jnl_current + 1;
-    daddr_t next_block = jnl->jnl_base + new_current;
+    daddr_t next_block = jnl->jnl_base + next_current;
     daddr_t next_base = jnl->jnl_base;
     
     if (next_block >= jnl->jnl_top) {
@@ -65,7 +65,7 @@ jnl_next_block(struct journal *jnl)
         next_current = 0;
     }
     
-    if (jnl_current >= MAX_JNLBLKS) {
+    if (next_current >= MAX_JNLBLKS) {
         err = jnl_sync(jnl);
         if (err)
             return err;
@@ -103,13 +103,12 @@ jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *
     }
     
     if (written_blk != NULL)
-        *written_blk = jnl->jnl_current;
+        *written_blk = jnl->jnl_current + jnl->jnl_base;
     
     offset = jnl->jnl_blkoffset;
     jnl->jnl_blkoffset++;
     
     jnl->jnl_blks[jnl->jnl_current * JE_PER_BLK + offset] = *entry;
-    lock_release(jnl->jnl_lock);
     return 0;
 }
 
@@ -122,15 +121,16 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     // internal releases the lock
     int err = jnl_write_entry_internal(jnl, entry, written_blk);
     if (err) {
+        lock_release(jnl->jnl_lock);
         return err;
     }
-    
+    lock_release(jnl->jnl_lock);
     return 0;
 }
 
-// unlike the other entries, start, commit, and abort
+// unlike the other entries, start
 // must be logged with the lock
-// already held via txn_start, txn_commit, or txn_abort
+// already held via txn_start
 int 
 jnl_write_start(struct transaction *txn, daddr_t *written_blk)
 {   
@@ -302,7 +302,7 @@ jnl_sync(struct journal *jnl)
     // write out the journal buffer
     for (unsigned i = 0; i <= jnl->jnl_current; i++) {
         result = FSOP_WRITEBLOCK(jnl->jnl_fs,
-                                 i + jnl->jnl_base;
+                                 i + jnl->jnl_base,
                                  &jnl->jnl_blks[i * JE_PER_BLK],
                                  JNL_BLKSIZE);
         if (result)
@@ -398,7 +398,7 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next, daddr_t checkpoint)
     
     // set default values
     jnl->jnl_txnid_next = txnid_next;
-    jnl->jnl_checkpoint = sfs->sfs_super.sp_ckpoint;
+    jnl->jnl_checkpoint = checkpoint;
     
     if (!sfs->sfs_super.sp_clean) {
         // need recovery
@@ -406,7 +406,6 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next, daddr_t checkpoint)
         if (err) {
             transactionarray_destroy(jnl->jnl_txnqueue);
             lock_destroy(jnl->jnl_lock);
-            bufarray_destroy(jnl->jnl_blks);
             kfree(jnl);
             return err;
         }
@@ -416,7 +415,6 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next, daddr_t checkpoint)
         if (err) {
             transactionarray_destroy(jnl->jnl_txnqueue);
             lock_destroy(jnl->jnl_lock);
-            bufarray_destroy(jnl->jnl_blks);
             kfree(jnl);
             return err;
         }

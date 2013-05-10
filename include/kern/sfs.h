@@ -49,6 +49,8 @@
 #define SFS_ROOT_LOCATION 1             /* loc'n of the root dir inode */
 #define SFS_MAP_LOCATION  2             /* 1st block of the freemap */
 #define SFS_NOINO         0             /* inode # for free dir entry */
+#define SFS_JE_SIZE       128           /* size of one journal entry in bytes */
+#define SFS_JE_PER_BLOCK  4             /* number of journal entries in a block */
 
 /* Number of bits in a block */
 #define SFS_BLOCKBITS (SFS_BLOCKSIZE * CHAR_BIT)
