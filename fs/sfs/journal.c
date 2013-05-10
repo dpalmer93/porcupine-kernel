@@ -61,7 +61,7 @@ jnl_next_block(struct journal *jnl)
     // We've hit our checkpoint so next block is unavailable
     // In this case, flush all the file system buffers
     if (next_block == jnl->jnl_checkpoint) {
-        sync_fs_buffers(jnl->jnl_fs);
+        FSOP_SYNC(jnl->jnl_fs);
     }
     
     jnl->jnl_current = next_block;
@@ -312,35 +312,28 @@ jnl_sync(struct journal *jnl)
     int result;
     
     lock_acquire(jnl->jnl_lock);
+    
     unsigned num_bufs = bufarray_num(jnl->jnl_blks);
-    unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
+    KASSERT(num_bufs > 0);
     
-    
-    unsigned i = 0;
-    for (daddr_t blk = jnl->jnl_current - num + 1; blk < jnl->jnl_current; blk++) {
-        KASSERT(bufarray_num(jnl->jnl_blks) > 0);
-        
-        // write out the first buffer and remove it
-        result = buffer_writeout(bufarray_get(jnl->jnl_blks, 0));
+    for (unsigned i = 0; i < num_bufs; i++) {
+        // write out the first buffer
+        result = buffer_writeout(bufarray_get(jnl->jnl_blks, i));
         if (result) {
             lock_release(jnl->jnl_lock);
             return result;
         }
-        bufferarray_remove(jnl->jnl_blks, 0);
-        
-        // finish committing any transactions ending on that block
-        while (i < num_txns) {
-            struct transaction *txn = transactionarray_get(jnl->jnl_txnqueue, j);
-            
-            if (txn->txn_committed && txn->txn_endblk > blk)
-                break;
-            else if (txn->txn_committed) {
-                txn_oncommit(txn);
-            }
-            
-            i++;
-        }
     }
+    
+    
+    // finish committing transactions
+    unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
+    for (unsigned i = 0; i < num_txns; i++) {
+        struct transaction *txn = transactionarray_get(jnl->jnl_txnqueue, i);
+        if (txn->txn_committed)
+            txn_oncommit(txn);
+    }
+    
     lock_release(jnl->jnl_lock);
     return 0;
 }
