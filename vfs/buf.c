@@ -884,9 +884,15 @@ buffer_sync(struct buf *b)
 int
 buffer_trysync(struct buf *b)
 {
-    if (!b->b_dirty)
+    lock_acquire(buffer_lock);
+    if (!b->b_dirty) {
+        lock_release(buffer_lock);
         return 0;
-    return buffer_sync(b);
+    }
+    
+    int err = buffer_sync(b);
+    lock_release(buffer_lock);
+    return err;
 }
 
 
