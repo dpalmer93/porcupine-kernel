@@ -57,20 +57,11 @@ jnl_next_block(struct journal *jnl)
     daddr_t next_block = jnl->jnl_base + next_current;
     daddr_t next_base = jnl->jnl_base;
     
-    if (next_block >= jnl->jnl_top) {
+    if (next_block >= jnl->jnl_top || next_current >= MAX_JNLBLKS) {
         err = jnl_sync(jnl);
         if (err)
             return err;
-        next_base = jnl->jnl_bottom;
-        next_current = 0;
-    }
-    
-    if (next_current >= MAX_JNLBLKS) {
-        err = jnl_sync(jnl);
-        if (err)
-            return err;
-        next_base = next_block;
-        next_current = 0;
+        return 0;
     }
     
     // We've hit our checkpoint so next block is unavailable
@@ -323,6 +314,12 @@ jnl_sync(struct journal *jnl)
         else if (txn->txn_committed)
             txn_oncommit(txn);
     }
+    
+    // move the in-memory window
+    jnl->jnl_base = jnl->jnl_current + jnl->jnl_base + 1;
+    if (jnl->jnl_base >= jnl->jnl_top)
+        jnl->jnl_base = jnl->jnl_bottom;
+    jnl->jnl_current = 0;
     
     return 0;
 }
