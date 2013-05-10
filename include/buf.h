@@ -108,7 +108,7 @@ void buffer_txn_yield(struct buf *buf);
  * buffer_mark_dirty marks the buffer dirty.
  * buffer_mark_valid marks the buffer valid (i.e., contains real data).
  *
- * buffer_writeout flushes the buffer to disk if it's currently dirty,
+ * buffer_trysync flushes the buffer to disk if it's currently dirty,
  * and marks it clean.
  *
  * The buffer must already be marked busy.
@@ -116,7 +116,7 @@ void buffer_txn_yield(struct buf *buf);
 void *buffer_map(struct buf *buf);
 void buffer_mark_dirty(struct buf *buf);
 void buffer_mark_valid(struct buf *buf);
-int buffer_writeout(struct buf *buf);
+int buffer_trysync(struct buf *buf);
 
 /*
  * Sync.

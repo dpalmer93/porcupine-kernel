@@ -318,7 +318,7 @@ jnl_sync(struct journal *jnl)
     
     for (unsigned i = 0; i < num_bufs; i++) {
         // write out the first buffer
-        result = buffer_writeout(bufarray_get(jnl->jnl_blks, i));
+        result = buffer_trysync(bufarray_get(jnl->jnl_blks, i));
         if (result) {
             lock_release(jnl->jnl_lock);
             return result;
