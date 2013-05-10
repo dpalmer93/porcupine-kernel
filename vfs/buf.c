@@ -614,7 +614,6 @@ set_doom(int newval) {
  *
  * Note: releases lock to do I/O; busy bit should be set to protect
  */
-static
 int
 buffer_writeout(struct buf *b)
 {
@@ -931,20 +930,6 @@ buffer_sync(struct buf *b)
 	curthread->t_busy_buffers--;
 
 	return result;
-}
-
-int
-buffer_trysync(struct buf *b)
-{
-    lock_acquire(buffer_lock);
-    if (!b->b_dirty) {
-        lock_release(buffer_lock);
-        return 0;
-    }
-    
-    int err = buffer_sync(b);
-    lock_release(buffer_lock);
-    return err;
 }
 
 

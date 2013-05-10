@@ -92,33 +92,39 @@ jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *
     offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
     jnl->jnl_blkoffset++;
     
+    // if there are too many buffers on the journal buffer, flush it
     // Release lock now to avoid deadlock, as we will be locking
     // the buffer.  The journal state has already been updated.
-    lock_release(jnl->jnl_lock);
+    if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
+        lock_release(jnl->jnl_lock);
+        jnl_sync(jnl);
+    }
+    else
+        lock_release(jnl->jnl_lock);
+    
     
     
     // set up a uio to do the journal write
     uio_kinit(&iov, &ku, entry, SFS_JE_SIZE, 0, UIO_WRITE);
     
     // write journal entry to proper buffer
-    err = buffer_read(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
-    if (err) {
-        return err;
+    if (offset == 0) {
+        err = buffer_read(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
+        if (err) {
+            return err;
+        }
+        bufarray_add(jnl->jnl_blks, iobuffer, &index);
     }
+    else
+        iobuffer = bufarray_get(jnl->jnl_blks, bufarray_num(jnl->jnl_blks) - 1);
+    
     void *ioptr = buffer_map(iobuffer);
     err = uiomove(ioptr + offset, SFS_JE_SIZE, &ku);
     if (err) {
-        buffer_release(iobuffer);
         return err;
     }
     
-    // mark the buffer as dirty and place it in the journal's bufarray
     buffer_mark_dirty(iobuffer);
-    unsigned index;
-    if (offset == 0)
-        bufarray_add(jnl->jnl_blks, iobuffer, &index);
-    
-    buffer_release(iobuffer);
     return 0;
 }
 
@@ -321,14 +327,16 @@ jnl_sync(struct journal *jnl)
     
     // write out the journal buffers
     for (unsigned i = 0; i < num_bufs; i++) {
-        struct buf *buf = bufarray_get(jnl->jnl_blks, i);
-        result = buffer_trysync(buf);
+        struct buf *buf = bufarray_get(jnl->jnl_blks, 0);
+        result = buffer_writeout(buf);
         if (result) {
             lock_release(jnl->jnl_lock);
             return result;
         }
+        bufarray_remove(jnl->jnl_blks, 0);
+        buffer_release(buf);
     }
-    bufarray_setsize(jnl->jnl_blks, 0);
+    KASSERT(bufarray_num(jnl->jnl_blks) == 0);
     
     // finish committing transactions
     unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
@@ -364,6 +372,10 @@ jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid)
     
     transactionarray_destroy(jnl->jnl_txnqueue);
     
+    // release and remove all buffers
+    unsigned num_bufs = bufarray_getsize(jnl->jnl_blks);
+    for (int i = 0; i < num_bufs; i++)
+        buffer_release(bufarray_get(jnl->jnl_blks, i));
     bufarray_setsize(jnl->jnl_blks, 0);
     bufarray_destroy(jnl->jnl_blks);
     
