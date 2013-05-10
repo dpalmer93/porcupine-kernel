@@ -135,7 +135,7 @@ jnl_write_entry(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_b
     }
     
     // if there are too many buffers on the journal buffer, flush it
-    if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
+    if (bufarray_num(jnl->jnl_blks) == MAX_JNLBUFS) {
         jnl_sync(jnl);
     }
     
