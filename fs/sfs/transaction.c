@@ -108,13 +108,12 @@ txn_start(struct journal *jnl, struct transaction **ret)
     return 0;
 }
 
-static
 void
 txn_destroy(struct transaction *txn)
 {
-    // There should not be any pending buffers
-    KASSERT(bufarray_num(txn->txn_bufs) == 0);
-    
+    // txn must have been completely closed, so
+    // we can safely clear the buffer array
+    bufarray_setsize(txn->txn_bufs, 0);
     bufarray_destroy(txn->txn_bufs);
     kfree(txn);
 }
@@ -205,7 +204,7 @@ txn_close(struct transaction *txn)
 {
     struct journal *jnl = txn->txn_jnl;
     txn->txn_bufcount--;
-    if (txn->txn_bufcount == 0) {
+    if (txn->txn_bufcount == 0 && txn->txn_committed) {
         lock_acquire(jnl->jnl_lock);
         
         // remove txn from the queue, destroy it, and trigger a checkpoint

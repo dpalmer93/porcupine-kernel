@@ -522,6 +522,8 @@ buffer_attach(struct buf *b, struct fs *fs, daddr_t block)
 	KASSERT(b->b_attached == 0);
 	KASSERT(b->b_valid == 0);
 	b->b_attached = 1;
+	b->b_txncount = 0;
+	transactionarray_setsize(b->b_txns, 0);
 	b->b_fs = fs;
 	b->b_physblock = block;
 	result = bufhash_add(&buffer_hash, b);
@@ -710,6 +712,7 @@ buffer_close_all_txns(struct buf *b)
         txn_close(transactionarray_get(b->b_txns, i));
     }
     transactionarray_setsize(b->b_txns, 0);
+    b->b_txncount = 0;
 }
 
 // must be called with busy bit set

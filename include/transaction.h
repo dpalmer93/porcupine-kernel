@@ -49,6 +49,7 @@ DECLARRAY(transaction);
 int txn_start(struct journal *jnl, struct transaction **ret);
 int txn_abort(struct transaction *txn);
 int txn_commit(struct transaction *txn);
+void txn_destroy(struct transaction *txn);
 
 // Attaches a transaction to a buffer.  Touches the buffer
 int txn_attach(struct transaction *txn, struct buf *b);

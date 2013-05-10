@@ -314,23 +314,34 @@ jnl_sync(struct journal *jnl)
     lock_acquire(jnl->jnl_lock);
     
     unsigned num_bufs = bufarray_num(jnl->jnl_blks);
-    KASSERT(num_bufs > 0);
+    if (num_bufs == 0) {
+        lock_release(jnl->jnl_lock);
+        return 0;
+    }
     
+    // write out the journal buffers
     for (unsigned i = 0; i < num_bufs; i++) {
-        // write out the first buffer
-        result = buffer_trysync(bufarray_get(jnl->jnl_blks, i));
+        struct buf *buf = bufarray_get(jnl->jnl_blks, i);
+        result = buffer_trysync(buf);
         if (result) {
             lock_release(jnl->jnl_lock);
             return result;
         }
     }
-    
+    bufarray_setsize(jnl->jnl_blks, 0);
     
     // finish committing transactions
     unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
     for (unsigned i = 0; i < num_txns; i++) {
         struct transaction *txn = transactionarray_get(jnl->jnl_txnqueue, i);
-        if (txn->txn_committed)
+        if (txn->txn_bufcount == 0) {
+            // already completely closed (e.g., buffers invalidated)
+            transactionarray_remove(jnl->jnl_txnqueue, i);
+            i--;
+            num_txns--;
+            txn_destroy(txn);
+        }
+        else if (txn->txn_committed)
             txn_oncommit(txn);
     }
     
@@ -352,8 +363,10 @@ jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid)
         *txnid = jnl->jnl_txnid_next;
     
     transactionarray_destroy(jnl->jnl_txnqueue);
+    
     bufarray_setsize(jnl->jnl_blks, 0);
     bufarray_destroy(jnl->jnl_blks);
+    
     lock_release(jnl->jnl_lock);
     lock_destroy(jnl->jnl_lock);
     kfree(jnl);
