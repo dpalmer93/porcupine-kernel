@@ -323,7 +323,7 @@ jnl_sync(struct journal *jnl)
     return 0;
 }
 
-daddr_t
+void
 jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid)
 {
     jnl_sync(jnl);
@@ -331,8 +331,10 @@ jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid)
     KASSERT(transactionarray_num(jnl->jnl_txnqueue) == 0);
     
     // get last checkpoint and next txn ID
-    *checkpoint = jnl->jnl_current + 1;
-    *txnid = jnl->jnl_txnid_next;
+    if (checkpoint != NULL)
+        *checkpoint = jnl->jnl_current;
+    if (txnid != NULL)
+        *txnid = jnl->jnl_txnid_next;
     
     transactionarray_destroy(jnl->jnl_txnqueue);
     bufarray_setsize(jnl->jnl_blks, 0);

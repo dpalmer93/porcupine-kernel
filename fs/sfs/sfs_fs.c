@@ -480,7 +480,7 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
     sfs->sfs_superdirty = true;
     result = sfs_writesuper(sfs);
     if (result) {
-        jnl_destroy(sfs->sfs_jnl);
+        jnl_destroy(sfs->sfs_jnl, NULL, NULL);
 		lock_destroy(sfs->sfs_vnlock);
 		lock_destroy(sfs->sfs_bitlock);
 		lock_destroy(sfs->sfs_renamelock);
