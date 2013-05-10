@@ -318,12 +318,17 @@ jnl_sync(struct journal *jnl)
     
     unsigned i = 0;
     for (daddr_t blk = jnl->jnl_current - num + 1; blk < jnl->jnl_current; blk++) {
+        KASSERT(bufarray_num(jnl->jnl_blks) > 0);
+        
+        // write out the first buffer and remove it
         result = buffer_writeout(bufarray_get(jnl->jnl_blks, 0));
         if (result) {
             lock_release(jnl->jnl_lock);
             return result;
         }
         bufferarray_remove(jnl->jnl_blks, 0);
+        
+        // finish committing any transactions ending on that block
         while (i < num_txns) {
             struct transaction *txn = transactionarray_get(jnl->jnl_txnqueue, j);
             
@@ -332,6 +337,7 @@ jnl_sync(struct journal *jnl)
             else if (txn->txn_committed) {
                 txn_oncommit(txn);
             }
+            
             i++;
         }
     }
