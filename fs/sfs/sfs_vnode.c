@@ -4211,6 +4211,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
 {
     struct buf *buf;
     uint32_t *inodeblk, *indirblk;
+    uint32_t dirblk;
     struct sfs_inode *inodeptr;
     int err;
     
@@ -4283,7 +4284,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_WRITE_DIR:
             // Check that directory block containing
             // this slot exists.  Fill in slot.
-            uint32_t dirblk = je->je_slot * SFS_DIRLEN / SFS_BLOCKSIZE;
+            dirblk = je->je_slot * SFS_DIRLEN / SFS_BLOCKSIZE;
             daddr_t diskblk;
             err = sfs_bmap_by_ino(sfs, je->je_ino, dirblk, &diskblk);
             if (err)
@@ -4302,31 +4303,6 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             buffer_drop(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE);
             if (sfs_bused(sfs, je->je_ino))
                 sfs_bfree(sfs, je->je_ino);
-            
-            // Remove the corresponding vnode from the table in sfs
-            /*lock_acquire(sfs->sfs_vnlock);
-            unsigned num = vnodearray_num(sfs->sfs_vnodes);
-            for (unsigned i = 0; i < num; i++) {
-                struct vnode *v = vnodearray_get(sfs->sfs_vnodes, i);
-                struct sfs_vnode *sv = v->vn_data;
-                lock_acquire(sv->sv_lock);
-                if (sv->sv_ino == je->je_ino) {
-                    vnodearray_remove(sfs->sfs_vnodes, i);
-                    
-                    // hack to enable freeing of this vnode--
-                    // there should not be any reason to keep this
-                    // past recovery
-                    sv->sv_v.vn_refcount = 1;
-                    VOP_CLEANUP(&sv->sv_v);
-                    
-                    lock_release(sv->sv_lock);
-                    sfs_destroy_vnode(sv);
-                    lock_release(sfs->sfs_vnlock);
-                    return 0;
-                }
-                lock_release(sv->sv_lock);
-            }
-            lock_release(sfs->sfs_vnlock);*/
             return 0;
         case JE_REMOVE_DATABLOCK_INODE:
             KASSERT(je->je_slot < 5 + SFS_NDIRECT);
