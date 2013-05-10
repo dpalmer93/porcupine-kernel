@@ -250,6 +250,166 @@ sfs_bused(struct sfs_fs *sfs, uint32_t diskblock)
 
 /*
  * Look up the disk block number (from 0 up to the number of blocks on
+ * the disk) given an inode number and the logical block number within that
+ * file.  Only to be called during recovery; otherwise, use sfs_bmap().
+ *
+ * Locking: May get/release buffer cache locks.
+ *
+ * Requires up to 2 buffers.
+ */
+static
+int
+sfs_bmap_by_ino(struct sfs_fs *sfs, uint32_t ino, uint32_t fileblock, uint32_t *diskblock)
+{
+	struct buf *inodebuf, *idbuf;
+	struct sfs_inode *inodeptr;
+	uint32_t *iddata;
+	uint32_t block, cur_block, next_block;
+	uint32_t idoff;
+	int result, indir, i;
+    
+	KASSERT(SFS_DBPERIDB * sizeof(*iddata) == SFS_BLOCKSIZE);
+    
+	/*
+	 * Check that we are not being asked for a block beyond
+	 * the maximum allowed file size
+	 */
+	if(fileblock >= SFS_NDIRECT + SFS_DBPERIDB + SFS_DBPERIDB*SFS_DBPERIDB +
+       SFS_DBPERIDB*SFS_DBPERIDB*SFS_DBPERIDB)
+	{
+		return EINVAL;
+	}
+    
+	result = buffer_read(&sfs->sfs_absfs, ino, SFS_BLOCKSIZE, &inodebuf);
+	if (result) {
+		return result;
+	}
+	inodeptr = buffer_map(inodebuf);
+    
+	/*
+	 * If the block we want is one of the direct blocks...
+	 */
+	if (fileblock < SFS_NDIRECT) {
+		/*
+		 * Get the block number
+		 */
+		block = inodeptr->sfi_direct[fileblock];
+        
+		/*
+		 * Hand back the block
+		 */
+		if (block != 0 && !sfs_bused(sfs, block)) {
+			panic("sfs: Data block %u (block %u of file %u) "
+                  "marked free\n", block, fileblock, ino);
+		}
+		*diskblock = block;
+		buffer_release(inodebuf);
+		return 0;
+	}
+    
+	/* It's not a direct block. Figure out what level of indirection we are in. */
+    
+	fileblock -= SFS_NDIRECT;
+    
+	if(fileblock >= SFS_DBPERIDB + SFS_DBPERIDB*SFS_DBPERIDB)
+	{
+		/* It's reachable through the triple indirect block */
+		indir = 3;
+		fileblock -= SFS_DBPERIDB + SFS_DBPERIDB*SFS_DBPERIDB;
+        
+		/* Set the next_block to triple indirect */
+		next_block = inodeptr->sfi_tindirect;
+	}
+	else if(fileblock >= SFS_DBPERIDB)
+	{
+		/* It's reachable through the double indirect block */
+		indir = 2;
+		fileblock -= SFS_DBPERIDB;
+        
+		/* Set the next block to double indirect */
+		next_block = inodeptr->sfi_dindirect;
+	}
+	else
+	{
+		indir = 1;
+		next_block = inodeptr->sfi_indirect;
+	}
+    
+	if(next_block == 0)
+	{
+		*diskblock = 0;
+		buffer_release(inodebuf);
+		return 0;
+	}
+    else {
+        buffer_release(inodebuf);
+		result = buffer_read(&sfs->sfs_absfs, next_block,
+                             SFS_BLOCKSIZE, &idbuf);
+		if (result) {
+			buffer_release(inodebuf);
+			return result;
+		}
+	}
+    
+	/* Now loop through the levels of indirection until we get to the
+	 * direct block we need.
+	 */
+	for(i = indir; i>0; i--)
+	{
+		iddata = buffer_map(idbuf);
+        
+		/* Now adjust the file block so that it would look as if
+		 * we only have one branch of indirections (i.e. only a triple indirect block).
+		 * Calculate idoff - this is the offset into the current block, which gives the
+		 * number of the next block we have to read.
+		 */
+		if(i == 3)
+		{
+			idoff = fileblock/(SFS_DBPERIDB*SFS_DBPERIDB);
+			fileblock -= idoff * (SFS_DBPERIDB*SFS_DBPERIDB);
+		}
+		if(i == 2)
+		{
+			idoff = fileblock/SFS_DBPERIDB;
+			fileblock -= idoff * SFS_DBPERIDB;
+		}
+		if(i == 1)
+		{
+			idoff = fileblock;
+		}
+        
+		cur_block = next_block;
+		next_block = iddata[idoff];
+        
+		if(next_block == 0)
+		{
+			/* No block at the next level, so return */
+			*diskblock = 0;
+			buffer_release(idbuf);
+			return 0;
+		}
+        else {
+			buffer_release(idbuf);
+			result = buffer_read(&sfs->sfs_absfs, next_block,
+                                 SFS_BLOCKSIZE, &idbuf);
+			if (result)
+				return result;
+		}
+	}
+	buffer_release(idbuf);
+    
+    
+	/* Hand back the result and return. */
+	if (next_block != 0 && !sfs_bused(sfs, next_block)) {
+		panic("sfs: Data block %u (block %u of file %u) marked free\n",
+              next_block, fileblock, ino);
+	}
+	*diskblock = next_block;
+	return 0;
+}
+
+/*
+ * Look up the disk block number (from 0 up to the number of blocks on
  * the disk) given a file and the logical block number within that
  * file. If DOALLOC is set, and no such block exists, one will be
  * allocated.
@@ -4050,7 +4210,6 @@ int
 sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
 {
     struct buf *buf;
-    struct sfs_vnode *dir;
     uint32_t *inodeblk, *indirblk;
     struct sfs_inode *inodeptr;
     int err;
@@ -4124,13 +4283,9 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_WRITE_DIR:
             // Check that directory block containing
             // this slot exists.  Fill in slot.
-            err = sfs_loadvnode(sfs, je->je_ino, SFS_TYPE_INVAL, &dir, true, NULL);
-            if (err)
-                return err;
-            
             uint32_t dirblk = je->je_slot * SFS_DIRLEN / SFS_BLOCKSIZE;
             daddr_t diskblk;
-            err = sfs_bmap(dir, dirblk, false, &diskblk, NULL);
+            err = sfs_bmap_by_ino(sfs, je->je_ino, dirblk, &diskblk);
             if (err)
                 return err;
             
@@ -4142,8 +4297,6 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             entries[je->je_slot % SFS_DIRPERBLK] = je->je_dir;
             buffer_mark_dirty(buf);
             buffer_release(buf);
-            sfs_release_inode(dir);
-            lock_release(dir->sv_lock);
             return 0;
         case JE_REMOVE_INODE:
             buffer_drop(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE);
@@ -4151,7 +4304,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
                 sfs_bfree(sfs, je->je_ino);
             
             // Remove the corresponding vnode from the table in sfs
-            lock_acquire(sfs->sfs_vnlock);
+            /*lock_acquire(sfs->sfs_vnlock);
             unsigned num = vnodearray_num(sfs->sfs_vnodes);
             for (unsigned i = 0; i < num; i++) {
                 struct vnode *v = vnodearray_get(sfs->sfs_vnodes, i);
@@ -4173,7 +4326,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
                 }
                 lock_release(sv->sv_lock);
             }
-            lock_release(sfs->sfs_vnlock);
+            lock_release(sfs->sfs_vnlock);*/
             return 0;
         case JE_REMOVE_DATABLOCK_INODE:
             KASSERT(je->je_slot < 5 + SFS_NDIRECT);
