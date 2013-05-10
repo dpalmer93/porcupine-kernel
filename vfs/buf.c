@@ -1149,17 +1149,17 @@ buffer_drop(struct fs *fs, daddr_t block, size_t size)
 	lock_release(buffer_lock);
 }
 
+// must be called with busy bit set
 int
 buffer_txn_touch(struct buf *b, struct transaction *txn)
 {
     int err;
     
-    lock_acquire(buffer_lock);
+    KASSERT(b->b_busy);
     
     // Check to make sure the txn and buffer have not been attached
     for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
         if (txn == transactionarray_get(b->b_txns, i)) {
-            lock_release(buffer_lock);
             return EAGAIN;
         }
     }
@@ -1167,13 +1167,11 @@ buffer_txn_touch(struct buf *b, struct transaction *txn)
     unsigned index;
     err = transactionarray_add(b->b_txns, txn, &index);
     if (err) {
-        lock_release(buffer_lock);
         return err;
     }
         
     // Increment number of buffers this transaction touches    
     b->b_txncount++;
-    lock_release(buffer_lock);
     return 0;
 }
 

@@ -64,8 +64,16 @@ txn_start(struct journal *jnl, struct transaction **ret)
     
     lock_acquire(jnl->jnl_lock);
     // Wait until there is room in our transaction queue
-    while (transactionarray_num(jnl->jnl_txnqueue) == TXN_MAX)
-        cv_wait(jnl->jnl_txncv, jnl->jnl_lock);
+    while (transactionarray_num(jnl->jnl_txnqueue) == TXN_MAX) {
+        lock_release(jnl->jnl_lock);
+        err = FSOP_SYNC(jnl->jnl_fs);
+        if (err) {
+            bufarray_destroy(txn->txn_bufs);
+            kfree(txn);
+            return err;
+        }
+        lock_acquire(jnl->jnl_lock);
+    }
     
     // Acquire a transaction ID
     txn->txn_id = jnl->jnl_txnid_next;
@@ -76,7 +84,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
     err = transactionarray_add(jnl->jnl_txnqueue, txn, &index);
     if (err) {
         lock_release(jnl->jnl_lock);
-        kfree(txn->txn_bufs);
+        bufarray_destroy(txn->txn_bufs);
         kfree(txn);
         return err;
     }
@@ -86,7 +94,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
     // This also releases the journal lock.
     err = jnl_write_start(txn, &txn->txn_startblk);
     if (err) {
-        kfree(txn->txn_bufs);
+        bufarray_destroy(txn->txn_bufs);
         kfree(txn);
         return err;
     }
@@ -209,9 +217,6 @@ txn_close(struct transaction *txn)
         
         txn_destroy(txn);
         jnl_docheckpoint(jnl);
-        
-        // Wake up any threads waiting for a transaction
-        cv_broadcast(jnl->jnl_txncv, jnl->jnl_lock);
         
         lock_release(jnl->jnl_lock);
     }

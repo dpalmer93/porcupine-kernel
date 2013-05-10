@@ -46,7 +46,6 @@ struct journal {
     struct transactionarray *jnl_txnqueue;   // transaction tracking
     uint64_t                 jnl_txnid_next; // next transaction ID
     struct lock             *jnl_lock;       // journal lock
-    struct cv               *jnl_txncv;      // transaction tracking CV
 };
 
 /* Commands to write entries */
