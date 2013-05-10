@@ -880,6 +880,14 @@ buffer_sync(struct buf *b)
 	return result;
 }
 
+int
+buffer_trysync(struct buf *b)
+{
+    if (!b->b_dirty)
+        return 0;
+    return buffer_sync(b);
+}
+
 
 /*
  * Evict a buffer.
