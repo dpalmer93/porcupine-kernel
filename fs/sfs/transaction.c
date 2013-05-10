@@ -66,6 +66,10 @@ txn_start(struct journal *jnl, struct transaction **ret)
     // Wait until there is room in our transaction queue
     while (transactionarray_num(jnl->jnl_txnqueue) == TXN_MAX) {
         lock_release(jnl->jnl_lock);
+        // sync the journal to commit transactions
+        jnl_sync(jnl);
+        
+        // sync the FS to close transactions
         err = FSOP_SYNC(jnl->jnl_fs);
         if (err) {
             bufarray_destroy(txn->txn_bufs);
@@ -120,14 +124,13 @@ int
 txn_commit(struct transaction *txn)
 {
     int err;
-    struct journal *jnl = txn->txn_jnl;
     
     // Write COMMIT journal entry.
     err = jnl_write_commit(txn, &txn->txn_endblk);
     if (err)
         return err;
     
-    txn_committed = true;
+    txn->txn_committed = true;
     
     // make sure the COMMIT goes to disk
     //err = jnl_sync(txn->txn_jnl);

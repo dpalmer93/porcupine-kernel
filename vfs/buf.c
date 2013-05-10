@@ -1216,7 +1216,7 @@ sync_fs_buffers(struct fs *fs)
 			continue;
 		}
 
-		if (b->b_dirty) {
+		if (b->b_dirty && b->b_txncount == 0) {
 			/* lock may be released (and then re-acquired) here */
 			result = buffer_sync(b);
 			if (result) {
