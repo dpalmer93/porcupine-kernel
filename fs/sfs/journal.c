@@ -113,6 +113,7 @@ jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *
         if (err) {
             return err;
         }
+        unsigned index;
         bufarray_add(jnl->jnl_blks, iobuffer, &index);
     }
     else
@@ -373,8 +374,8 @@ jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid)
     transactionarray_destroy(jnl->jnl_txnqueue);
     
     // release and remove all buffers
-    unsigned num_bufs = bufarray_getsize(jnl->jnl_blks);
-    for (int i = 0; i < num_bufs; i++)
+    unsigned num_bufs = bufarray_num(jnl->jnl_blks);
+    for (unsigned i = 0; i < num_bufs; i++)
         buffer_release(bufarray_get(jnl->jnl_blks, i));
     bufarray_setsize(jnl->jnl_blks, 0);
     bufarray_destroy(jnl->jnl_blks);
