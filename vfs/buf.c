@@ -744,10 +744,15 @@ buffer_txn_touch(struct buf *b, struct transaction *txn)
 void
 buffer_txn_yield(struct buf *b)
 {
+    bool busied = false;
     lock_acquire(buffer_lock);
-    buffer_mark_busy(b);
+    if (curthread != b->b_holder) {
+        buffer_mark_busy(b);
+        busied = true;
+    }
     b->b_txncount--;
-    buffer_unmark_busy(b);
+    if (busied)
+        buffer_unmark_busy(b);
     lock_release(buffer_lock);
 }
 
