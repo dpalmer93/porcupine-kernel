@@ -464,7 +464,7 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
 	lock_release(sfs->sfs_bitlock);
 	lock_release(sfs->sfs_vnlock);
 
-    result = sfs_jnlmount(sfs, sfs->sfs_super.sp_txnid);
+    result = sfs_jnlmount(sfs, sfs->sfs_super.sp_txnid, sfs->sfs_super.sp_ckpoint);
     if (result) {
 		lock_destroy(sfs->sfs_vnlock);
 		lock_destroy(sfs->sfs_bitlock);

@@ -42,20 +42,35 @@
 #include <synch.h>
 #include <journal.h>
 
-#define MAX_JNLBUFS 256
-
 
 // Gets the next physical block available for journal and sets jnl->current
 // Must hold the journal lock
 static
-void
+int
 jnl_next_block(struct journal *jnl)
 {
-//    KASSERT(lock_do_i_hold(jnl->jnl_lock));
+    int err;
     
-    daddr_t next_block = jnl->jnl_current + 1;
+    KASSERT(lock_do_i_hold(jnl->jnl_lock));
+    
+    daddr_t next_current = jnl->jnl_current + 1;
+    daddr_t next_block = jnl->jnl_base + new_current;
+    daddr_t next_base = jnl->jnl_base;
+    
     if (next_block >= jnl->jnl_top) {
-        next_block = jnl->jnl_bottom;
+        err = jnl_sync(jnl);
+        if (err)
+            return err;
+        next_base = jnl->jnl_bottom;
+        next_current = 0;
+    }
+    
+    if (jnl_current >= MAX_JNLBLKS) {
+        err = jnl_sync(jnl);
+        if (err)
+            return err;
+        next_base = next_block;
+        next_current = 0;
     }
     
     // We've hit our checkpoint so next block is unavailable
@@ -64,9 +79,10 @@ jnl_next_block(struct journal *jnl)
         FSOP_SYNC(jnl->jnl_fs);
     }
     
-    jnl->jnl_current = next_block;
+    jnl->jnl_base = next_base;
+    jnl->jnl_current = next_current;
     
-    return;
+    return 0;
 }
 
 // must be called while holding the journal lock
@@ -76,56 +92,24 @@ int
 jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *written_blk)
 {
     int err;
-    struct buf *iobuffer;
-    struct iovec iov;
-    struct uio ku;
     int offset;
     
     // get next journal block if current is full
-    if (jnl->jnl_blkoffset == SFS_JE_PER_BLOCK) {
-        jnl_next_block(jnl);
+    if (jnl->jnl_blkoffset == JE_PER_BLK) {
+        err = jnl_next_block(jnl);
+        if (err)
+            return err;
         jnl->jnl_blkoffset = 0;
     }
+    
     if (written_blk != NULL)
         *written_blk = jnl->jnl_current;
     
-    offset = jnl->jnl_blkoffset * SFS_JE_SIZE;
+    offset = jnl->jnl_blkoffset;
     jnl->jnl_blkoffset++;
     
-    // if there are too many buffers on the journal buffer, flush it
-    // Release lock now to avoid deadlock, as we will be locking
-    // the buffer.  The journal state has already been updated.
-    if (bufarray_num(jnl->jnl_blks) > MAX_JNLBUFS) {
-        lock_release(jnl->jnl_lock);
-        jnl_sync(jnl);
-    }
-    else
-        lock_release(jnl->jnl_lock);
-    
-    
-    
-    // set up a uio to do the journal write
-    uio_kinit(&iov, &ku, entry, SFS_JE_SIZE, 0, UIO_WRITE);
-    
-    // write journal entry to proper buffer
-    if (offset == 0) {
-        err = buffer_read(jnl->jnl_fs, jnl->jnl_current, 512, &iobuffer);
-        if (err) {
-            return err;
-        }
-        unsigned index;
-        bufarray_add(jnl->jnl_blks, iobuffer, &index);
-    }
-    else
-        iobuffer = bufarray_get(jnl->jnl_blks, bufarray_num(jnl->jnl_blks) - 1);
-    
-    void *ioptr = buffer_map(iobuffer);
-    err = uiomove(ioptr + offset, SFS_JE_SIZE, &ku);
-    if (err) {
-        return err;
-    }
-    
-    buffer_mark_dirty(iobuffer);
+    jnl->jnl_blks[jnl->jnl_current * JE_PER_BLK + offset] = *entry;
+    lock_release(jnl->jnl_lock);
     return 0;
 }
 
@@ -313,26 +297,17 @@ jnl_sync(struct journal *jnl)
 {
     int result;
     
-    lock_acquire(jnl->jnl_lock);
+    KASSERT(lock_do_i_hold(jnl->jnl_lock));
     
-    unsigned num_bufs = bufarray_num(jnl->jnl_blks);
-    if (num_bufs == 0) {
-        lock_release(jnl->jnl_lock);
-        return 0;
-    }
-    
-    // write out the journal buffers
-    for (unsigned i = 0; i < num_bufs; i++) {
-        struct buf *buf = bufarray_get(jnl->jnl_blks, 0);
-        result = buffer_writeout(buf);
-        if (result) {
-            lock_release(jnl->jnl_lock);
+    // write out the journal buffer
+    for (unsigned i = 0; i <= jnl->jnl_current; i++) {
+        result = FSOP_WRITEBLOCK(jnl->jnl_fs,
+                                 i + jnl->jnl_base;
+                                 &jnl->jnl_blks[i * JE_PER_BLK],
+                                 JNL_BLKSIZE);
+        if (result)
             return result;
-        }
-        bufarray_remove(jnl->jnl_blks, 0);
-        buffer_release(buf);
     }
-    KASSERT(bufarray_num(jnl->jnl_blks) == 0);
     
     // finish committing transactions
     unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
@@ -349,31 +324,24 @@ jnl_sync(struct journal *jnl)
             txn_oncommit(txn);
     }
     
-    lock_release(jnl->jnl_lock);
     return 0;
 }
 
 void
 jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid)
 {
-    jnl_sync(jnl);
     lock_acquire(jnl->jnl_lock);
+    jnl_sync(jnl);
+    
     KASSERT(transactionarray_num(jnl->jnl_txnqueue) == 0);
     
     // get last checkpoint and next txn ID
     if (checkpoint != NULL)
-        *checkpoint = jnl->jnl_current;
+        *checkpoint = jnl->jnl_current + jnl->jnl_base;
     if (txnid != NULL)
         *txnid = jnl->jnl_txnid_next;
     
     transactionarray_destroy(jnl->jnl_txnqueue);
-    
-    // release and remove all buffers
-    unsigned num_bufs = bufarray_num(jnl->jnl_blks);
-    for (unsigned i = 0; i < num_bufs; i++)
-        buffer_release(bufarray_get(jnl->jnl_blks, i));
-    bufarray_setsize(jnl->jnl_blks, 0);
-    bufarray_destroy(jnl->jnl_blks);
     
     lock_release(jnl->jnl_lock);
     lock_destroy(jnl->jnl_lock);
@@ -406,26 +374,19 @@ jnl_docheckpoint(struct journal *jnl)
 }
 
 int
-sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
+sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next, daddr_t checkpoint)
 {
     struct journal *jnl = kmalloc(sizeof(struct journal));
     if (jnl == NULL)
         return ENOMEM;
-    jnl->jnl_blks = bufarray_create();
-    if (jnl->jnl_blks == NULL) {
-        kfree(jnl);
-        return ENOMEM;
-    }
     jnl->jnl_lock = lock_create("SFS Journal Lock");
     if (jnl->jnl_lock == NULL) {
-        bufarray_destroy(jnl->jnl_blks);
         kfree(jnl);
         return ENOMEM;
     }
     jnl->jnl_txnqueue = transactionarray_create();
     if (jnl->jnl_txnqueue == NULL) {
         lock_destroy(jnl->jnl_lock);
-        bufarray_destroy(jnl->jnl_blks);
         kfree(jnl);
         return ENOMEM;
     }
@@ -468,13 +429,13 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next)
         if (err) {
             transactionarray_destroy(jnl->jnl_txnqueue);
             lock_destroy(jnl->jnl_lock);
-            bufarray_destroy(jnl->jnl_blks);
             kfree(jnl);
             return err;
         }
     }
     
-    jnl->jnl_current = jnl->jnl_checkpoint;
+    jnl->jnl_base = jnl->jnl_checkpoint;
+    jnl->jnl_current = 0;
     jnl->jnl_blkoffset = 0;
     
     sfs->sfs_jnl = jnl;

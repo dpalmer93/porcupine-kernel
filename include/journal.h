@@ -35,14 +35,21 @@
 #include <buf.h>
 #include <sfs.h>
 
+#define MAX_JNLBLKS 256
+#define JNL_BLKSIZE 512
+
+#define JE_PER_BLK 4
+#define JE_SIZE    128
+
 struct journal {
     struct fs               *jnl_fs;         // file system
-    struct bufarray         *jnl_blks;       // dynamic array of journal blocks
+    struct jnl_entry         jnl_blks[MAX_JNLBLKS * JNL_BLKSIZE];
     daddr_t                  jnl_top;        // top block of on-disk journal
     daddr_t                  jnl_bottom;     // bottom block of on-disk journal
-    daddr_t                  jnl_current;    // current journal block on disk being written to
+    daddr_t                  jnl_base;       // first block of journal in jnl_blks
+    daddr_t                  jnl_current;    // current index into jnl_blks
+    int                      jnl_blkoffset;  // current offset into current block
     daddr_t                  jnl_checkpoint; // address of first dirty journal block
-    int                      jnl_blkoffset;  // number of entries in jnl_entries
     struct transactionarray *jnl_txnqueue;   // transaction tracking
     uint64_t                 jnl_txnid_next; // next transaction ID
     struct lock             *jnl_lock;       // journal lock
@@ -68,7 +75,7 @@ int jnl_sync(struct journal *jnl);
 // Checkpoint
 void jnl_docheckpoint(struct journal *jnl);
 
-int sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next);
+int sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next, daddr_t checkpoint);
 void jnl_destroy(struct journal *jnl, daddr_t *checkpoint, uint64_t *txnid);
 
 
