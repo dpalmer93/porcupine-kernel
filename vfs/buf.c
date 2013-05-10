@@ -697,6 +697,56 @@ buffer_mark_valid(struct buf *b)
 }
 
 ////////////////////////////////////////////////////////////
+// buffers and transactions
+
+static
+void
+buffer_close_all_txns(struct buf *b)
+{
+    // Go to each transaction and decrement the refcount
+    // Empty the transaction list
+    unsigned num = transactionarray_num(b->b_txns);
+    for (unsigned i = 0; i < num; i++) {
+        txn_close(transactionarray_get(b->b_txns, i));
+    }
+    transactionarray_setsize(b->b_txns, 0);
+}
+
+// must be called with busy bit set
+int
+buffer_txn_touch(struct buf *b, struct transaction *txn)
+{
+    int err;
+    
+    KASSERT(b->b_busy);
+    
+    // Check to make sure the txn and buffer have not been attached
+    for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
+        if (txn == transactionarray_get(b->b_txns, i)) {
+            return EAGAIN;
+        }
+    }
+    
+    unsigned index;
+    err = transactionarray_add(b->b_txns, txn, &index);
+    if (err) {
+        return err;
+    }
+    
+    // Increment number of buffers this transaction touches
+    b->b_txncount++;
+    return 0;
+}
+
+void
+buffer_txn_yield(struct buf *b)
+{
+    lock_acquire(buffer_lock);
+    b->b_txncount--;
+    lock_release(buffer_lock);
+}
+
+////////////////////////////////////////////////////////////
 // buffer array management
 
 /*
@@ -866,15 +916,7 @@ buffer_sync(struct buf *b)
 	curthread->t_busy_buffers++;
 
 	result = buffer_writeout(b);
-    
-    // Go to each transaction and decrement the refcount
-    // Empty the transaction list
-    unsigned num = transactionarray_num(b->b_txns);
-    for (unsigned i = 0; i < num; i++) {
-        txn_close(transactionarray_get(b->b_txns, i));
-    }
-    transactionarray_setsize(b->b_txns, 0);
-
+    buffer_close_all_txns(b);
 	buffer_unmark_busy(b);
 	curthread->t_busy_buffers--;
 
@@ -925,7 +967,7 @@ buffer_evict(struct buf **ret)
 		if (b == NULL) {
 			continue;
 		}
-		if (b->b_busy == 1) {
+		if (b->b_busy == 1 || b->b_txncount > 0) {
 			b = NULL;
 			continue;
 		}
@@ -1116,6 +1158,10 @@ buffer_drop(struct fs *fs, daddr_t block, size_t size)
 		KASSERT(b->b_busy == 0);
 
 		buffer_get_attached(b, 0);
+        
+        // transactions can complete now
+        buffer_close_all_txns(b);
+        
 		b->b_valid = 0;
 		if (b->b_dirty) {
 			b->b_dirty = 0;
@@ -1125,40 +1171,6 @@ buffer_drop(struct fs *fs, daddr_t block, size_t size)
 		buffer_put_detached(b);
 	}
 	lock_release(buffer_lock);
-}
-
-// must be called with busy bit set
-int
-buffer_txn_touch(struct buf *b, struct transaction *txn)
-{
-    int err;
-    
-    KASSERT(b->b_busy);
-    
-    // Check to make sure the txn and buffer have not been attached
-    for (unsigned i = 0; i < transactionarray_num(b->b_txns); i++) {
-        if (txn == transactionarray_get(b->b_txns, i)) {
-            return EAGAIN;
-        }
-    }
-    
-    unsigned index;
-    err = transactionarray_add(b->b_txns, txn, &index);
-    if (err) {
-        return err;
-    }
-        
-    // Increment number of buffers this transaction touches    
-    b->b_txncount++;
-    return 0;
-}
-
-void
-buffer_txn_yield(struct buf *b)
-{
-    lock_acquire(buffer_lock);
-    b->b_txncount--;
-    lock_release(buffer_lock);
 }
 
 static
@@ -1205,7 +1217,10 @@ buffer_release_and_invalidate(struct buf *b)
 {
 	lock_acquire(buffer_lock);
 	bufcheck();
-
+    
+    // transactions can complete now
+    buffer_close_all_txns(b);
+    
 	b->b_valid = 0;
 	buffer_release_internal(b);
 	lock_release(buffer_lock);
