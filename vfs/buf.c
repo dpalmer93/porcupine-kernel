@@ -745,7 +745,9 @@ void
 buffer_txn_yield(struct buf *b)
 {
     lock_acquire(buffer_lock);
+    buffer_mark_busy(b);
     b->b_txncount--;
+    buffer_unmark_busy(b);
     lock_release(buffer_lock);
 }
 
