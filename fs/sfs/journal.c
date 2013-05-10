@@ -115,12 +115,7 @@ jnl_write_entry_internal(struct journal *jnl, struct jnl_entry *entry, daddr_t *
     // mark the buffer as dirty and place it in the journal's bufarray
     buffer_mark_dirty(iobuffer);
     unsigned index;
-    int added = 0;
-    for (unsigned i = 0; i < bufarray_num(jnl->jnl_blks); i++) {
-        if (iobuffer == bufarray_get(jnl->jnl_blks, i))
-            added = 1;
-    }
-    if (!added)    
+    if (offset == 0)
         bufarray_add(jnl->jnl_blks, iobuffer, &index);
     
     buffer_release(iobuffer);
@@ -167,7 +162,7 @@ jnl_write_commit(struct transaction *txn, daddr_t *written_blk)
     entry.je_type = JE_COMMIT;
     entry.je_txnid = txn->txn_id;
     
-    return jnl_write_entry_internal(txn->txn_jnl, &entry, written_blk);
+    return jnl_write_entry(txn->txn_jnl, &entry, written_blk);
 }
 
 int 
@@ -177,7 +172,7 @@ jnl_write_abort(struct transaction *txn, daddr_t *written_blk)
     entry.je_type = JE_ABORT;
     entry.je_txnid = txn->txn_id;
     
-    return jnl_write_entry_internal(txn->txn_jnl, &entry, written_blk);
+    return jnl_write_entry(txn->txn_jnl, &entry, written_blk);
 }
 
 int
@@ -315,11 +310,32 @@ int
 jnl_sync(struct journal *jnl)
 {
     int result;
-    for (unsigned i = 0; i < bufarray_num(jnl->jnl_blks); i++) {
-        result = buffer_force_sync(bufarray_get(jnl->jnl_blks, i));
-        if (result)
+    
+    lock_acquire(jnl->jnl_lock);
+    unsigned num_bufs = bufarray_num(jnl->jnl_blks);
+    unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
+    
+    
+    unsigned i = 0;
+    for (daddr_t blk = jnl->jnl_current - num + 1; blk < jnl->jnl_current; blk++) {
+        result = buffer_writeout(bufarray_get(jnl->jnl_blks, 0));
+        if (result) {
+            lock_release(jnl->jnl_lock);
             return result;
+        }
+        bufferarray_remove(jnl->jnl_blks, 0);
+        while (i < num_txns) {
+            struct transaction *txn = transactionarray_get(jnl->jnl_txnqueue, j);
+            
+            if (txn->txn_committed && txn->txn_endblk > blk)
+                break;
+            else if (txn->txn_committed) {
+                txn_oncommit(txn);
+            }
+            i++;
+        }
     }
+    lock_release(jnl->jnl_lock);
     return 0;
 }
 

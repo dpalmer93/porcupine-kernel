@@ -99,6 +99,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
         return err;
     }
     
+    txn->txn_committed = false;
     *ret = txn;
     return 0;
 }
@@ -121,31 +122,33 @@ txn_commit(struct transaction *txn)
     int err;
     struct journal *jnl = txn->txn_jnl;
     
-    lock_acquire(jnl->jnl_lock);
+    // Write COMMIT journal entry.
+    err = jnl_write_commit(txn, &txn->txn_endblk);
+    if (err)
+        return err;
+    
+    txn_committed = true;
+    
+    // make sure the COMMIT goes to disk
+    //err = jnl_sync(txn->txn_jnl);
+    
+    return 0;
+}
+
+void
+txn_oncommit(struct transaction *txn)
+{
     // Decrement the refcount on all the buffers this txn modified
     // Also remove them from the bufarray
     for (unsigned i = 0; i < bufarray_num(txn->txn_bufs); i++) {
         buffer_txn_yield(bufarray_get(txn->txn_bufs, i));
     }
     bufarray_setsize(txn->txn_bufs, 0);
-
-    // Write COMMIT journal entry.
-    // This also releases the journal lock.
-    err = jnl_write_commit(txn, &txn->txn_endblk);
-    if (err) {
-        return err;
-    }
-    
-    // make sure the COMMIT goes to disk
-    err = jnl_sync(txn->txn_jnl);
-    
-    return err;
 }
 
 int
 txn_abort(struct transaction *txn)
 {
-    lock_acquire(txn->txn_jnl->jnl_lock);
     // Decrement the refcount on all the buffers this txn modified
     // Also remove them from the bufarray
     unsigned num = bufarray_num(txn->txn_bufs);
@@ -155,7 +158,6 @@ txn_abort(struct transaction *txn)
     bufarray_setsize(txn->txn_bufs, 0);
     
     // Write ABORT journal entry.
-    // This also releases the journal lock.
     return jnl_write_abort(txn, &txn->txn_endblk);
 }
 
@@ -220,11 +222,5 @@ txn_close(struct transaction *txn)
         
         lock_release(jnl->jnl_lock);
     }
-}
-
-bool
-txn_issynced(struct transaction *txn)
-{
-    return (txn->txn_bufcount == 0);
 }
 

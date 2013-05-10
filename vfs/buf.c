@@ -880,43 +880,6 @@ buffer_sync(struct buf *b)
 	return result;
 }
 
-int
-buffer_force_sync(struct buf *b)
-{
-	int result;
-
-    lock_acquire(buffer_lock);
-    
-    // Cannot sync a buffer that still has uncommited transactions
-    KASSERT(b->b_txncount == 0);
-
-	/*
-	 * Mark it busy while we do I/O, but do *not* move it to the
-	 * busy list; this preserves its LRU ordering.
-	 */
-     
-	buffer_mark_busy(b);
-    curthread->t_busy_buffers++;
-
-	result = buffer_writeout(b);
-    
-    // Go to each transaction and decrement the refcount
-    // Empty the transaction list
-    unsigned num = transactionarray_num(b->b_txns);
-    for (unsigned i = 0; i < num; i++) {
-        txn_close(transactionarray_get(b->b_txns, i));
-    }
-    transactionarray_setsize(b->b_txns, 0);
-
-	buffer_unmark_busy(b);
-	curthread->t_busy_buffers--;
-
-    lock_release(buffer_lock);
-    
-	return result;
-}
-
-
 
 /*
  * Evict a buffer.
