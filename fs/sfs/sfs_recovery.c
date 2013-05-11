@@ -92,7 +92,7 @@ sfs_recover(struct sfs_fs *sfs, uint32_t *new_checkpoint, uint64_t *new_txnid)
     }
     je_blk = buffer_map(iterator);
     
-    uint64_t first_txnid;
+    uint64_t first_txnid = 0;
     uint64_t max_txnid = 0;
     bool found = false;
     for (int i = 0; i < SFS_JE_PER_BLOCK; i++) {

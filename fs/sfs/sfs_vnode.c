@@ -374,12 +374,12 @@ sfs_bmap_by_ino(struct sfs_fs *sfs, uint32_t ino, uint32_t fileblock, uint32_t *
 			idoff = fileblock/(SFS_DBPERIDB*SFS_DBPERIDB);
 			fileblock -= idoff * (SFS_DBPERIDB*SFS_DBPERIDB);
 		}
-		if(i == 2)
+		else if(i == 2)
 		{
 			idoff = fileblock/SFS_DBPERIDB;
 			fileblock -= idoff * SFS_DBPERIDB;
 		}
-		if(i == 1)
+		else
 		{
 			idoff = fileblock;
 		}
@@ -597,12 +597,12 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
 			idoff = fileblock/(SFS_DBPERIDB*SFS_DBPERIDB);
 			fileblock -= idoff * (SFS_DBPERIDB*SFS_DBPERIDB);
 		}
-		if(i == 2)
+		else if(i == 2)
 		{
 			idoff = fileblock/SFS_DBPERIDB;
 			fileblock -= idoff * SFS_DBPERIDB;
 		}
-		if(i == 1)
+		else
 		{
 			idoff = fileblock;
 		}
@@ -2760,9 +2760,12 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
 		lock_release(sv->sv_lock);
 		return result;
 	}
-
+    
+	/* and update the link count, marking the inode dirty */
+	inodeptr = buffer_map(f->sv_buf);
+	
     // Log journal entry
-    result = jnl_set_linkcount(txn, f->sv_ino, (inodeptr->sfi_linkcount) + 1);
+    result = jnl_set_linkcount(txn, f->sv_ino, inodeptr->sfi_linkcount + 1);
     if (result) {
 	    txn_abort(txn);
 		result2 = sfs_dir_unlink(sv, slot, NULL);
@@ -2777,8 +2780,6 @@ sfs_link(struct vnode *dir, const char *name, struct vnode *file)
         return result;
     }
     
-	/* and update the link count, marking the inode dirty */
-	inodeptr = buffer_map(f->sv_buf);
 	inodeptr->sfi_linkcount++;
 	txn_attach(txn, f->sv_buf);
 	buffer_mark_dirty(f->sv_buf);
@@ -3284,6 +3285,9 @@ sfs_rename(struct vnode *absdir1, const char *name1,
 	int result, result2;
 	struct sfs_dir sd;
 	int found_dir1;
+	
+	// to satisfy GCC: otherwise, it appears to be used uninitialized
+	obj2_inodeptr = NULL;
 
 	/* The VFS layer is supposed to enforce this */
 	KASSERT(absdir1->vn_fs == absdir2->vn_fs);
