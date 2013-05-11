@@ -45,6 +45,7 @@
 #include <sfs.h>
 #include <synch.h>
 #include <journal.h>
+#include <transaction.h>
 
 /* Shortcuts for the size macros in kern/sfs.h */
 #define SFS_FS_BITMAPSIZE(sfs)  SFS_BITMAPSIZE((sfs)->sfs_super.sp_nblocks)
@@ -74,7 +75,7 @@
 int
 sfs_map_txn_touch(struct transaction *txn)
 {
-    struct sfs_fs *sfs = txn->txn_fs->fs_data;
+    struct sfs_fs *sfs = txn->txn_jnl->jnl_fs->fs_data;
     
     KASSERT(lock_do_i_hold(sfs->sfs_bitlock));
     // Check to make sure the txn and freemap have not been attached
@@ -85,7 +86,7 @@ sfs_map_txn_touch(struct transaction *txn)
     }
     
     unsigned index;
-    err = transactionarray_add(sfs->sfs_txns, txn, &index);
+    int err = transactionarray_add(sfs->sfs_maptxns, txn, &index);
     if (err) {
         return err;
     }
@@ -97,7 +98,7 @@ sfs_map_txn_touch(struct transaction *txn)
 void
 sfs_map_txn_yield(struct transaction *txn)
 {
-    struct sfs_fs *sfs = txn->txn_fs->fs_data;
+    struct sfs_fs *sfs = txn->txn_jnl->jnl_fs->fs_data;
     lock_acquire(sfs->sfs_bitlock);
     KASSERT(sfs->sfs_maptxncount > 0);
     sfs->sfs_maptxncount--;
@@ -144,13 +145,15 @@ sfs_mapio(struct sfs_fs *sfs, enum uio_rw rw)
 		}
 	}
     
-    // close the transactions waiting for the map to
-    // be written out
-    unsigned num = transactionarray_num(sfs->sfs_maptxns);
-    for (unsigned i = 0; i < num; i++) {
-        txn_mapclose(transactionarray_get(sfs->sfs_maptxns, i));
+    if (rw == UIO_WRITE) {
+        // close the transactions waiting for the map to
+        // be written out
+        unsigned num = transactionarray_num(sfs->sfs_maptxns);
+        for (unsigned i = 0; i < num; i++) {
+            txn_mapclose(transactionarray_get(sfs->sfs_maptxns, i));
+        }
+        transactionarray_setsize(sfs->sfs_maptxns, 0);
     }
-    transactionarray_setsize(b->b_txns, 0);
     
 	return 0;
 }
