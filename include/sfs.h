@@ -67,8 +67,8 @@ struct sfs_fs {
 	struct device *sfs_device;      /* device mounted on */
 	struct vnodearray *sfs_vnodes;  /* vnodes loaded into memory */
 	struct bitmap *sfs_freemap;     /* blocks in use are marked 1 */
-    struct transactionarray *sfs_freemaptxns; /* txns that touched freemap */
-    unsigned sfs_freemaptxncount; /* # of uncommitted txns touched freemap */
+    struct transactionarray *sfs_maptxns; /* txns that touched freemap */
+    unsigned sfs_maptxncount; /* # of uncommitted txns touched freemap */
 	bool sfs_freemapdirty;          /* true if freemap modified */
 	struct lock *sfs_vnlock;	/* lock for vnode table */
 	struct lock *sfs_bitlock;	/* lock for bitmap/superblock */
@@ -94,6 +94,10 @@ int sfs_mount(const char *device);
 int sfs_readblock(struct fs *fs, daddr_t block, void *data, size_t len);
 int sfs_writeblock(struct fs *fs, daddr_t block, void *data, size_t len);
 int sfs_writesuper(struct sfs_fs *sfs);
+
+/* Freemap/Transaction interaction */
+void sfs_map_txn_yield(struct transaction *txn);
+int sfs_map_txn_touch(struct transaction *txn);
 
 /* Replay journal entries */
 int sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs);

@@ -62,6 +62,7 @@ txn_start(struct journal *jnl, struct transaction **ret)
     txn->txn_bufcount = 0;
     txn->txn_jnl = jnl;
     txn->txn_committed = false;
+    txn->txn_maptouched = false;
     
     lock_acquire(jnl->jnl_lock);
     // Wait until there is room in our transaction queue
@@ -144,6 +145,10 @@ txn_oncommit(struct transaction *txn)
         buffer_txn_yield(bufarray_get(txn->txn_bufs, i));
     }
     bufarray_setsize(txn->txn_bufs, 0);
+    
+    // Also yield the freemap if necessary
+    if (txn->txn_maptouched)
+        sfs_map_txn_yield(txn);
 }
 
 int
@@ -195,6 +200,32 @@ txn_attach(struct transaction *txn, struct buf *b)
     return 0;
 }
 
+int txn_mapattach(struct transaction *txn)
+{
+    // During recovery
+    if (txn == NULL)
+        return 0;
+    
+    int err;
+    // Place transaction onto freemap
+    err = sfs_map_txn_touch(txn);
+    if (err == EAGAIN) {
+        // Freemap and transaction have already been attached
+        return 0;
+    }
+    else if (err) {
+        return err;
+    }
+    
+    lock_acquire(txn->txn_jnl->jnl_lock);
+    // Place freemap onto transaction
+    txn->txn_maptouched = true;
+    // Increment bufcount
+    txn->txn_bufcount++;
+    lock_release(txn->txn_jnl->jnl_lock);
+    return 0;
+}
+
 // Decrements refcount on a transaction
 // If the refcount reaches 0, we do a checkpoint
 void
@@ -218,6 +249,39 @@ txn_close(struct transaction *txn, struct buf *b)
         KASSERT(i < num_bufs);
     }
     else if (txn->txn_bufcount == 0) {
+        // all buffers flushed
+        // done with this transaction
+        lock_acquire(jnl->jnl_lock);
+        
+        // remove txn from the queue, destroy it, and trigger a checkpoint
+        unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
+        for (i = 0; i < num_txns; i++) {
+            if (transactionarray_get(jnl->jnl_txnqueue, i) == txn) {
+                transactionarray_remove(jnl->jnl_txnqueue, i);
+                break;
+            }
+        }
+        // should have removed the txn
+        KASSERT(i < num_txns);
+        
+        txn_destroy(txn);
+        jnl_docheckpoint(jnl);
+        
+        lock_release(jnl->jnl_lock);
+    }
+}
+
+// Like txn_close(), but for the freemap
+void
+txn_mapclose(struct transaction *txn)
+{
+    struct journal *jnl = txn->txn_jnl;
+    unsigned i;
+    
+    KASSERT(txn->txn_committed);
+    
+    txn->txn_bufcount--;
+    if (txn->txn_bufcount == 0) {
         // all buffers flushed
         // done with this transaction
         lock_acquire(jnl->jnl_lock);

@@ -38,7 +38,7 @@ struct transaction {
     struct journal  *txn_jnl;        // journal transaction belongs to
     uint64_t         txn_id;         // unique & monotonic ID
     bool             txn_committed;  // has been committed?
-    uint32_t         txn_bufcount;   // # of modified buffers not yet synced
+    uint32_t         txn_bufcount;   // # of modified buffers (&freemap) not yet synced
     daddr_t          txn_startblk;   // disk block containing start entry
     daddr_t          txn_endblk;     // disk block containing commit/abort entry
     bool             txn_maptouched; // did it touch the freemap?
@@ -54,11 +54,13 @@ void txn_destroy(struct transaction *txn);
 
 // Attaches a transaction to a buffer.  Touches the buffer
 int txn_attach(struct transaction *txn, struct buf *b);
+int txn_mapattach(struct transaction *txn);
 
 // Called once the commit actually goes to disk
 void txn_oncommit(struct transaction *txn);
 
 // Called on buffer sync
 void txn_close(struct transaction *txn, struct buf *b);
+void txn_mapclose(struct transaction *txn);
 
 #endif /* _TRANSACTION_H_ */

@@ -71,6 +71,39 @@
  * likewise marked in use by mksfs.
  */
 
+int
+sfs_map_txn_touch(struct transaction *txn)
+{
+    struct sfs_fs *sfs = txn->txn_fs->fs_data;
+    
+    KASSERT(lock_do_i_hold(sfs->sfs_bitlock));
+    // Check to make sure the txn and freemap have not been attached
+    for (unsigned i = 0; i < transactionarray_num(sfs->sfs_maptxns); i++) {
+        if (txn == transactionarray_get(sfs->sfs_maptxns, i)) {
+            return EAGAIN;
+        }
+    }
+    
+    unsigned index;
+    err = transactionarray_add(sfs->sfs_txns, txn, &index);
+    if (err) {
+        return err;
+    }
+    
+    sfs->sfs_maptxncount++;
+    return 0;
+}
+
+void
+sfs_map_txn_yield(struct transaction *txn)
+{
+    struct sfs_fs *sfs = txn->txn_fs->fs_data;
+    lock_acquire(sfs->sfs_bitlock);
+    KASSERT(sfs->sfs_maptxncount > 0);
+    sfs->sfs_maptxncount--;
+    lock_release(sfs->sfs_bitlock);
+}
+
 static
 int
 sfs_mapio(struct sfs_fs *sfs, enum uio_rw rw)
@@ -110,6 +143,15 @@ sfs_mapio(struct sfs_fs *sfs, enum uio_rw rw)
 			return result;
 		}
 	}
+    
+    // close the transactions waiting for the map to
+    // be written out
+    unsigned num = transactionarray_num(sfs->sfs_maptxns);
+    for (unsigned i = 0; i < num; i++) {
+        txn_mapclose(transactionarray_get(sfs->sfs_maptxns, i));
+    }
+    transactionarray_setsize(b->b_txns, 0);
+    
 	return 0;
 }
 
@@ -189,7 +231,7 @@ sfs_sync(struct fs *fs)
 	lock_acquire(sfs->sfs_bitlock);
 
 	/* If the free block map needs to be written, write it. */
-	if (sfs->sfs_freemapdirty) {
+	if (sfs->sfs_freemapdirty && sfs->sfs_maptxncount == 0) {
 		result = sfs_mapio(sfs, UIO_WRITE);
 		if (result) {
 			lock_release(sfs->sfs_bitlock);
@@ -463,10 +505,23 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
 		kfree(sfs);
 		return result;
 	}
+    sfs->sfs_maptxns = transactionarray_create();
+    if (sfs->sfs_maptxns == NULL) {
+        lock_release(sfs->sfs_vnlock);
+		lock_release(sfs->sfs_bitlock);
+		lock_destroy(sfs->sfs_vnlock);
+		lock_destroy(sfs->sfs_bitlock);
+		lock_destroy(sfs->sfs_renamelock);
+		bitmap_destroy(sfs->sfs_freemap);
+		vnodearray_destroy(sfs->sfs_vnodes);
+		kfree(sfs);
+		return ENOMEM;
+    }
 	
 	/* the other fields */
 	sfs->sfs_superdirty = false;
 	sfs->sfs_freemapdirty = false;
+    sfs->sfs_maptxncount = 0;
     
 	lock_release(sfs->sfs_bitlock);
 	lock_release(sfs->sfs_vnlock);
@@ -477,6 +532,7 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
 		lock_destroy(sfs->sfs_bitlock);
 		lock_destroy(sfs->sfs_renamelock);
 		bitmap_destroy(sfs->sfs_freemap);
+        transactionarray_destroy(sfs->sfs_maptxns);
 		vnodearray_destroy(sfs->sfs_vnodes);
 		kfree(sfs);
         return result;
@@ -492,6 +548,7 @@ sfs_domount(void *options, struct device *dev, struct fs **ret)
 		lock_destroy(sfs->sfs_bitlock);
 		lock_destroy(sfs->sfs_renamelock);
 		bitmap_destroy(sfs->sfs_freemap);
+        transactionarray_destroy(sfs->sfs_maptxns);
 		vnodearray_destroy(sfs->sfs_vnodes);
 		kfree(sfs);
         return result;
