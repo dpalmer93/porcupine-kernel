@@ -58,6 +58,6 @@ int txn_attach(struct transaction *txn, struct buf *b);
 void txn_oncommit(struct transaction *txn);
 
 // Called on buffer sync
-void txn_close(struct transaction *txn);
+void txn_close(struct transaction *txn, struct buf *b);
 
 #endif /* _TRANSACTION_H_ */

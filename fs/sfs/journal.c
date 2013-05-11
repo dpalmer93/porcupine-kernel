@@ -67,7 +67,7 @@ jnl_next_block(struct journal *jnl)
     // We've hit our checkpoint so next block is unavailable
     // In this case, flush all the file system buffers
     if (next_block == jnl->jnl_checkpoint) {
-        FSOP_SYNC(jnl->jnl_fs);
+        sync_fs_buffers(jnl->jnl_fs);
     }
     
     jnl->jnl_base = next_base;
@@ -304,7 +304,7 @@ jnl_sync(struct journal *jnl)
     unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
     for (unsigned i = 0; i < num_txns; i++) {
         struct transaction *txn = transactionarray_get(jnl->jnl_txnqueue, i);
-        if (txn->txn_bufcount == 0) {
+        if (txn->txn_bufcount == 0 && txn->txn_committed) {
             // already completely closed (e.g., buffers invalidated)
             transactionarray_remove(jnl->jnl_txnqueue, i);
             i--;
@@ -406,6 +406,9 @@ sfs_jnlmount(struct sfs_fs *sfs, uint64_t txnid_next, daddr_t checkpoint)
             kfree(jnl);
             return err;
         }
+        
+        // so that FSOP_SYNC will not try to sync the journal
+        sfs->sfs_jnl = NULL;
         
         // sync the changes to disk
         err = FSOP_SYNC(&sfs->sfs_absfs);

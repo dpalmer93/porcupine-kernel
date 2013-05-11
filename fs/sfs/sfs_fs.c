@@ -173,6 +173,13 @@ sfs_sync(struct fs *fs)
 
 	sfs = fs->fs_data;
 
+    /* Sync the journal to make sure all transactions are committed */
+    if (sfs->sfs_jnl != NULL) {
+        lock_acquire(sfs->sfs_jnl->jnl_lock);
+        jnl_sync(sfs->sfs_jnl);
+        lock_release(sfs->sfs_jnl->jnl_lock);
+    }
+
 	/* Sync the buffer cache */
 	result = sync_fs_buffers(fs);
 	if (result) {

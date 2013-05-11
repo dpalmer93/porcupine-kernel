@@ -70,8 +70,8 @@ txn_start(struct journal *jnl, struct transaction **ret)
         jnl_sync(jnl);
         
         lock_release(jnl->jnl_lock);
-        // sync the FS to close transactions
-        err = FSOP_SYNC(jnl->jnl_fs);
+        // sync the buffer cache to close transactions
+        err = sync_fs_buffers(jnl->jnl_fs);
         if (err) {
             bufarray_destroy(txn->txn_bufs);
             kfree(txn);
@@ -132,10 +132,6 @@ txn_commit(struct transaction *txn)
         return err;
     
     txn->txn_committed = true;
-    
-    // make sure the COMMIT goes to disk
-    //err = jnl_sync(txn->txn_jnl);
-    
     return 0;
 }
 
@@ -202,24 +198,40 @@ txn_attach(struct transaction *txn, struct buf *b)
 // Decrements refcount on a transaction
 // If the refcount reaches 0, we do a checkpoint
 void
-txn_close(struct transaction *txn)
+txn_close(struct transaction *txn, struct buf *b)
 {
     struct journal *jnl = txn->txn_jnl;
+    unsigned i;
+    
     txn->txn_bufcount--;
-    if (txn->txn_bufcount == 0 && txn->txn_committed) {
+    if (!txn->txn_committed) {
+        // the buffer must have been invalidated
+        // remove it so that we do not try to yield it later
+        unsigned num_bufs = bufarray_num(txn->txn_bufs);
+        for (i = 0; i < num_bufs; i++) {
+            if (bufarray_get(txn->txn_bufs, i) == b) {
+                bufarray_remove(txn->txn_bufs, i);
+                break;
+            }
+        }
+        // should have removed the buf
+        KASSERT(i < num_bufs);
+    }
+    else if (txn->txn_bufcount == 0) {
+        // all buffers flushed
+        // done with this transaction
         lock_acquire(jnl->jnl_lock);
         
         // remove txn from the queue, destroy it, and trigger a checkpoint
-        unsigned i;
-        unsigned num = transactionarray_num(jnl->jnl_txnqueue);
-        for (i = 0; i < num; i++) {
+        unsigned num_txns = transactionarray_num(jnl->jnl_txnqueue);
+        for (i = 0; i < num_txns; i++) {
             if (transactionarray_get(jnl->jnl_txnqueue, i) == txn) {
                 transactionarray_remove(jnl->jnl_txnqueue, i);
                 break;
             }
         }
         // should have removed the txn
-        KASSERT(i < num);
+        KASSERT(i < num_txns);
         
         txn_destroy(txn);
         jnl_docheckpoint(jnl);
