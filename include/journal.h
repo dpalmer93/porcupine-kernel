@@ -43,16 +43,16 @@
 
 struct journal {
     struct fs               *jnl_fs;         // file system
-    struct jnl_entry         jnl_blks[MAX_JNLBLKS * JE_PER_BLK];
+    struct lock             *jnl_lock;       // journal lock
     daddr_t                  jnl_top;        // top block of on-disk journal
     daddr_t                  jnl_bottom;     // bottom block of on-disk journal
     daddr_t                  jnl_base;       // first block of journal in jnl_blks
     daddr_t                  jnl_current;    // current index into jnl_blks
     int                      jnl_blkoffset;  // current offset into current block
     daddr_t                  jnl_checkpoint; // address of first dirty journal block
-    struct transactionarray *jnl_txnqueue;   // transaction tracking
     uint64_t                 jnl_txnid_next; // next transaction ID
-    struct lock             *jnl_lock;       // journal lock
+    struct transactionarray *jnl_txnqueue;   // transaction tracking
+    struct jnl_entry         jnl_blks[MAX_JNLBLKS * JE_PER_BLK];
 };
 
 /* Commands to write entries */

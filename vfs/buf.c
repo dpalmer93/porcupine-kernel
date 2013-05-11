@@ -521,8 +521,8 @@ buffer_attach(struct buf *b, struct fs *fs, daddr_t block)
 
 	KASSERT(b->b_attached == 0);
 	KASSERT(b->b_valid == 0);
+	KASSERT(b->b_txncount == 0);
 	b->b_attached = 1;
-	b->b_txncount = 0;
 	transactionarray_setsize(b->b_txns, 0);
 	b->b_fs = fs;
 	b->b_physblock = block;
@@ -708,7 +708,7 @@ buffer_close_all_txns(struct buf *b)
     // Empty the transaction list
     unsigned num = transactionarray_num(b->b_txns);
     for (unsigned i = 0; i < num; i++) {
-        txn_close(transactionarray_get(b->b_txns, i));
+        txn_close(transactionarray_get(b->b_txns, i), b);
     }
     transactionarray_setsize(b->b_txns, 0);
     b->b_txncount = 0;
@@ -749,7 +749,8 @@ buffer_txn_yield(struct buf *b)
         buffer_mark_busy(b);
         busied = true;
     }
-    b->b_txncount--;
+    if (b->b_txncount > 0)
+        b->b_txncount--;
     if (busied)
         buffer_unmark_busy(b);
     lock_release(buffer_lock);
@@ -925,7 +926,8 @@ buffer_sync(struct buf *b)
 	curthread->t_busy_buffers++;
 
 	result = buffer_writeout(b);
-    buffer_close_all_txns(b);
+	if (result == 0)
+        buffer_close_all_txns(b);
 	buffer_unmark_busy(b);
 	curthread->t_busy_buffers--;
 
@@ -1004,6 +1006,7 @@ buffer_evict(struct buf **ret)
 	}
 
 	KASSERT(b->b_dirty == 0);
+	KASSERT(b->b_txncount == 0);
 
 	/*
 	 * Detach it from its old key, and return it in a state where
@@ -1119,6 +1122,8 @@ buffer_read(struct fs *fs, daddr_t block, size_t size, struct buf **ret)
 	}
 
 	if (!(*ret)->b_valid) {
+	    KASSERT((*ret)->b_txncount == 0);
+	
 		/* may lose (and then re-acquire) lock here */
 		result = buffer_readin(*ret);
 		if (result) {
@@ -1180,6 +1185,8 @@ buffer_release_internal(struct buf *b)
 	curthread->t_busy_buffers--;
 
 	if (!b->b_valid) {
+	    KASSERT(b->b_txncount == 0);
+	
 		/* detach it */
 		if (b->b_dirty) {
 			b->b_dirty = 0;
