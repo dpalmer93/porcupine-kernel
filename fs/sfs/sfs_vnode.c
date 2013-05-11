@@ -182,6 +182,11 @@ sfs_balloc(struct sfs_fs *sfs, uint32_t *diskblock, struct buf **bufret, struct 
 		lock_release(sfs->sfs_bitlock);
 		return result;
 	}
+    result = txn_mapattach(txn);
+    if (result) {
+        lock_release(sfs->sfs_bitlock);
+        return result;
+    }
     
 	sfs->sfs_freemapdirty = true;
 
@@ -215,10 +220,11 @@ sfs_balloc_specific(struct sfs_fs *sfs, uint32_t diskblock)
  */
 static
 void
-sfs_bfree(struct sfs_fs *sfs, uint32_t diskblock)
+sfs_bfree(struct sfs_fs *sfs, uint32_t diskblock, struct transaction *txn)
 {
 	lock_acquire(sfs->sfs_bitlock);
 	bitmap_unmark(sfs->sfs_freemap, diskblock);
+    txn_mapattach(txn); // hope this never fails...
 	sfs->sfs_freemapdirty = true;
 	lock_release(sfs->sfs_bitlock);
 }
@@ -474,7 +480,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
             int slot = 2 + fileblock;
             result = jnl_add_datablock_inode(txn, sv->sv_ino, block, slot);
             if (result) {
-                sfs_bfree(sfs, block);
+                sfs_bfree(sfs, block, NULL);
                 sfs_release_inode(sv);
                 return result;
             }
@@ -545,7 +551,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
         int slot = 2 + SFS_NDIRECT + (indir - 1);
         result = jnl_add_datablock_inode(txn, sv->sv_ino, next_block, slot);
         if (result) {
-            sfs_bfree(sfs, next_block);
+            sfs_bfree(sfs, next_block, NULL);
             sfs_release_inode(sv);
             return result;
         }
@@ -627,7 +633,7 @@ sfs_bmap(struct sfs_vnode *sv, uint32_t fileblock,
             int slot = idoff;
             result = jnl_add_datablock_indirect(txn, cur_block, next_block, slot);
             if (result) {
-                sfs_bfree(sfs, next_block);
+                sfs_bfree(sfs, next_block, NULL);
                 buffer_release(kbuf);
                 sfs_release_inode(sv);
                 return result;
@@ -1397,7 +1403,7 @@ sfs_makeobj(struct sfs_fs *sfs, int type, struct sfs_vnode **ret, struct transac
     // Log journal entry
     result = jnl_new_inode(txn, ino, type);
     if (result) {
-        sfs_bfree(sfs, ino);
+        sfs_bfree(sfs, ino, txn, NULL);
         return result;
     }
     
@@ -1407,7 +1413,7 @@ sfs_makeobj(struct sfs_fs *sfs, int type, struct sfs_vnode **ret, struct transac
 
 	result = sfs_loadvnode(sfs, ino, type, ret, true, txn);
 	if (result) {
-		sfs_bfree(sfs, ino);
+		sfs_bfree(sfs, ino, NULL);
 	}
 	return result;
 }
@@ -1599,7 +1605,7 @@ sfs_reclaim(struct vnode *v)
         sfs_release_inode(sv);
 		/* Discard the inode */
 		buffer_drop(&sfs->sfs_absfs, sv->sv_ino, SFS_BLOCKSIZE);
-		sfs_bfree(sfs, sv->sv_ino);
+		sfs_bfree(sfs, sv->sv_ino, txn);
         
         result = txn_commit(txn);    
         if (result) {
@@ -1988,7 +1994,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
 		if (i >= blocklen && block != 0) {
             // Log journal entry
             jnl_remove_datablock_inode(txn, sv->sv_ino, block, 2+i);
-			sfs_bfree(sfs, block);
+			sfs_bfree(sfs, block, txn);
 			inodeptr->sfi_direct[i] = 0;
 		}
 	}
@@ -2226,7 +2232,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
                             // Log journal entry
                             jnl_remove_datablock_indirect(txn, idblock, block, level1);
                             
-							sfs_bfree(sfs, block);
+							sfs_bfree(sfs, block, txn);
 						}
 
 						/* Remember if we see any nonzero blocks in here */
@@ -2247,7 +2253,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
                         }
                     
 						/* The whole indirect block is empty now; free it */
-						sfs_bfree(sfs, idblock);
+						sfs_bfree(sfs, idblock, txn);
 						if(indir == 1)
 						{
 							inodeptr->sfi_indirect = 0;
@@ -2298,7 +2304,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
                         jnl_remove_datablock_indirect(txn, tidblock, didblock, level3);
                     }
 					/* The whole double indirect block is empty now; free it */
-					sfs_bfree(sfs, didblock);
+					sfs_bfree(sfs, didblock, txn);
 					if(indir == 2)
 					{
 						inodeptr->sfi_dindirect = 0;
@@ -2339,7 +2345,7 @@ sfs_dotruncate(struct vnode *v, off_t len, struct transaction *txn)
                 jnl_remove_datablock_inode(txn, sv->sv_ino, tidblock, 4 + SFS_NDIRECT);
             
 				/* The whole triple indirect block is empty now; free it */
-				sfs_bfree(sfs, tidblock);
+				sfs_bfree(sfs, tidblock, txn);
 				inodeptr->sfi_tindirect = 0;
 			}
 			else if(tid_modified)
@@ -4302,7 +4308,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
         case JE_REMOVE_INODE:
             buffer_drop(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE);
             if (sfs_bused(sfs, je->je_ino))
-                sfs_bfree(sfs, je->je_ino);
+                sfs_bfree(sfs, je->je_ino, NULL);
             return 0;
         case JE_REMOVE_DATABLOCK_INODE:
             KASSERT(je->je_slot < 5 + SFS_NDIRECT);
@@ -4320,7 +4326,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             buffer_release(buf);
             
             if (sfs_bused(sfs, je->je_childblk))
-                sfs_bfree(sfs, je->je_childblk);
+                sfs_bfree(sfs, je->je_childblk, NULL);
             return 0;
         case JE_REMOVE_DATABLOCK_INDIRECT:
             err = buffer_read(&sfs->sfs_absfs, je->je_parentblk, SFS_BLOCKSIZE, &buf);
@@ -4334,7 +4340,7 @@ sfs_replay(struct jnl_entry *je, struct sfs_fs *sfs)
             buffer_release(buf);
             
             if (sfs_bused(sfs, je->je_childblk))
-                sfs_bfree(sfs, je->je_childblk);
+                sfs_bfree(sfs, je->je_childblk, NULL);
             return 0;
         case JE_SET_SIZE:
             err = buffer_read(&sfs->sfs_absfs, je->je_ino, SFS_BLOCKSIZE, &buf);
