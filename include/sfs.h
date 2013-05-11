@@ -67,6 +67,8 @@ struct sfs_fs {
 	struct device *sfs_device;      /* device mounted on */
 	struct vnodearray *sfs_vnodes;  /* vnodes loaded into memory */
 	struct bitmap *sfs_freemap;     /* blocks in use are marked 1 */
+    struct transactionarray *sfs_freemaptxns; /* txns that touched freemap */
+    unsigned sfs_freemaptxncount; /* # of uncommitted txns touched freemap */
 	bool sfs_freemapdirty;          /* true if freemap modified */
 	struct lock *sfs_vnlock;	/* lock for vnode table */
 	struct lock *sfs_bitlock;	/* lock for bitmap/superblock */
