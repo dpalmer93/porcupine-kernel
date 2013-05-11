@@ -35,7 +35,7 @@
 #include <buf.h>
 #include <sfs.h>
 
-#define MAX_JNLBLKS 256 // number of journal blocks to cache
+#define MAX_JNLBLKS 64 // number of journal blocks to cache
 #define JNL_BLKSIZE 512
 
 #define JE_PER_BLK  4
