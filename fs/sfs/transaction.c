@@ -71,8 +71,8 @@ txn_start(struct journal *jnl, struct transaction **ret)
         jnl_sync(jnl);
         
         lock_release(jnl->jnl_lock);
-        // sync the buffer cache to close transactions
-        err = sync_fs_buffers(jnl->jnl_fs);
+        // sync the buffer cache and freemap to close transactions
+        err = FSOP_SYNC(jnl->jnl_fs);
         if (err) {
             bufarray_destroy(txn->txn_bufs);
             kfree(txn);

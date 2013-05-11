@@ -66,8 +66,14 @@ jnl_next_block(struct journal *jnl)
     
     // We've hit our checkpoint so next block is unavailable
     // In this case, flush all the file system buffers
-    if (next_block == jnl->jnl_checkpoint) {
-        sync_fs_buffers(jnl->jnl_fs);
+    while (next_block == jnl->jnl_checkpoint) {
+        lock_release(jnl->jnl_lock);
+        err = FSOP_SYNC(jnl->jnl_fs);
+        if (err) {
+            lock_acquire(jnl->jnl_lock);
+            return err;
+        }
+        lock_acquire(jnl->jnl_lock);
     }
     
     jnl->jnl_base = next_base;

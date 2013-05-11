@@ -100,8 +100,8 @@ sfs_map_txn_yield(struct transaction *txn)
 {
     struct sfs_fs *sfs = txn->txn_jnl->jnl_fs->fs_data;
     lock_acquire(sfs->sfs_bitlock);
-    KASSERT(sfs->sfs_maptxncount > 0);
-    sfs->sfs_maptxncount--;
+    if (sfs->sfs_maptxncount > 0)
+        sfs->sfs_maptxncount--;
     lock_release(sfs->sfs_bitlock);
 }
 
@@ -261,9 +261,11 @@ sfs_sync(struct fs *fs)
 int
 sfs_writesuper(struct sfs_fs *sfs)
 {
-    int err = 0;
+    if (lock_do_i_hold(sfs->sfs_bitlock))
+        return sfs_writesuper_internal(sfs);
+        
     lock_acquire(sfs->sfs_bitlock);
-	err = sfs_writesuper_internal(sfs);
+	int err = sfs_writesuper_internal(sfs);
 	lock_release(sfs->sfs_bitlock);
     return err;
 }

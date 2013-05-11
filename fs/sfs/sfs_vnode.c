@@ -1403,7 +1403,7 @@ sfs_makeobj(struct sfs_fs *sfs, int type, struct sfs_vnode **ret, struct transac
     // Log journal entry
     result = jnl_new_inode(txn, ino, type);
     if (result) {
-        sfs_bfree(sfs, ino, txn, NULL);
+        sfs_bfree(sfs, ino, NULL);
         return result;
     }
     
